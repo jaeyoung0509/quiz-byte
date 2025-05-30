@@ -1,0 +1,50 @@
+# Go build
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Dependency directories (vendor/)
+vendor/
+
+# IDE/editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*.bak
+*.tmp
+.DS_Store
+
+# Logs
+*.log
+
+# OS
+Thumbs.db
+
+# Test/coverage
+coverage.out
+*.coverprofile
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Docker
+.env
+.env.*
+
+# Oracle client
+instantclient_*/
+
+# Misc
+node_modules/
+__pycache__/
+
+# Local config
+config/config.yaml

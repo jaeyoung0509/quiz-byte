@@ -1,0 +1,228 @@
+[
+  {
+    "main_category": "Computer Science Fundamentals",
+    "sub_category": "Data Structures",
+    "question": "Which of the following is NOT a major characteristic of a Stack?",
+    "model_answers": ["FIFO (First-In, First-Out)"],
+    "keywords": [
+      "LIFO (Last-In, First-Out)",
+      "push operation",
+      "pop operation"
+    ],
+    "difficulty": 2
+  },
+  {
+    "main_category": "Computer Science Fundamentals",
+    "sub_category": "Data Structures",
+    "question": "What is a common application of a Queue data structure?",
+    "model_answers": ["Task scheduling in an operating system"],
+    "keywords": ["Queue", "FIFO", "Task scheduling"],
+    "difficulty": 3
+  },
+  {
+    "main_category": "Computer Science Fundamentals",
+    "sub_category": "Data Structures",
+    "question": "In a binary search tree (BST), which traversal method visits nodes in ascending order?",
+    "model_answers": ["In-order traversal"],
+    "keywords": ["BST", "In-order", "Traversal"],
+    "difficulty": 3
+  },
+  {
+    "main_category": "Computer Science Fundamentals",
+    "sub_category": "Algorithms",
+    "question": "Which sorting algorithm has an average time complexity of O(n log n)?",
+    "model_answers": ["Quick Sort - Average"],
+    "keywords": ["QuickSort", "O(n log n)", "Sorting"],
+    "difficulty": 3
+  },
+  {
+    "main_category": "Computer Science Fundamentals",
+    "sub_category": "Algorithms",
+    "question": "What is the primary purpose of Dijkstra's algorithm?",
+    "model_answers": [
+      "To find the shortest path from a single source node to all other nodes in a weighted graph"
+    ],
+    "keywords": ["Dijkstra", "Shortest Path", "Graph Theory"],
+    "difficulty": 4
+  },
+  {
+    "main_category": "Computer Science Fundamentals",
+    "sub_category": "Algorithms",
+    "question": "What does 'Big O notation' primarily describe about an algorithm?",
+    "model_answers": [
+      "The algorithm's worst-case time complexity or growth rate"
+    ],
+    "keywords": ["Algorithms", "Complexity", "Big O Notation", "Performance"],
+    "difficulty": 2
+  },
+  {
+    "main_category": "Networking",
+    "sub_category": "OSI Model",
+    "question": "What is the main role of the Data Link Layer in the OSI 7-layer model?",
+    "model_answers": ["Error control and flow control (physical link)"],
+    "keywords": ["Networking", "OSI 7 Layers", "Data Link Layer"],
+    "difficulty": 3
+  },
+  {
+    "main_category": "Networking",
+    "sub_category": "Address Resolution",
+    "question": "Which protocol is primarily used to resolve an IP address to a MAC address on a local network?",
+    "model_answers": ["ARP (Address Resolution Protocol)"],
+    "keywords": ["Networking", "ARP", "MAC Address", "IP Address", "LAN"],
+    "difficulty": 3
+  },
+  {
+    "main_category": "Networking",
+    "sub_category": "Network Address Translation",
+    "question": "What is the function of NAT (Network Address Translation)?",
+    "model_answers": [
+      "To translate private IP addresses to a public IP address and vice-versa"
+    ],
+    "keywords": ["Networking", "NAT", "IP Address", "Security"],
+    "difficulty": 4
+  },
+  {
+    "main_category": "Database Management",
+    "sub_category": "SQL",
+    "question": "In SQL, what is the command to delete all data from a table while keeping the table structure?",
+    "model_answers": ["TRUNCATE TABLE table_name"],
+    "keywords": ["Database", "SQL", "DDL", "DML"],
+    "difficulty": 2
+  },
+  {
+    "main_category": "Database Management",
+    "sub_category": "SQL",
+    "question": "What is the purpose of an SQL JOIN clause?",
+    "model_answers": [
+      "To combine rows from two or more tables based on a related column between them"
+    ],
+    "keywords": ["Database", "SQL", "JOIN", "Relational Algebra"],
+    "difficulty": 2
+  },
+  {
+    "main_category": "Database Management",
+    "sub_category": "Transactions",
+    "question": "What does ACID stand for in the context of database transactions?",
+    "model_answers": ["Atomicity, Consistency, Isolation, Durability"],
+    "keywords": ["Database", "Transactions", "ACID", "RDBMS"],
+    "difficulty": 4
+  },
+  {
+    "main_category": "Programming Languages",
+    "sub_category": "Go",
+    "question": "What are the core features used in Go to support concurrency?",
+    "model_answers": ["Goroutines and Channels"],
+    "keywords": [
+      "Programming Languages",
+      "Go",
+      "Golang",
+      "Concurrency",
+      "Goroutines",
+      "Channels"
+    ],
+    "difficulty": 3
+  },
+  {
+    "main_category": "Programming Languages",
+    "sub_category": "Go",
+    "question": "In Go, what is the purpose of the `defer` statement?",
+    "model_answers": [
+      "To execute a function call just before the surrounding function returns"
+    ],
+    "keywords": [
+      "Programming Languages",
+      "Go",
+      "Golang",
+      "Defer",
+      "Control Flow"
+    ],
+    "difficulty": 3
+  },
+  {
+    "main_category": "Programming Languages",
+    "sub_category": "Go",
+    "question": "How are errors typically handled in Go?",
+    "model_answers": [
+      "By returning an error value as the last return value of a function"
+    ],
+    "keywords": ["Programming Languages", "Go", "Golang", "Error Handling"],
+    "difficulty": 2
+  },
+  {
+    "main_category": "Programming Languages",
+    "sub_category": "Python",
+    "question": "What is the built-in function in Python to sum all elements in a list?",
+    "model_answers": ["sum()"],
+    "keywords": [
+      "Programming Languages",
+      "Python",
+      "List",
+      "Built-in function"
+    ],
+    "difficulty": 1
+  },
+  {
+    "main_category": "Programming Languages",
+    "sub_category": "Python",
+    "question": "What is a 'list comprehension' in Python used for?",
+    "model_answers": [
+      "To create lists in a concise way based on existing lists or iterables"
+    ],
+    "keywords": [
+      "Programming Languages",
+      "Python",
+      "List Comprehension",
+      "Syntax"
+    ],
+    "difficulty": 2
+  },
+  {
+    "main_category": "Programming Languages",
+    "sub_category": "Python",
+    "question": "What does the `__init__` method in a Python class represent?",
+    "model_answers": [
+      "The constructor, called when an object of the class is created"
+    ],
+    "keywords": [
+      "Programming Languages",
+      "Python",
+      "OOP",
+      "Class",
+      "Constructor",
+      "__init__"
+    ],
+    "difficulty": 3
+  },
+  {
+    "main_category": "Software Engineering",
+    "sub_category": "Version Control",
+    "question": "In Git, what is the command to temporarily save changes in the current branch that are not ready to be committed?",
+    "model_answers": ["git stash"],
+    "keywords": ["Software Engineering", "Version Control", "Git", "stash"],
+    "difficulty": 2
+  },
+  {
+    "main_category": "Software Engineering",
+    "sub_category": "Version Control",
+    "question": "What is the primary purpose of 'branching' in Git?",
+    "model_answers": [
+      "To create an isolated environment to work on new features or fixes without affecting the main codebase"
+    ],
+    "keywords": ["Software Engineering", "Version Control", "Git", "Branching"],
+    "difficulty": 2
+  },
+  {
+    "main_category": "Software Engineering",
+    "sub_category": "Version Control",
+    "question": "What does the command `git clone <repository_url>` do?",
+    "model_answers": ["Creates a local copy of a remote repository"],
+    "keywords": [
+      "Software Engineering",
+      "Version Control",
+      "Git",
+      "Clone",
+      "Repository"
+    ],
+    "difficulty": 1
+  }
+]

@@ -1,0 +1,60 @@
+package domain
+
+// QuizService defines the core business operations for quizzes
+type QuizService interface {
+	// GetRandomQuiz returns a random quiz from the specified subcategory
+	GetRandomQuiz(subCategoryID int64) (*Quiz, error)
+
+	// CheckAnswer evaluates a user's answer to a quiz
+	CheckAnswer(quizID int64, userAnswer string) (*Answer, error)
+
+	// GetNextQuiz returns a similar quiz based on keywords
+	GetNextQuiz(currentQuizID int64) (*Quiz, error)
+
+	// GetAllCategories returns all categories with their subcategories
+	GetAllCategories() ([]*Category, error)
+
+	// GetSubCategories returns all subcategories for a given category
+	GetSubCategories(categoryID int64) ([]*SubCategory, error)
+}
+
+// QuizRepository defines the interface for quiz persistence
+type QuizRepository interface {
+	QuizRepositoryOps
+
+	// GetRandomQuizBySubCategory returns a random quiz from the specified subcategory
+	GetRandomQuizBySubCategory(subCategoryID int64) (*Quiz, error)
+
+	// GetQuizByID retrieves a quiz by its ID
+	GetQuizByID(id int64) (*Quiz, error)
+
+	// GetAllSubCategories returns all available subcategories
+	GetAllSubCategories() ([]string, error)
+
+	// SaveQuiz persists a new quiz
+	SaveQuiz(quiz *Quiz) error
+
+	// UpdateQuiz updates an existing quiz
+	UpdateQuiz(quiz *Quiz) error
+
+	// SaveQuizEvaluation persists quiz evaluation criteria
+	SaveQuizEvaluation(evaluation *QuizEvaluation) error
+
+	// GetQuizEvaluation retrieves evaluation criteria for a quiz
+	GetQuizEvaluation(quizID int64) (*QuizEvaluation, error)
+}
+
+// CategoryRepository defines the interface for category persistence
+type CategoryRepository interface {
+	// GetAllCategories returns all categories
+	GetAllCategories() ([]*Category, error)
+
+	// GetSubCategories returns all subcategories for a given category
+	GetSubCategories(categoryID int64) ([]*SubCategory, error)
+
+	// SaveCategory persists a new category
+	SaveCategory(category *Category) error
+
+	// SaveSubCategory persists a new subcategory
+	SaveSubCategory(subCategory *SubCategory) error
+}
