@@ -7,18 +7,18 @@ import (
 	"time"
 )
 
-// quizRepositoryAdapter adapts the repository.QuizRepository to domain.QuizRepository
-type quizRepositoryAdapter struct {
-	repo QuizRepository
+// QuizDomainAdapter adapts the repository.QuizRepository (GORM-specific) to domain.QuizRepository
+type QuizDomainAdapter struct {
+	repo QuizRepository // This is the GORM-specific repository.QuizRepository
 }
 
-// NewQuizRepositoryAdapter creates a new instance of quizRepositoryAdapter
-func NewQuizRepositoryAdapter(repo QuizRepository) domain.QuizRepository {
-	return &quizRepositoryAdapter{repo: repo}
+// NewQuizDomainRepositoryAdapter creates a new instance of QuizDomainAdapter
+func NewQuizDomainRepositoryAdapter(repo QuizRepository) domain.QuizRepository {
+	return &QuizDomainAdapter{repo: repo}
 }
 
 // GetRandomQuiz implements domain.QuizRepository
-func (a *quizRepositoryAdapter) GetRandomQuiz() (*domain.Quiz, error) {
+func (a *QuizDomainAdapter) GetRandomQuiz() (*domain.Quiz, error) {
 	quiz, err := a.repo.GetRandomQuiz()
 	if err != nil {
 		return nil, err
@@ -30,7 +30,7 @@ func (a *quizRepositoryAdapter) GetRandomQuiz() (*domain.Quiz, error) {
 }
 
 // GetQuizByID implements domain.QuizRepository
-func (a *quizRepositoryAdapter) GetQuizByID(id int64) (*domain.Quiz, error) {
+func (a *QuizDomainAdapter) GetQuizByID(id int64) (*domain.Quiz, error) {
 	quiz, err := a.repo.GetQuizByID(id)
 	if err != nil {
 		return nil, err
@@ -42,22 +42,22 @@ func (a *quizRepositoryAdapter) GetQuizByID(id int64) (*domain.Quiz, error) {
 }
 
 // SaveQuiz implements domain.QuizRepository
-func (a *quizRepositoryAdapter) SaveQuiz(quiz *domain.Quiz) error {
+func (a *QuizDomainAdapter) SaveQuiz(quiz *domain.Quiz) error {
 	return a.repo.SaveQuiz(toModelQuiz(quiz))
 }
 
 // UpdateQuiz implements domain.QuizRepository
-func (a *quizRepositoryAdapter) UpdateQuiz(quiz *domain.Quiz) error {
+func (a *QuizDomainAdapter) UpdateQuiz(quiz *domain.Quiz) error {
 	return a.repo.SaveQuiz(toModelQuiz(quiz))
 }
 
 // SaveAnswer implements domain.QuizRepository
-func (a *quizRepositoryAdapter) SaveAnswer(answer *domain.Answer) error {
+func (a *QuizDomainAdapter) SaveAnswer(answer *domain.Answer) error {
 	return a.repo.SaveAnswer(toModelAnswer(answer))
 }
 
 // GetSimilarQuiz implements domain.QuizRepository
-func (a *quizRepositoryAdapter) GetSimilarQuiz(quizID int64) (*domain.Quiz, error) {
+func (a *QuizDomainAdapter) GetSimilarQuiz(quizID int64) (*domain.Quiz, error) {
 	quiz, err := a.repo.GetSimilarQuiz(quizID)
 	if err != nil {
 		return nil, err
@@ -69,25 +69,25 @@ func (a *quizRepositoryAdapter) GetSimilarQuiz(quizID int64) (*domain.Quiz, erro
 }
 
 // GetAllSubCategories implements domain.QuizRepository
-func (a *quizRepositoryAdapter) GetAllSubCategories() ([]string, error) {
+func (a *QuizDomainAdapter) GetAllSubCategories() ([]string, error) {
 	// 현재는 더미 데이터 반환
 	return []string{"general", "programming", "database", "algorithms"}, nil
 }
 
 // SaveQuizEvaluation implements domain.QuizRepository
-func (a *quizRepositoryAdapter) SaveQuizEvaluation(evaluation *domain.QuizEvaluation) error {
+func (a *QuizDomainAdapter) SaveQuizEvaluation(evaluation *domain.QuizEvaluation) error {
 	// TODO: 구현 예정
 	return nil
 }
 
 // GetQuizEvaluation implements domain.QuizRepository
-func (a *quizRepositoryAdapter) GetQuizEvaluation(quizID int64) (*domain.QuizEvaluation, error) {
+func (a *QuizDomainAdapter) GetQuizEvaluation(quizID int64) (*domain.QuizEvaluation, error) {
 	// TODO: 구현 예정
 	return nil, nil
 }
 
 // GetRandomQuizBySubCategory implements domain.QuizRepository
-func (a *quizRepositoryAdapter) GetRandomQuizBySubCategory(subCategoryID int64) (*domain.Quiz, error) {
+func (a *QuizDomainAdapter) GetRandomQuizBySubCategory(subCategoryID int64) (*domain.Quiz, error) {
 	quiz, err := a.repo.GetRandomQuiz() // 임시로 GetRandomQuiz 사용
 	if err != nil {
 		return nil, err

@@ -8,12 +8,15 @@ import (
 	"quiz-byte/internal/config"
 	"quiz-byte/internal/database"
 	"quiz-byte/internal/handler"
+	"net/http"
+	"quiz-byte/internal/domain"
 	"quiz-byte/internal/logger"
 	"quiz-byte/internal/middleware"
 	"quiz-byte/internal/repository"
 	"quiz-byte/internal/service"
 	"strconv"
 	"syscall"
+	"github.com/tmc/langchaingo/llms/ollama"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -64,6 +67,21 @@ func main() {
 
 	log := logger.Get()
 
+	// Configure HTTP client for Ollama
+	ollamaHTTPClient := &http.Client{
+		Timeout: 20 * time.Second, // Or from config
+	}
+
+	// Create LLM client
+	llm, err := ollama.New(
+		ollama.WithServerURL(cfg.LLMServer), // Assuming LLMServer is in your config
+		ollama.WithModel("qwen3:0.6b"),     // Or from config
+		ollama.WithHTTPClient(ollamaHTTPClient),
+	)
+	if err != nil {
+		log.Fatal("Failed to create LLM client", zap.Error(err))
+	}
+
 	// Connect to database
 	db, err := database.NewOracleDB(cfg.GetDSN())
 	if err != nil {
@@ -72,13 +90,13 @@ func main() {
 
 	// Initialize repository
 	repo := repository.NewQuizRepository(db)
-	domainRepo := repository.NewQuizRepositoryAdapter(repo)
+	domainRepo := repository.NewQuizDomainRepositoryAdapter(repo) // Use new constructor name
 
 	// Initialize LLM evaluator
-	evaluator := service.NewLLMEvaluator(cfg.LLMServer)
+	evaluator := domain.NewLLMEvaluator(llm) // Pass the created llm instance
 
 	// Initialize service
-	svc := service.NewQuizService(domainRepo, evaluator, cfg.LLMServer)
+	svc := service.NewQuizService(domainRepo, evaluator) // Remove cfg.LLMServer
 
 	// Initialize handler
 	handler := handler.NewQuizHandler(svc)

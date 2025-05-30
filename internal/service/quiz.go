@@ -25,21 +25,18 @@ type QuizService interface {
 
 // quizService implements QuizService
 type quizService struct {
-	repo        domain.QuizRepository
-	evaluator   domain.AnswerEvaluator
-	llamaServer string
+	repo      domain.QuizRepository
+	evaluator domain.AnswerEvaluator
 }
 
 // NewQuizService creates a new instance of quizService
 func NewQuizService(
 	repo domain.QuizRepository,
 	evaluator domain.AnswerEvaluator,
-	llamaServer string,
 ) QuizService {
 	return &quizService{
-		repo:        repo,
-		evaluator:   evaluator,
-		llamaServer: llamaServer,
+		repo:      repo,
+		evaluator: evaluator,
 	}
 }
 
