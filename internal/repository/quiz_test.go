@@ -33,7 +33,7 @@ func setupTestDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
 
 func TestGetAllSubCategories(t *testing.T) {
 	db, mock := setupTestDB(t)
-	repo := NewQuizRepository(db)
+	repo := NewQuizDatabaseAdapter(db)
 
 	// 테스트 케이스
 	tests := []struct {
@@ -84,7 +84,7 @@ func TestGetAllSubCategories(t *testing.T) {
 
 func TestGetRandomQuizBySubCategory(t *testing.T) {
 	db, mock := setupTestDB(t)
-	repo := NewQuizRepository(db)
+	repo := NewQuizDatabaseAdapter(db)
 
 	// 테스트 데이터
 	now := time.Now()
@@ -127,7 +127,7 @@ func TestGetRandomQuizBySubCategory(t *testing.T) {
 
 func TestGetQuizByID(t *testing.T) {
 	db, mock := setupTestDB(t)
-	repo := NewQuizRepository(db)
+	repo := NewQuizDatabaseAdapter(db)
 
 	// 테스트 데이터
 	now := time.Now()

@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"quiz-byte/internal/domain"
 	"quiz-byte/internal/repository" // 실제 repository 구현체 사용을 위해 import
 	"quiz-byte/internal/repository/models"
 	"strings" // strings 패키지 import
@@ -25,6 +26,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tmc/langchaingo/llms/ollama"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -97,10 +99,25 @@ func TestMain(m *testing.M) {
 		logInstance.Fatal("Failed to save quizzes", zap.Error(err))
 	}
 
-	quizRepo := repository.NewQuizRepository(db)
-	quizDomainRepo := repository.NewQuizRepositoryAdapter(quizRepo)
-	llmEvaluator := service.NewLLMEvaluator(cfg.LLMServer)
-	quizService := service.NewQuizService(quizDomainRepo, llmEvaluator, cfg.LLMServer)
+	quizDomainRepo := repository.NewQuizDatabaseAdapter(db)
+
+	// Create LLM client
+	// Configure HTTP client for Ollama
+	ollamaHTTPClient := &http.Client{
+		Timeout: 20 * time.Second, // Or from config
+	}
+
+	llm, err := ollama.New(
+		ollama.WithServerURL(cfg.LLMServer), // Assuming LLMServer is in your config
+		ollama.WithModel("qwen3:0.6b"),      // Or from config
+		ollama.WithHTTPClient(ollamaHTTPClient),
+	)
+	if err != nil {
+		logInstance.Fatal("Failed to create LLM client", zap.Error(err))
+	}
+
+	evaluator := domain.NewLLMEvaluator(llm)
+	quizService := service.NewQuizService(quizDomainRepo, evaluator)
 	quizHandler := handler.NewQuizHandler(quizService)
 
 	app = fiber.New(fiber.Config{
@@ -324,7 +341,8 @@ func TestGetRandomQuiz(t *testing.T) {
 
 	logInstance.Info("Testing GetRandomQuiz with sub_category", zap.String("sub_category", testSubCategoryName))
 
-	req := httptest.NewRequest(http.MethodGet, "/api/quiz?sub_category="+testSubCategoryName, nil)
+	encodedSubCategoryName := url.QueryEscape(testSubCategoryName)
+	req := httptest.NewRequest(http.MethodGet, "/api/quiz?sub_category="+encodedSubCategoryName, nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 60 * time.Second})
 	require.NoError(t, err, "app.Test for /api/quiz should not return an error")
 
