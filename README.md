@@ -1,59 +1,58 @@
 # Quiz Byte Backend
 
-## 소개
-Quiz Byte는 컴퓨터 공학 및 IT 분야의 다양한 퀴즈를 제공하는 백엔드 시스템입니다. Go 언어, Oracle DB, GORM, Fiber 프레임워크를 기반으로 설계되었습니다.
+## Overview
+Quiz Byte is a backend system that provides a variety of quizzes in computer science and IT. It is built with Go, Oracle DB, GORM, and the Fiber framework.
 
-## 주요 기능
-- 카테고리/하위카테고리 기반 퀴즈 제공
-- 객관식/서술형 퀴즈 지원
-- LLM(대형 언어 모델) 기반 자동 채점
-- RESTful API 제공
-- 통합 테스트 및 DB 마이그레이션 지원
+## Features
+- Category and subcategory-based quiz delivery
+- Supports multiple-choice and descriptive quizzes
+- LLM (Large Language Model)-based auto-grading
+- RESTful API
+- Integration tests and DB migration support
 
-## 프로젝트 구조
+## Project Structure
 ```
-cmd/                # 실행 엔트리포인트(main.go 등)
-internal/           # 핵심 도메인, 서비스, 핸들러, DB, 로거 등
-  domain/           # 도메인 모델
-  repository/       # DB 모델 및 쿼리
-  handler/          # HTTP 핸들러
-  service/          # 비즈니스 로직
-  logger/           # 로깅
-  database/         # DB 연결/마이그레이션
-  dto/              # API DTO
-configs/            # 설정 파일
-config/             # 환경설정
-pkg/                # 외부 패키지
-
-tests/integration/  # 통합 테스트 및 샘플 데이터
+cmd/                # Entry points (main.go, etc.)
+internal/           # Core domain, service, handler, DB, logger, etc.
+  domain/           # Domain models
+  repository/       # DB models and queries
+  handler/          # HTTP handlers
+  service/          # Business logic
+  logger/           # Logging
+  database/         # DB connection/migration
+  dto/              # API DTOs
+configs/            # Config files
+config/             # Environment config
+tests/integration/  # Integration tests and sample data
+pkg/                # External packages
 ```
 
-## 개발 환경
-- Go 1.20 이상
-- Oracle DB (로컬/원격)
-- Docker, Docker Compose (테스트/로컬 개발)
-- (선택) Oracle Instant Client
+## Development Environment
+- Go 1.20+
+- Oracle DB (local/remote)
+- Docker, Docker Compose (for tests/local dev)
+- (Optional) Oracle Instant Client
 
-## 실행 방법
-1. 의존성 설치
+## Getting Started
+1. Install dependencies
 ```bash
 go mod tidy
 ```
-2. 환경 변수 또는 config/config.yaml 설정
-3. DB 마이그레이션
+2. Set environment variables or edit config/config.yaml
+3. Run DB migration
 ```bash
 go run cmd/migrate/main.go
 ```
-4. 서버 실행
+4. Start the server
 ```bash
 go run cmd/api/main.go
 ```
-5. 통합 테스트
+5. Run integration tests
 ```bash
 go test ./tests/integration
 ```
 
-## 환경 변수 예시
+## Example Environment Variables
 ```
 DB_USER=system
 DB_PASSWORD=oracle
@@ -62,6 +61,6 @@ DB_PORT=1521
 DB_SERVICE_NAME=FREE
 ```
 
-## 기여 및 문의
-- PR/이슈 환영
-- 문의: jaeyeong.i.dev@gmail.com
+## Contribution & Contact
+- PRs and issues are welcome
+- Contact: jaeyeong.i.dev@gmail.com
