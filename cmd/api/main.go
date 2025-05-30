@@ -89,8 +89,9 @@ func main() {
 	}
 
 	// Initialize repository
-	repo := repository.NewQuizRepository(db)
-	domainRepo := repository.NewQuizDomainRepositoryAdapter(repo) // Use new constructor name
+	// The GORM-specific repository instance (repo) is no longer needed here,
+	// as NewQuizDatabaseAdapter takes db directly.
+	domainRepo := repository.NewQuizDatabaseAdapter(db)
 
 	// Initialize LLM evaluator
 	evaluator := domain.NewLLMEvaluator(llm) // Pass the created llm instance
