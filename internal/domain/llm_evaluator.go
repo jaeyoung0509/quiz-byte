@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"quiz-byte/internal/logger" // logger import 확인
 	"strings"
 	"time"
@@ -16,13 +15,13 @@ import (
 
 // llmEvaluator implements AnswerEvaluator
 type llmEvaluator struct {
-	llamaServer string
+	llmClient *ollama.LLM
 }
 
 // NewLLMEvaluator creates a new instance of llmEvaluator
-func NewLLMEvaluator(llamaServer string) AnswerEvaluator {
+func NewLLMEvaluator(llm *ollama.LLM) AnswerEvaluator {
 	return &llmEvaluator{
-		llamaServer: llamaServer,
+		llmClient: llm,
 	}
 }
 
@@ -131,33 +130,14 @@ Rules:
 	}
 }
 
-// callLLM 함수는 기존과 동일
+// callLLM uses the llmClient from the struct
 func (e *llmEvaluator) callLLM(prompt string) (string, error) {
 	l := logger.Get()
-
-	httpClient := &http.Client{
-		Timeout: 20 * time.Second, // 타임아웃은 환경설정에서 가져오는 것이 더 좋음
-		Transport: &http.Transport{
-			MaxIdleConns:        10,
-			MaxIdleConnsPerHost: 10,
-			IdleConnTimeout:     10 * time.Second,
-		},
-	}
-
-	llm, err := ollama.New(
-		ollama.WithServerURL(e.llamaServer),
-		ollama.WithModel("qwen3:0.6b"), // 모델명 확인
-		ollama.WithHTTPClient(httpClient),
-	)
-	if err != nil {
-		l.Error("Failed to create LLM client", zap.Error(err))
-		return "", fmt.Errorf("failed to create LLM client: %w", err) // NewLLMServiceError 대신 일반 오류 반환 후 상위에서 래핑
-	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second) // 타임아웃
 	defer cancel()
 
-	response, err := llm.Call(ctx, prompt, llms.WithTemperature(0.1))
+	response, err := e.llmClient.Call(ctx, prompt, llms.WithTemperature(0.1))
 	if err != nil {
 		if err == context.DeadlineExceeded {
 			l.Error("LLM request timed out", zap.Error(err))
