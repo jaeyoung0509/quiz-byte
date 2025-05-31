@@ -1,6 +1,7 @@
 package dto
 
 // CategoryResponse represents a category in the API response
+// @Description Category information
 type CategoryResponse struct {
 	ID          int64  `json:"id"`
 	Name        string `json:"name"`
@@ -16,6 +17,7 @@ type SubCategoryResponse struct {
 }
 
 // QuizResponse represents a quiz in the API response
+// @Description Quiz information
 type QuizResponse struct {
 	ID           int64    `json:"id"`
 	Question     string   `json:"question"`
@@ -25,6 +27,7 @@ type QuizResponse struct {
 }
 
 // AnswerRequest represents a user's answer in the API request
+// @Description Request body for checking an answer
 type AnswerRequest struct {
 	QuizID     int64  `json:"quiz_id"`
 	UserAnswer string `json:"user_answer"`

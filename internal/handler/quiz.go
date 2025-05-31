@@ -22,6 +22,15 @@ func NewQuizHandler(service service.QuizService) *QuizHandler {
 	}
 }
 
+// GetAllSubCategories godoc
+// @Summary Get all sub categories
+// @Description Get all sub categories
+// @Tags categories
+// @Accept json
+// @Produce json
+// @Success 200 {object} dto.CategoryResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /categories [get]
 // GetAllSubCategories handles GET /quiz/categories
 // GetAllSubCategories handles GET /api/categories
 func (h *QuizHandler) GetAllSubCategories(c fiber.Ctx) error {
@@ -40,6 +49,17 @@ func (h *QuizHandler) GetAllSubCategories(c fiber.Ctx) error {
 	})
 }
 
+// GetRandomQuiz godoc
+// @Summary Get a random quiz
+// @Description Get a random quiz by sub category
+// @Tags quiz
+// @Accept json
+// @Produce json
+// @Param sub_category query string true "Sub Category"
+// @Success 200 {object} dto.QuizResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /quiz [get]
 // GetRandomQuiz handles GET /api/quiz
 func (h *QuizHandler) GetRandomQuiz(c fiber.Ctx) error {
 	subCategory := c.Query("sub_category")
@@ -76,6 +96,19 @@ func (h *QuizHandler) GetRandomQuiz(c fiber.Ctx) error {
 	})
 }
 
+// CheckAnswer godoc
+// @Summary Check an answer for a quiz
+// @Description Check an answer for a quiz
+// @Tags quiz
+// @Accept json
+// @Produce json
+// @Param answer body dto.AnswerRequest true "Answer Request"
+// @Success 200 {object} domain.Answer
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Failure 503 {object} dto.ErrorResponse
+// @Router /quiz/check [post]
 // CheckAnswer handles POST /api/quiz/check
 func (h *QuizHandler) CheckAnswer(c fiber.Ctx) error {
 	var req dto.AnswerRequest
