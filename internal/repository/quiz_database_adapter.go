@@ -27,7 +27,22 @@ func NewQuizDatabaseAdapter(db *sqlx.DB) domain.QuizRepository {
 // GetRandomQuiz implements domain.QuizRepository
 func (a *QuizDatabaseAdapter) GetRandomQuiz() (*domain.Quiz, error) {
 	var modelQuiz models.Quiz
-	query := `SELECT id, question, model_answers, keywords, difficulty, sub_category_id, created_at, updated_at, deleted_at FROM quizzes WHERE deleted_at IS NULL ORDER BY DBMS_RANDOM.VALUE FETCH FIRST 1 ROWS ONLY`
+	query := `SELECT 
+		id "id",
+		question "question",
+		model_answers "model_answers",
+		keywords "keywords",
+		difficulty "difficulty",
+		sub_category_id "sub_category_id",
+		created_at "created_at",
+		updated_at "updated_at",
+		deleted_at "deleted_at"
+	FROM quizzes 
+	WHERE deleted_at IS NULL 
+	ORDER BY DBMS_RANDOM.VALUE 
+	FETCH FIRST 1 ROWS ONLY`
+
+	// Oracle에서는 RowsAffected가 항상 0을 반환하므로, Get을 직접 사용
 	err := a.db.Get(&modelQuiz, query)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -41,16 +56,36 @@ func (a *QuizDatabaseAdapter) GetRandomQuiz() (*domain.Quiz, error) {
 // GetQuizByID implements domain.QuizRepository
 func (a *QuizDatabaseAdapter) GetQuizByID(id string) (*domain.Quiz, error) {
 	var modelQuiz models.Quiz
-	query := `SELECT id, question, model_answers, keywords, difficulty, sub_category_id, created_at, updated_at, deleted_at FROM quizzes WHERE id = :id AND deleted_at IS NULL`
-	// For sqlx with Oracle, named queries often use :named syntax in the query
-	// and a map or struct for arguments.
-	args := map[string]interface{}{"id": id}
-	nstmt, err := a.db.PrepareNamed(query)
+	query := `SELECT 
+		id "id",
+		question "question",
+		model_answers "model_answers",
+		keywords "keywords",
+		difficulty "difficulty",
+		sub_category_id "sub_category_id",
+		created_at "created_at",
+		updated_at "updated_at",
+		deleted_at "deleted_at"
+	FROM quizzes 
+	WHERE id = :1 
+	AND deleted_at IS NULL`
+
+	nstmt, err := a.db.Prepare(query)
 	if err != nil {
-		return nil, fmt.Errorf("failed to prepare named statement for GetQuizByID: %w", err)
+		return nil, fmt.Errorf("failed to prepare statement for GetQuizByID: %w", err)
 	}
 	defer nstmt.Close()
-	err = nstmt.Get(&modelQuiz, args)
+	err = nstmt.QueryRow(id).Scan(
+		&modelQuiz.ID,
+		&modelQuiz.Question,
+		&modelQuiz.ModelAnswers,
+		&modelQuiz.Keywords,
+		&modelQuiz.Difficulty,
+		&modelQuiz.SubCategoryID,
+		&modelQuiz.CreatedAt,
+		&modelQuiz.UpdatedAt,
+		&modelQuiz.DeletedAt,
+	)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -71,12 +106,27 @@ func (a *QuizDatabaseAdapter) SaveQuiz(quiz *domain.Quiz) error {
 	modelQuiz.CreatedAt = time.Now()
 	modelQuiz.UpdatedAt = time.Now()
 
-	query := `INSERT INTO quizzes (id, question, model_answers, keywords, difficulty, sub_category_id, created_at, updated_at)
-              VALUES (:id, :question, :model_answers, :keywords, :difficulty, :sub_category_id, :created_at, :updated_at)`
-	_, err := a.db.NamedExec(query, modelQuiz)
+	query := `INSERT INTO quizzes (
+		id, question, model_answers, keywords, 
+		difficulty, sub_category_id, created_at, updated_at
+	) VALUES (
+		:1, :2, :3, :4, :5, :6, :7, :8
+	)`
+
+	_, err := a.db.Exec(query,
+		modelQuiz.ID,
+		modelQuiz.Question,
+		modelQuiz.ModelAnswers,
+		modelQuiz.Keywords,
+		modelQuiz.Difficulty,
+		modelQuiz.SubCategoryID,
+		modelQuiz.CreatedAt,
+		modelQuiz.UpdatedAt,
+	)
 	if err != nil {
 		return fmt.Errorf("failed to save quiz: %w", err)
 	}
+
 	quiz.ID = modelQuiz.ID
 	quiz.CreatedAt = modelQuiz.CreatedAt
 	quiz.UpdatedAt = modelQuiz.UpdatedAt
@@ -94,18 +144,35 @@ func (a *QuizDatabaseAdapter) UpdateQuiz(quiz *domain.Quiz) error {
 	}
 	modelQuiz.UpdatedAt = time.Now()
 
-	query := `UPDATE quizzes SET question = :question, model_answers = :model_answers, keywords = :keywords, difficulty = :difficulty, sub_category_id = :sub_category_id, updated_at = :updated_at
-              WHERE id = :id AND deleted_at IS NULL`
-	result, err := a.db.NamedExec(query, modelQuiz)
+	query := `UPDATE quizzes SET 
+		question = :1, 
+		model_answers = :2, 
+		keywords = :3, 
+		difficulty = :4, 
+		sub_category_id = :5, 
+		updated_at = :6
+	WHERE id = :7 
+	AND deleted_at IS NULL`
+
+	result, err := a.db.Exec(query,
+		modelQuiz.Question,
+		modelQuiz.ModelAnswers,
+		modelQuiz.Keywords,
+		modelQuiz.Difficulty,
+		modelQuiz.SubCategoryID,
+		modelQuiz.UpdatedAt,
+		modelQuiz.ID,
+	)
 	if err != nil {
 		return fmt.Errorf("failed to update quiz: %w", err)
 	}
+
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
 	if rowsAffected == 0 {
-		return fmt.Errorf("quiz with ID %s not found or not updated", quiz.ID) // Or sql.ErrNoRows style error
+		return fmt.Errorf("quiz with ID %s not found or not updated", quiz.ID)
 	}
 	quiz.UpdatedAt = modelQuiz.UpdatedAt
 	return nil
@@ -118,19 +185,36 @@ func (a *QuizDatabaseAdapter) SaveAnswer(answer *domain.Answer) error {
 		return fmt.Errorf("cannot save nil answer")
 	}
 	modelAnswer.ID = util.NewULID()
-	modelAnswer.AnsweredAt = time.Now() // Should be set by service layer ideally
 	modelAnswer.CreatedAt = time.Now()
 	modelAnswer.UpdatedAt = time.Now()
 
-	query := `INSERT INTO answers (id, quiz_id, user_answer, score, explanation, keyword_matches, completeness, relevance, accuracy, answered_at, created_at, updated_at)
-              VALUES (:id, :quiz_id, :user_answer, :score, :explanation, :keyword_matches, :completeness, :relevance, :accuracy, :answered_at, :created_at, :updated_at)`
-	_, err := a.db.NamedExec(query, modelAnswer)
+	query := `INSERT INTO answers (
+        id, quiz_id, user_answer, score, explanation, 
+        keyword_matches, completeness, relevance, accuracy, 
+        answered_at, created_at, updated_at
+    ) VALUES (
+        :1, :2, :3, :4, :5, :6, :7, :8, :9, :10, :11, :12
+    )`
+
+	_, err := a.db.Exec(query,
+		modelAnswer.ID,
+		modelAnswer.QuizID,
+		modelAnswer.UserAnswer,
+		modelAnswer.Score,
+		modelAnswer.Explanation,
+		strings.Join(modelAnswer.KeywordMatches, stringDelimiter),
+		modelAnswer.Completeness,
+		modelAnswer.Relevance,
+		modelAnswer.Accuracy,
+		modelAnswer.AnsweredAt,
+		modelAnswer.CreatedAt,
+		modelAnswer.UpdatedAt,
+	)
 	if err != nil {
 		return fmt.Errorf("failed to save answer: %w", err)
 	}
+
 	answer.ID = modelAnswer.ID
-	answer.AnsweredAt = modelAnswer.AnsweredAt
-	// domain.Answer does not have CreatedAt/UpdatedAt
 	return nil
 }
 
@@ -140,14 +224,19 @@ func (a *QuizDatabaseAdapter) GetSimilarQuiz(quizID string) (*domain.Quiz, error
 		Difficulty    int    `db:"difficulty"`
 		SubCategoryID string `db:"sub_category_id"`
 	}{}
-	queryCurrent := `SELECT difficulty, sub_category_id FROM quizzes WHERE id = :id AND deleted_at IS NULL`
+	queryCurrent := `SELECT 
+		difficulty "difficulty", 
+		sub_category_id "sub_category_id" 
+	FROM quizzes 
+	WHERE id = :1 
+	AND deleted_at IS NULL`
 
-	nstmtCurrent, err := a.db.PrepareNamed(queryCurrent)
+	nstmt, err := a.db.Prepare(queryCurrent)
 	if err != nil {
-		return nil, fmt.Errorf("failed to prepare named statement for GetSimilarQuiz (current): %w", err)
+		return nil, fmt.Errorf("failed to prepare statement for GetSimilarQuiz (current): %w", err)
 	}
-	defer nstmtCurrent.Close()
-	err = nstmtCurrent.Get(&current, map[string]interface{}{"id": quizID})
+	defer nstmt.Close()
+	err = nstmt.QueryRow(quizID).Scan(&current.Difficulty, &current.SubCategoryID)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -157,22 +246,40 @@ func (a *QuizDatabaseAdapter) GetSimilarQuiz(quizID string) (*domain.Quiz, error
 	}
 
 	var similarQuizModel models.Quiz
-	querySimilar := `SELECT id, question, model_answers, keywords, difficulty, sub_category_id, created_at, updated_at, deleted_at
-                     FROM quizzes
-                     WHERE id != :current_id AND sub_category_id = :sub_category_id AND difficulty = :difficulty AND deleted_at IS NULL
-                     ORDER BY DBMS_RANDOM.VALUE FETCH FIRST 1 ROWS ONLY`
+	querySimilar := `SELECT 
+		id "id",
+		question "question",
+		model_answers "model_answers",
+		keywords "keywords",
+		difficulty "difficulty",
+		sub_category_id "sub_category_id",
+		created_at "created_at",
+		updated_at "updated_at",
+		deleted_at "deleted_at"
+	FROM quizzes
+	WHERE id != :1 
+	AND sub_category_id = :2 
+	AND difficulty = :3 
+	AND deleted_at IS NULL
+	ORDER BY DBMS_RANDOM.VALUE 
+	FETCH FIRST 1 ROWS ONLY`
 
-	argsSimilar := map[string]interface{}{
-		"current_id":      quizID,
-		"sub_category_id": current.SubCategoryID,
-		"difficulty":      current.Difficulty,
-	}
-	nstmtSimilar, err := a.db.PrepareNamed(querySimilar)
+	nstmtSimilar, err := a.db.Prepare(querySimilar)
 	if err != nil {
-		return nil, fmt.Errorf("failed to prepare named statement for GetSimilarQuiz (similar): %w", err)
+		return nil, fmt.Errorf("failed to prepare statement for GetSimilarQuiz (similar): %w", err)
 	}
 	defer nstmtSimilar.Close()
-	err = nstmtSimilar.Get(&similarQuizModel, argsSimilar)
+	err = nstmtSimilar.QueryRow(quizID, current.SubCategoryID, current.Difficulty).Scan(
+		&similarQuizModel.ID,
+		&similarQuizModel.Question,
+		&similarQuizModel.ModelAnswers,
+		&similarQuizModel.Keywords,
+		&similarQuizModel.Difficulty,
+		&similarQuizModel.SubCategoryID,
+		&similarQuizModel.CreatedAt,
+		&similarQuizModel.UpdatedAt,
+		&similarQuizModel.DeletedAt,
+	)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -213,18 +320,38 @@ func (a *QuizDatabaseAdapter) GetQuizEvaluation(quizID string) (*domain.QuizEval
 // GetRandomQuizBySubCategory implements domain.QuizRepository
 func (a *QuizDatabaseAdapter) GetRandomQuizBySubCategory(subCategoryID string) (*domain.Quiz, error) {
 	var modelQuiz models.Quiz
-	query := `SELECT id, question, model_answers, keywords, difficulty, sub_category_id, created_at, updated_at, deleted_at
-              FROM quizzes
-              WHERE sub_category_id = :sub_category_id AND deleted_at IS NULL
-              ORDER BY DBMS_RANDOM.VALUE FETCH FIRST 1 ROWS ONLY`
+	query := `SELECT 
+		id "id",
+		question "question",
+		model_answers "model_answers",
+		keywords "keywords",
+		difficulty "difficulty",
+		sub_category_id "sub_category_id",
+		created_at "created_at",
+		updated_at "updated_at",
+		deleted_at "deleted_at"
+	FROM quizzes
+	WHERE sub_category_id = :1 
+	AND deleted_at IS NULL
+	ORDER BY DBMS_RANDOM.VALUE 
+	FETCH FIRST 1 ROWS ONLY`
 
-	args := map[string]interface{}{"sub_category_id": subCategoryID}
-	nstmt, err := a.db.PrepareNamed(query)
+	nstmt, err := a.db.Prepare(query)
 	if err != nil {
-		return nil, fmt.Errorf("failed to prepare named statement for GetRandomQuizBySubCategory: %w", err)
+		return nil, fmt.Errorf("failed to prepare statement for GetRandomQuizBySubCategory: %w", err)
 	}
 	defer nstmt.Close()
-	err = nstmt.Get(&modelQuiz, args)
+	err = nstmt.QueryRow(subCategoryID).Scan(
+		&modelQuiz.ID,
+		&modelQuiz.Question,
+		&modelQuiz.ModelAnswers,
+		&modelQuiz.Keywords,
+		&modelQuiz.Difficulty,
+		&modelQuiz.SubCategoryID,
+		&modelQuiz.CreatedAt,
+		&modelQuiz.UpdatedAt,
+		&modelQuiz.DeletedAt,
+	)
 
 	if err != nil {
 		if err == sql.ErrNoRows {

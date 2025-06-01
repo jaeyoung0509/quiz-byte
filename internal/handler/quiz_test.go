@@ -8,6 +8,7 @@ import (
 	"quiz-byte/internal/domain"
 	dto "quiz-byte/internal/dto"
 	"quiz-byte/internal/repository/models"
+	"quiz-byte/internal/util"
 	"testing"
 
 	"github.com/gofiber/fiber/v2"
@@ -145,7 +146,7 @@ func TestGetRandomQuiz(t *testing.T) {
 			name:        "Success",
 			subCategory: "math",
 			mockResponse: &dto.QuizResponse{
-				ID:           1,
+				ID:           util.NewULID(),
 				Question:     "What is 2+2?",
 				ModelAnswers: []string{"3", "4", "5"},
 				Keywords:     []string{"addition", "math"},
@@ -212,7 +213,7 @@ func TestCheckAnswer(t *testing.T) {
 		{
 			name: "Success",
 			requestBody: &dto.CheckAnswerRequest{
-				QuizID:     1,
+				QuizID:     util.NewULID(),
 				UserAnswer: "4",
 			},
 			mockResponse: &dto.CheckAnswerResponse{
@@ -223,7 +224,7 @@ func TestCheckAnswer(t *testing.T) {
 				Relevance:      1.0,
 				Accuracy:       1.0,
 				ModelAnswer:    "4",
-				NextQuizID:     2,
+				NextQuizID:     util.NewULID(),
 			},
 			mockError:      nil,
 			expectedStatus: http.StatusOK,
@@ -237,7 +238,7 @@ func TestCheckAnswer(t *testing.T) {
 		{
 			name: "Quiz Not Found",
 			requestBody: &dto.CheckAnswerRequest{
-				QuizID:     999,
+				QuizID:     util.NewULID(),
 				UserAnswer: "4",
 			},
 			mockResponse:   nil,
