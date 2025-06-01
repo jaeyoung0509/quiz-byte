@@ -100,7 +100,7 @@ func LoadConfig() (*Config, error) {
 }
 
 func (c *Config) GetDSN() string {
-	// Oracle DSN 형식: user/password@host:port/service
+	// Oracle DSN format: user/password@host:port/service
 	return fmt.Sprintf("oracle://%s:%s@%s:%d/%s",
 		c.DB.User,
 		c.DB.Password,

@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"quiz-byte/internal/logger" // logger import 확인
+	"quiz-byte/internal/logger" // Verify logger import
 	"strings"
 	"time"
 
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/ollama"
-	"go.uber.org/zap" // zap import 확인
+	"go.uber.org/zap" // Verify zap import
 )
 
 // llmEvaluator implements AnswerEvaluator
@@ -27,15 +27,15 @@ func NewLLMEvaluator(llm *ollama.LLM) AnswerEvaluator {
 
 // EvaluateAnswer implements AnswerEvaluator
 func (e *llmEvaluator) EvaluateAnswer(questionText string, modelAnswer string, userAnswer string, keywords []string) (*Answer, error) {
-	l := logger.Get() // 전역 로거 사용
+	l := logger.Get() // Use global logger
 	l.Info("Evaluating answer with LLM",
 		zap.String("question", questionText),
-		// modelAnswer, userAnswer는 매우 길 수 있으므로 상세 로깅은 Debug 레벨 또는 필요시에만
+		// modelAnswer, userAnswer can be very long, so detailed logging is at Debug level or only when necessary
 		// zap.String("model_answer", modelAnswer),
 		// zap.String("user_answer", userAnswer),
 		zap.Strings("keywords", keywords))
 
-	// 프롬프트는 이전과 동일하게 유지
+	// Prompt remains the same as before
 	prompt := fmt.Sprintf(`You are a quiz answer evaluator. Evaluate the answer and respond with ONLY a JSON object in the following format:
 {
     "score": 0.0,
@@ -61,25 +61,25 @@ Rules:
 
 	rawLLMResponse, err := e.callLLM(prompt)
 	if err != nil {
-		l.Error("callLLM failed during LLM evaluation", zap.Error(err), zap.String("prompt_ kısmi", prompt[:min(200, len(prompt))])) // 프롬프트 일부 로깅
+		l.Error("callLLM failed during LLM evaluation", zap.Error(err), zap.String("prompt_part", prompt[:min(200, len(prompt))])) // Log part of the prompt
 		return nil, NewLLMServiceError(fmt.Errorf("callLLM failed: %w", err))
 	}
 
-	l.Debug("Raw LLM response received", zap.String("raw_response", rawLLMResponse)) // 원시 응답 로깅 (디버그 레벨)
+	l.Debug("Raw LLM response received", zap.String("raw_response", rawLLMResponse)) // Log raw response (debug level)
 
 	cleanedResponseStr := strings.TrimSpace(rawLLMResponse)
 
-	// <think>...</think> 블록 제거 (존재 시)
+	// Remove <think>...</think> block (if present)
 	if thinkStart := strings.Index(cleanedResponseStr, "<think>"); thinkStart != -1 {
 		if thinkEnd := strings.Index(cleanedResponseStr, "</think>"); thinkEnd != -1 && thinkEnd > thinkStart {
-			// <think> 블록 앞부분 + 뒷부분
+			// Part before <think> block + part after
 			cleanedResponseStr = cleanedResponseStr[:thinkStart] + cleanedResponseStr[thinkEnd+len("</think>"):]
 			cleanedResponseStr = strings.TrimSpace(cleanedResponseStr)
 			l.Debug("LLM response after stripping <think> tags", zap.String("cleaned_response", cleanedResponseStr))
 		}
 	}
 
-	// JSON 객체를 찾기 위해 첫 '{'와 마지막 '}'를 기준으로 추출 시도
+	// Attempt to extract based on the first '{' and last '}' to find the JSON object
 	jsonStart := strings.Index(cleanedResponseStr, "{")
 	jsonEnd := strings.LastIndex(cleanedResponseStr, "}")
 
@@ -96,33 +96,33 @@ Rules:
 			Accuracy       float64  `json:"accuracy"`
 		}
 
-		// JSON 파싱 시도
+		// Attempt JSON parsing
 		if errUnmarshal := json.Unmarshal([]byte(extractedJSONStr), &llmResp); errUnmarshal != nil {
 			l.Error("Failed to unmarshal extracted JSON from LLM response",
 				zap.Error(errUnmarshal),
 				zap.String("json_string_tried_to_parse", extractedJSONStr),
-				zap.String("original_cleaned_llm_response", cleanedResponseStr)) // 디버깅을 위해 원래 정리된 문자열도 로깅
+				zap.String("original_cleaned_llm_response", cleanedResponseStr)) // Log the original cleaned string for debugging
 			return nil, NewLLMServiceError(fmt.Errorf("failed to unmarshal JSON from LLM (tried to parse: '%s'): %w", extractedJSONStr, errUnmarshal))
 		}
 
 		l.Info("Successfully parsed LLM response", zap.Any("parsed_llm_evaluation", llmResp))
 
-		// Answer 객체 생성
-		// QuizID는 LLM 응답에 없으므로, 서비스 계층에서 채워야 함
+		// Create Answer object
+		// QuizID is not in the LLM response, so it must be filled in the service layer
 		answer := &Answer{
-			UserAnswer:     userAnswer, // 사용자의 원본 답변
+			UserAnswer:     userAnswer, // User's original answer
 			Score:          llmResp.Score,
 			Explanation:    llmResp.Explanation,
 			KeywordMatches: llmResp.KeywordMatches,
 			Completeness:   llmResp.Completeness,
 			Relevance:      llmResp.Relevance,
 			Accuracy:       llmResp.Accuracy,
-			// QuizID와 AnsweredAt은 서비스 계층에서 Answer 객체 생성 시 설정됨
+			// QuizID and AnsweredAt are set when creating the Answer object in the service layer
 		}
 		return answer, nil
 
 	} else {
-		// JSON 구분자 '{' 또는 '}'를 찾지 못한 경우
+		// If JSON delimiters '{' or '}' are not found
 		l.Error("Could not find valid JSON object delimiters '{' and '}' in LLM response",
 			zap.String("cleaned_response_without_json_delimiters", cleanedResponseStr),
 			zap.String("original_raw_llm_response", rawLLMResponse))
@@ -134,7 +134,7 @@ Rules:
 func (e *llmEvaluator) callLLM(prompt string) (string, error) {
 	l := logger.Get()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second) // 타임아웃
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second) // Timeout
 	defer cancel()
 
 	response, err := e.llmClient.Call(ctx, prompt, llms.WithTemperature(0.1))
@@ -150,7 +150,7 @@ func (e *llmEvaluator) callLLM(prompt string) (string, error) {
 	return response, nil
 }
 
-// min 함수 (helper)
+// min function (helper)
 func min(a, b int) int {
 	if a < b {
 		return a

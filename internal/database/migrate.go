@@ -41,13 +41,13 @@ func RunMigrations(db *sql.DB) error {
 }
 
 func NewMigrateOracleDB(dsn string) (*sql.DB, error) {
-	// go-ora 드라이버를 사용하여 Oracle DB 연결
+	// Connect to Oracle DB using go-ora driver
 	db, err := sql.Open("oracle", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("could not open database: %v", err)
 	}
 
-	// 연결 테스트
+	// Test connection
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("could not ping database: %v", err)
 	}

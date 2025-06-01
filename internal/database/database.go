@@ -9,19 +9,19 @@ import (
 )
 
 func NewSQLXOracleDB(dsn string) (*sqlx.DB, error) {
-	// sqlx.Connect를 사용하여 Oracle DB 연결
-	// 드라이버 이름으로 "oracle" 또는 "go_ora" 등을 사용할 수 있습니다.
-	// 실제 사용하는 드라이버에 따라 정확한 이름을 확인해야 합니다.
-	// 여기서는 "oracle"을 가정합니다.
+	// Connect to Oracle DB using sqlx.Connect
+	// Driver name can be "oracle", "go_ora", etc.
+	// You need to check the exact name depending on the driver you are using.
+	// Here, "oracle" is assumed.
 	db, err := sqlx.Connect("oracle", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to Oracle database: %v", err)
 	}
 
-	// 연결 테스트
-	// sqlx.DB는 *sql.DB를 임베드하므로, Ping() 메소드를 직접 사용할 수 있습니다.
+	// Test connection
+	// sqlx.DB embeds *sql.DB, so Ping() method can be used directly.
 	if err := db.Ping(); err != nil {
-		// 연결 실패 시 DB 객체를 닫아주는 것이 좋습니다.
+		// It is recommended to close the DB object upon connection failure.
 		db.Close()
 		return nil, fmt.Errorf("failed to ping Oracle database: %v", err)
 	}
