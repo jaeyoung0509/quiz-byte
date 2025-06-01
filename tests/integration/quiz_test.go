@@ -10,15 +10,16 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"quiz-byte/internal/domain"
 	"quiz-byte/internal/repository" // 실제 repository 구현체 사용을 위해 import
 	"quiz-byte/internal/repository/models"
-	"strings" // strings 패키지 import
+	"strings"
 	"testing"
 	"time"
 
 	"quiz-byte/internal/config"
-	"quiz-byte/internal/database"
+	dblogic "quiz-byte/internal/database" // Aliased import for database package
 	"quiz-byte/internal/dto"
 	"quiz-byte/internal/handler"
 	"quiz-byte/internal/logger"
@@ -84,12 +85,12 @@ func TestMain(m *testing.M) {
 
 	dsn := cfg.GetDSN()
 	logInstance.Info("Connecting to database with DSN", zap.String("dsn", dsn))
-	db, err = database.NewSQLXOracleDB(dsn)
+	db, err = dblogic.NewSQLXOracleDB(dsn) // Use the alias 'dblogic'
 	if err != nil {
 		logInstance.Fatal("Failed to connect to database", zap.Error(err))
 	}
 
-	if err := initDatabase(db); err != nil {
+	if err := initDatabase(cfg); err != nil {
 		logInstance.Fatal("Failed to initialize database", zap.Error(err))
 	}
 
@@ -139,94 +140,35 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func initDatabase(db *sqlx.DB) error {
-	logInstance.Info("Initializing database schema...")
+func initDatabase(cfg *config.Config) error {
+	logInstance.Info("Initializing database schema using migrations...")
 
-	// Drop tables if they exist
-	tablesToDrop := []string{"answers", "quizzes", "sub_categories", "categories"}
-	for _, tableName := range tablesToDrop {
-		logInstance.Info("Attempting to drop table", zap.String("table", tableName))
-		dropSQL := fmt.Sprintf("DROP TABLE %s CASCADE CONSTRAINTS", tableName)
-		_, err := db.Exec(dropSQL)
-		if err != nil {
-			if strings.Contains(strings.ToUpper(err.Error()), "ORA-00942") {
-				logInstance.Info("Table does not exist", zap.String("table", tableName))
-			} else {
-				return fmt.Errorf("failed to drop table %s: %w", tableName, err)
-			}
-		}
-	}
-
-	// Create tables in order
-	err := createTables(db)
+	migrateDB, err := dblogic.NewMigrateOracleDB(cfg.GetDSN())
 	if err != nil {
-		return fmt.Errorf("failed to create tables: %w", err)
+		logInstance.Error("Failed to create migrate database instance", zap.Error(err))
+		return fmt.Errorf("failed to create migrate database instance: %w", err)
+	}
+	defer migrateDB.Close()
+
+	// 현재 작업 디렉토리를 기준으로 migrations 디렉토리 경로 설정
+	wd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get working directory: %w", err)
 	}
 
-	logInstance.Info("Database schema initialized successfully")
-	return nil
-}
+	// tests/integration에서 실행될 때 프로젝트 루트로 이동하여 migrations 디렉토리 찾기
+	migrationsDir := "../../database/migrations"
+	absPath := filepath.Join(wd, migrationsDir)
 
-func createTables(db *sqlx.DB) error {
-	queries := []string{
-		`CREATE TABLE categories (
-			id VARCHAR2(26) PRIMARY KEY,
-			name VARCHAR2(100) NOT NULL UNIQUE,
-			description VARCHAR2(500),
-			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-			deleted_at TIMESTAMP WITH TIME ZONE
-		)`,
-		`CREATE TABLE sub_categories (
-			id VARCHAR2(26) PRIMARY KEY,
-			category_id VARCHAR2(26) NOT NULL,
-			name VARCHAR2(100) NOT NULL,
-			description VARCHAR2(500),
-			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-			deleted_at TIMESTAMP WITH TIME ZONE,
-			CONSTRAINT fk_category FOREIGN KEY (category_id) 
-			REFERENCES categories(id)
-		)`,
-		`CREATE TABLE quizzes (
-			id VARCHAR2(26) PRIMARY KEY,
-			question CLOB NOT NULL,
-			model_answers CLOB DEFAULT '',
-			keywords CLOB DEFAULT '',
-			difficulty NUMBER NOT NULL,
-			sub_category_id VARCHAR2(26) NOT NULL,
-			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-			deleted_at TIMESTAMP WITH TIME ZONE,
-			CONSTRAINT fk_sub_category FOREIGN KEY (sub_category_id) 
-			REFERENCES sub_categories(id)
-		)`,
-		`CREATE TABLE answers (
-			id VARCHAR2(26) PRIMARY KEY,
-			quiz_id VARCHAR2(26) NOT NULL,
-			user_answer CLOB NOT NULL,
-			score NUMBER(5,2) NOT NULL,
-			explanation CLOB NOT NULL,
-			keyword_matches CLOB DEFAULT '',
-			completeness NUMBER(5,2) NOT NULL,
-			relevance NUMBER(5,2) NOT NULL,
-			accuracy NUMBER(5,2) NOT NULL,
-			answered_at TIMESTAMP WITH TIME ZONE NOT NULL,
-			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-			deleted_at TIMESTAMP WITH TIME ZONE,
-			CONSTRAINT fk_quiz FOREIGN KEY (quiz_id) 
-			REFERENCES quizzes(id)
-		)`,
+	logInstance.Info("Using migrations directory", zap.String("path", absPath))
+
+	// 마이그레이션 실행
+	if err := dblogic.RunMigrations(migrateDB, absPath); err != nil {
+		logInstance.Error("Failed to run migrations", zap.Error(err))
+		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 
-	for _, query := range queries {
-		_, err := db.Exec(query)
-		if err != nil {
-			return fmt.Errorf("failed to execute query: %s: %w", query, err)
-		}
-	}
-
+	logInstance.Info("Database schema initialized successfully via migrations")
 	return nil
 }
 
