@@ -392,7 +392,7 @@ func TestCheckAnswer(t *testing.T) {
 
 	logInstance.Info("Quiz fetched for TestCheckAnswer", zap.Int64("quiz_id", quizToAnswer.ID))
 
-	answerRequest := dto.AnswerRequest{
+	answerRequest := dto.CheckAnswerRequest{
 		QuizID:     quizToAnswer.ID,
 		UserAnswer: "This is a detailed and descriptive test answer, aiming to cover various aspects.",
 	}
@@ -403,13 +403,13 @@ func TestCheckAnswer(t *testing.T) {
 	reqPost := httptest.NewRequest(http.MethodPost, "/api/quiz/check", bytes.NewReader(requestBody))
 	reqPost.Header.Set("Content-Type", "application/json")
 
-	respPost, err := app.Test(reqPost)
+	respPost, err := app.Test(reqPost, 30000)
 	require.NoError(t, err)
 
 	respPostBodyBytes, _ := cloneResponseBody(respPost)
 	require.Equal(t, http.StatusOK, respPost.StatusCode, fmt.Sprintf("Expected status OK for /api/quiz/check. Status: %d, Body: %s", respPost.StatusCode, respPostBodyBytes.String()))
 
-	var answerResponse dto.AnswerResponse
+	var answerResponse dto.CheckAnswerResponse
 	err = json.NewDecoder(respPost.Body).Decode(&answerResponse)
 	require.NoError(t, err, fmt.Sprintf("Failed to decode answer response. Body: %s", respPostBodyBytes.String()))
 

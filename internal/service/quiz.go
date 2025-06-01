@@ -19,7 +19,7 @@ type LLMResponse struct {
 // QuizService defines the interface for quiz-related operations
 type QuizService interface {
 	GetRandomQuiz(subCategory string) (*dto.QuizResponse, error)
-	CheckAnswer(req *dto.AnswerRequest) (*dto.AnswerResponse, error)
+	CheckAnswer(req *dto.CheckAnswerRequest) (*dto.CheckAnswerResponse, error)
 	GetAllSubCategories() ([]string, error)
 }
 
@@ -59,7 +59,7 @@ func (s *quizService) GetRandomQuiz(subCategory string) (*dto.QuizResponse, erro
 }
 
 // CheckAnswer implements QuizService
-func (s *quizService) CheckAnswer(req *dto.AnswerRequest) (*dto.AnswerResponse, error) {
+func (s *quizService) CheckAnswer(req *dto.CheckAnswerRequest) (*dto.CheckAnswerResponse, error) {
 	quiz, err := s.repo.GetQuizByID(req.QuizID)
 	if err != nil {
 		return nil, domain.NewInternalError("Failed to get quiz", err)
@@ -97,7 +97,7 @@ func (s *quizService) CheckAnswer(req *dto.AnswerRequest) (*dto.AnswerResponse, 
 		nextQuizID = nextQuiz.ID
 	}
 
-	return &dto.AnswerResponse{
+	return &dto.CheckAnswerResponse{
 		Score:          evaluatedAnswer.Score,
 		Explanation:    evaluatedAnswer.Explanation,
 		KeywordMatches: evaluatedAnswer.KeywordMatches,

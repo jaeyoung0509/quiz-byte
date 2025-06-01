@@ -30,7 +30,7 @@ func NewQuizHandler(service service.QuizService) *QuizHandler {
 // @Produce json
 // @Success 200 {object} dto.CategoryResponse
 // @Failure 500 {object} middleware.ErrorResponse
-// @Router /api/categories [get]
+// @Router /categories [get]
 func (h *QuizHandler) GetAllSubCategories(c *fiber.Ctx) error {
 	_, err := h.service.GetAllSubCategories()
 	if err != nil {
@@ -68,7 +68,7 @@ func (h *QuizHandler) GetAllSubCategories(c *fiber.Ctx) error {
 // @Success 200 {object} dto.QuizResponse
 // @Failure 404 {object} middleware.ErrorResponse
 // @Failure 500 {object} middleware.ErrorResponse
-// @Router /api/quiz [get]
+// @Router /quiz [get]
 func (h *QuizHandler) GetRandomQuiz(c *fiber.Ctx) error {
 	subCategory := c.Query("sub_category")
 	if subCategory == "" {
@@ -110,7 +110,7 @@ func (h *QuizHandler) GetRandomQuiz(c *fiber.Ctx) error {
 // @Tags quiz
 // @Accept json
 // @Produce json
-// @Param answer body dto.AnswerRequest true "Answer Request"
+// @Param answer body dto.CheckAnswerRequest true "Answer Request"
 // @Success 200 {object} domain.Answer
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 404 {object} dto.ErrorResponse
@@ -128,9 +128,9 @@ func (h *QuizHandler) GetRandomQuiz(c *fiber.Ctx) error {
 // @Success 200 {object} dto.CheckAnswerResponse
 // @Failure 400 {object} middleware.ErrorResponse
 // @Failure 500 {object} middleware.ErrorResponse
-// @Router /api/quiz/check [post]
+// @Router /quiz/check [post]
 func (h *QuizHandler) CheckAnswer(c *fiber.Ctx) error {
-	var req dto.AnswerRequest
+	var req dto.CheckAnswerRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
 			Error: "INVALID_REQUEST",

@@ -26,15 +26,15 @@ type QuizResponse struct {
 	DiffLevel    string   `json:"diff_level"`
 }
 
-// AnswerRequest represents a user's answer in the API request
-// @Description Request body for checking an answer
-type AnswerRequest struct {
-	QuizID     int64  `json:"quiz_id"`
-	UserAnswer string `json:"user_answer"`
+// CheckAnswerRequest represents a request to check a quiz answer
+// @Description Request body for checking a quiz answer
+type CheckAnswerRequest struct {
+	QuizID     int64  `json:"quiz_id" example:"1"`      // Quiz ID to check
+	UserAnswer string `json:"user_answer" example:"답안"` // User's answer text
 }
 
-// AnswerResponse represents the evaluation result in the API response
-type AnswerResponse struct {
+// CheckAnswerResponse represents the evaluation result in the API response
+type CheckAnswerResponse struct {
 	Score          float64  `json:"score"`                  // 종합 점수 (0.0 ~ 1.0)
 	Explanation    string   `json:"explanation"`            // LLM이 생성한 피드백
 	KeywordMatches []string `json:"keyword_matches"`        // 매칭된 키워드들
