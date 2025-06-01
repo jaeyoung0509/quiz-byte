@@ -6,7 +6,7 @@ import (
 	"quiz-byte/internal/logger"
 	"quiz-byte/internal/service"
 
-	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
 )
 
@@ -22,9 +22,16 @@ func NewQuizHandler(service service.QuizService) *QuizHandler {
 	}
 }
 
-// GetAllSubCategories handles GET /quiz/categories
-// GetAllSubCategories handles GET /api/categories
-func (h *QuizHandler) GetAllSubCategories(c fiber.Ctx) error {
+// GetAllSubCategories godoc
+// @Summary Get all quiz categories
+// @Description Returns all available quiz categories
+// @Tags categories
+// @Accept json
+// @Produce json
+// @Success 200 {object} dto.CategoryResponse
+// @Failure 500 {object} middleware.ErrorResponse
+// @Router /categories [get]
+func (h *QuizHandler) GetAllSubCategories(c *fiber.Ctx) error {
 	_, err := h.service.GetAllSubCategories()
 	if err != nil {
 		logger.Get().Error("Failed to get categories", zap.Error(err))
@@ -40,8 +47,29 @@ func (h *QuizHandler) GetAllSubCategories(c fiber.Ctx) error {
 	})
 }
 
+// GetRandomQuiz godoc
+// @Summary Get a random quiz
+// @Description Get a random quiz by sub category
+// @Tags quiz
+// @Accept json
+// @Produce json
+// @Param sub_category query string true "Sub Category"
+// @Success 200 {object} dto.QuizResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Router /quiz [get]
 // GetRandomQuiz handles GET /api/quiz
-func (h *QuizHandler) GetRandomQuiz(c fiber.Ctx) error {
+// GetRandomQuiz godoc
+// @Summary Get a random quiz
+// @Description Returns a random quiz question
+// @Tags quiz
+// @Accept json
+// @Produce json
+// @Success 200 {object} dto.QuizResponse
+// @Failure 404 {object} middleware.ErrorResponse
+// @Failure 500 {object} middleware.ErrorResponse
+// @Router /quiz [get]
+func (h *QuizHandler) GetRandomQuiz(c *fiber.Ctx) error {
 	subCategory := c.Query("sub_category")
 	if subCategory == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
@@ -76,10 +104,34 @@ func (h *QuizHandler) GetRandomQuiz(c fiber.Ctx) error {
 	})
 }
 
+// CheckAnswer godoc
+// @Summary Check an answer for a quiz
+// @Description Check an answer for a quiz
+// @Tags quiz
+// @Accept json
+// @Produce json
+// @Param answer body dto.CheckAnswerRequest true "Answer Request"
+// @Success 200 {object} domain.Answer
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
+// @Failure 503 {object} dto.ErrorResponse
+// @Router /quiz/check [post]
 // CheckAnswer handles POST /api/quiz/check
-func (h *QuizHandler) CheckAnswer(c fiber.Ctx) error {
-	var req dto.AnswerRequest
-	if err := c.Bind().Body(&req); err != nil {
+// CheckAnswer godoc
+// @Summary Check quiz answer
+// @Description Checks if the provided answer is correct
+// @Tags quiz
+// @Accept json
+// @Produce json
+// @Param request body dto.CheckAnswerRequest true "Answer details"
+// @Success 200 {object} dto.CheckAnswerResponse
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 500 {object} middleware.ErrorResponse
+// @Router /quiz/check [post]
+func (h *QuizHandler) CheckAnswer(c *fiber.Ctx) error {
+	var req dto.CheckAnswerRequest
+	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
 			Error: "INVALID_REQUEST",
 		})

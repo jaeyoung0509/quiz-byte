@@ -23,7 +23,7 @@ import (
 	"quiz-byte/internal/logger"
 	"quiz-byte/internal/service"
 
-	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tmc/langchaingo/llms/ollama"
@@ -343,7 +343,7 @@ func TestGetRandomQuiz(t *testing.T) {
 
 	encodedSubCategoryName := url.QueryEscape(testSubCategoryName)
 	req := httptest.NewRequest(http.MethodGet, "/api/quiz?sub_category="+encodedSubCategoryName, nil)
-	resp, err := app.Test(req, fiber.TestConfig{Timeout: 60 * time.Second})
+	resp, err := app.Test(req)
 	require.NoError(t, err, "app.Test for /api/quiz should not return an error")
 
 	respBodyBytes, _ := cloneResponseBody(resp)
@@ -379,7 +379,7 @@ func TestCheckAnswer(t *testing.T) {
 
 	logInstance.Info("Fetching a quiz for TestCheckAnswer", zap.String("sub_category", testSubCategoryName))
 	reqGet := httptest.NewRequest(http.MethodGet, targetURLGetQuiz, nil)
-	respGet, err := app.Test(reqGet, fiber.TestConfig{Timeout: 180 * time.Second})
+	respGet, err := app.Test(reqGet)
 	require.NoError(t, err)
 
 	respGetBodyBytes, _ := cloneResponseBody(respGet)
@@ -392,7 +392,7 @@ func TestCheckAnswer(t *testing.T) {
 
 	logInstance.Info("Quiz fetched for TestCheckAnswer", zap.Int64("quiz_id", quizToAnswer.ID))
 
-	answerRequest := dto.AnswerRequest{
+	answerRequest := dto.CheckAnswerRequest{
 		QuizID:     quizToAnswer.ID,
 		UserAnswer: "This is a detailed and descriptive test answer, aiming to cover various aspects.",
 	}
@@ -403,13 +403,13 @@ func TestCheckAnswer(t *testing.T) {
 	reqPost := httptest.NewRequest(http.MethodPost, "/api/quiz/check", bytes.NewReader(requestBody))
 	reqPost.Header.Set("Content-Type", "application/json")
 
-	respPost, err := app.Test(reqPost, fiber.TestConfig{Timeout: 180 * time.Second})
+	respPost, err := app.Test(reqPost, 30000)
 	require.NoError(t, err)
 
 	respPostBodyBytes, _ := cloneResponseBody(respPost)
 	require.Equal(t, http.StatusOK, respPost.StatusCode, fmt.Sprintf("Expected status OK for /api/quiz/check. Status: %d, Body: %s", respPost.StatusCode, respPostBodyBytes.String()))
 
-	var answerResponse dto.AnswerResponse
+	var answerResponse dto.CheckAnswerResponse
 	err = json.NewDecoder(respPost.Body).Decode(&answerResponse)
 	require.NoError(t, err, fmt.Sprintf("Failed to decode answer response. Body: %s", respPostBodyBytes.String()))
 

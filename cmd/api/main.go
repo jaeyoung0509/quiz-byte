@@ -1,33 +1,49 @@
+// @title Quiz Byte API
+// @version 1.0
+// @description This is the API for the Quiz Byte application.
+// @termsOfService http://swagger.io/terms/
+// @contact.name API Support
+// @contact.url http://www.swagger.io/support
+// @contact.email support@swagger.io
+// @license.name Apache 2.0
+// @license.url http://www.apache.org/licenses/LICENSE-2.0.html
+// @host localhost:8090
+// @BasePath /api
+// @schemes http https
 package main
 
 import (
 	"context"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"quiz-byte/internal/config"
 	"quiz-byte/internal/database"
-	"quiz-byte/internal/handler"
-	"net/http"
 	"quiz-byte/internal/domain"
+	"quiz-byte/internal/handler"
 	"quiz-byte/internal/logger"
 	"quiz-byte/internal/middleware"
 	"quiz-byte/internal/repository"
 	"quiz-byte/internal/service"
 	"strconv"
 	"syscall"
-	"github.com/tmc/langchaingo/llms/ollama"
 	"time"
 
-	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/middleware/cors"
-	"github.com/gofiber/fiber/v3/middleware/recover"
+	_ "quiz-byte/cmd/api/docs"
+
+	"github.com/gofiber/swagger"
+	"github.com/tmc/langchaingo/llms/ollama"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/recover"
 	"go.uber.org/zap"
 )
 
 // requestLogger is a middleware that logs HTTP requests
 func requestLogger() fiber.Handler {
-	return func(c fiber.Ctx) error {
+	return func(c *fiber.Ctx) error {
 		start := time.Now()
 		path := c.Path()
 		method := c.Method()
@@ -75,7 +91,7 @@ func main() {
 	// Create LLM client
 	llm, err := ollama.New(
 		ollama.WithServerURL(cfg.LLMServer), // Assuming LLMServer is in your config
-		ollama.WithModel("qwen3:0.6b"),     // Or from config
+		ollama.WithModel("qwen3:0.6b"),      // Or from config
 		ollama.WithHTTPClient(ollamaHTTPClient),
 	)
 	if err != nil {
@@ -113,13 +129,16 @@ func main() {
 	// Add request logging middleware
 	app.Use(requestLogger())
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: []string{"*"},
-		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders: []string{"Origin", "Content-Type", "Accept", "Authorization"},
-		MaxAge:       300, // 5분
+		AllowOrigins: "*",
+		AllowMethods: "GET,POST,PUT,DELETE,OPTIONS",
+		AllowHeaders: "Origin,Content-Type,Accept,Authorization",
+		MaxAge:       300,
 	}))
 	app.Use(recover.New())
 	app.Use(middleware.ErrorHandler())
+
+	// Swagger handler
+	app.Get("/swagger/*", swagger.HandlerDefault)
 
 	// Setup routes
 	app.Get("/api/categories", handler.GetAllSubCategories)
@@ -136,21 +155,24 @@ func main() {
 		if err := app.Listen(":" + strconv.Itoa(cfg.Server.Port)); err != nil {
 			log.Fatal("Failed to start server", zap.Error(err))
 		}
-
-		// Wait for interrupt signal to gracefully shutdown the server
-		quit := make(chan os.Signal, 1)
-		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-		<-quit
-
-		log.Info("Shutting down server...")
-
-		// Create shutdown context with timeout
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		// Attempt graceful shutdown
-		if err := app.ShutdownWithContext(ctx); err != nil {
-			log.Fatal("Server forced to shutdown", zap.Error(err))
-		}
 	}()
+
+	// Wait for interrupt signal to gracefully shutdown the server
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Info("Shutting down server...")
+
+	// Create shutdown context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Attempt graceful shutdown
+	if err := app.ShutdownWithContext(ctx); err != nil {
+		log.Fatal("Server forced to shutdown", zap.Error(err))
+	}
+
+	log.Info("Server exited gracefully")
+
 }

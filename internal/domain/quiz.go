@@ -153,6 +153,7 @@ func (q *Quiz) Validate() error {
 }
 
 // Answer represents a user's answer to a quiz
+// @Description Detailed result of a user's answer evaluation
 type Answer struct {
 	ID             int64
 	QuizID         int64

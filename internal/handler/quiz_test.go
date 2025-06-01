@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"quiz-byte/internal/domain"
-	"quiz-byte/internal/dto"
+	dto "quiz-byte/internal/dto"
 	"quiz-byte/internal/repository/models"
 	"testing"
 
-	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -54,12 +54,12 @@ func (m *MockQuizService) GetRandomQuiz(subCategory string) (*dto.QuizResponse, 
 	return args.Get(0).(*dto.QuizResponse), args.Error(1)
 }
 
-func (m *MockQuizService) CheckAnswer(req *dto.AnswerRequest) (*dto.AnswerResponse, error) {
+func (m *MockQuizService) CheckAnswer(req *dto.CheckAnswerRequest) (*dto.CheckAnswerResponse, error) {
 	args := m.Called(req)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*dto.AnswerResponse), args.Error(1)
+	return args.Get(0).(*dto.CheckAnswerResponse), args.Error(1)
 }
 
 func (m *MockQuizService) GetAllSubCategories() ([]string, error) {
@@ -203,19 +203,19 @@ func TestCheckAnswer(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		requestBody    *dto.AnswerRequest
-		mockResponse   *dto.AnswerResponse
+		requestBody    *dto.CheckAnswerRequest
+		mockResponse   *dto.CheckAnswerResponse
 		mockError      error
 		expectedStatus int
 		expectedBody   map[string]interface{}
 	}{
 		{
 			name: "Success",
-			requestBody: &dto.AnswerRequest{
+			requestBody: &dto.CheckAnswerRequest{
 				QuizID:     1,
 				UserAnswer: "4",
 			},
-			mockResponse: &dto.AnswerResponse{
+			mockResponse: &dto.CheckAnswerResponse{
 				Score:          1.0,
 				Explanation:    "Correct! 2+2=4",
 				KeywordMatches: []string{"4"},
@@ -236,7 +236,7 @@ func TestCheckAnswer(t *testing.T) {
 		},
 		{
 			name: "Quiz Not Found",
-			requestBody: &dto.AnswerRequest{
+			requestBody: &dto.CheckAnswerRequest{
 				QuizID:     999,
 				UserAnswer: "4",
 			},
