@@ -3,15 +3,15 @@ package dto
 // CategoryResponse represents a category in the API response
 // @Description Category information
 type CategoryResponse struct {
-	ID          int64  `json:"id"`
+	ID          string `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
 }
 
 // SubCategoryResponse represents a subcategory in the API response
 type SubCategoryResponse struct {
-	ID          int64  `json:"id"`
-	CategoryID  int64  `json:"category_id"`
+	ID          string `json:"id"`
+	CategoryID  string `json:"category_id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
 }
@@ -19,7 +19,7 @@ type SubCategoryResponse struct {
 // QuizResponse represents a quiz in the API response
 // @Description Quiz information
 type QuizResponse struct {
-	ID           int64    `json:"id"`
+	ID           string   `json:"id"`
 	Question     string   `json:"question"`
 	ModelAnswers []string `json:"model_answers,omitempty"`
 	Keywords     []string `json:"keywords"`
@@ -29,8 +29,8 @@ type QuizResponse struct {
 // CheckAnswerRequest represents a request to check a quiz answer
 // @Description Request body for checking a quiz answer
 type CheckAnswerRequest struct {
-	QuizID     int64  `json:"quiz_id" example:"1"`      // Quiz ID to check
-	UserAnswer string `json:"user_answer" example:"답안"` // User's answer text
+	QuizID     string `json:"quiz_id" example:"ulid-generated-id"` // Quiz ID to check
+	UserAnswer string `json:"user_answer" example:"답안"`            // User's answer text
 }
 
 // CheckAnswerResponse represents the evaluation result in the API response
@@ -42,7 +42,7 @@ type CheckAnswerResponse struct {
 	Relevance      float64  `json:"relevance"`              // 답변 관련성 (0.0 ~ 1.0)
 	Accuracy       float64  `json:"accuracy"`               // 답변 정확도 (0.0 ~ 1.0)
 	ModelAnswer    string   `json:"model_answer,omitempty"` // 모범 답안 (선택적)
-	NextQuizID     int64    `json:"next_quiz_id,omitempty"` // 다음 문제 ID (유사도 기반)
+	NextQuizID     string   `json:"next_quiz_id,omitempty"` // 다음 문제 ID (유사도 기반)
 }
 
 // QuizEvaluationResponse represents the evaluation criteria in the API response

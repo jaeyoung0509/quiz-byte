@@ -41,7 +41,7 @@ func (h *QuizHandler) GetAllSubCategories(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(dto.CategoryResponse{
-		ID:          0, // No specific ID for all categories
+		ID:          "", // No specific ID for all categories, string type
 		Name:        "All Categories",
 		Description: "List of all quiz categories",
 	})
@@ -138,7 +138,7 @@ func (h *QuizHandler) CheckAnswer(c *fiber.Ctx) error {
 	}
 
 	// Validate request
-	if req.QuizID == 0 {
+	if req.QuizID == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
 			Error: "quiz_id is required",
 		})
@@ -153,7 +153,7 @@ func (h *QuizHandler) CheckAnswer(c *fiber.Ctx) error {
 	if err != nil {
 		logger.Get().Error("Failed to check answer",
 			zap.Error(err),
-			zap.Int64("quiz_id", req.QuizID),
+			zap.String("quiz_id", req.QuizID), // Changed to zap.String
 		)
 
 		switch err.(type) {

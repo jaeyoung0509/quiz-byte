@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	_ "github.com/sijms/go-ora/v2" // Ensure go-ora driver is registered
 )
 
 func RunMigrations(db *sql.DB) error {
@@ -39,8 +41,8 @@ func RunMigrations(db *sql.DB) error {
 }
 
 func NewMigrateOracleDB(dsn string) (*sql.DB, error) {
-	// godror 드라이버를 사용하여 Oracle DB 연결
-	db, err := sql.Open("godror", dsn)
+	// go-ora 드라이버를 사용하여 Oracle DB 연결
+	db, err := sql.Open("oracle", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("could not open database: %v", err)
 	}

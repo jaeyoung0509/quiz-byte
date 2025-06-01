@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
-	"gorm.io/gorm"
 )
 
 const stringDelimiter = "|||"
@@ -57,72 +55,67 @@ func (s *StringSlice) Scan(value interface{}) error {
 	return nil
 }
 
-// Category 모델 (변경 없음)
+// Category 모델
 type Category struct {
-	ID            int64          `gorm:"primaryKey;autoIncrement"`
-	Name          string         `gorm:"size:100;not null;uniqueIndex"`
-	Description   string         `gorm:"size:500"`
-	CreatedAt     time.Time      `gorm:"not null"`
-	UpdatedAt     time.Time      `gorm:"not null"`
-	DeletedAt     gorm.DeletedAt `gorm:"index"`
-	SubCategories []SubCategory  `gorm:"foreignKey:CategoryID"`
+	ID          string     `db:"id"`
+	Name        string     `db:"name"`
+	Description string     `db:"description"`
+	CreatedAt   time.Time  `db:"created_at"`
+	UpdatedAt   time.Time  `db:"updated_at"`
+	DeletedAt   *time.Time `db:"deleted_at"`
 }
 
 func (Category) TableName() string {
 	return "categories"
 }
 
-// SubCategory 모델 (변경 없음)
+// SubCategory 모델
 type SubCategory struct {
-	ID          int64          `gorm:"primaryKey;autoIncrement"`
-	CategoryID  int64          `gorm:"not null;index"`
-	Name        string         `gorm:"size:100;not null"`
-	Description string         `gorm:"size:500"`
-	CreatedAt   time.Time      `gorm:"not null"`
-	UpdatedAt   time.Time      `gorm:"not null"`
-	DeletedAt   gorm.DeletedAt `gorm:"index"`
-	Category    Category       `gorm:"foreignKey:CategoryID"`
-	Quizzes     []Quiz         `gorm:"foreignKey:SubCategoryID"`
+	ID          string     `db:"id"`
+	CategoryID  string     `db:"category_id"`
+	Name        string     `db:"name"`
+	Description string     `db:"description"`
+	CreatedAt   time.Time  `db:"created_at"`
+	UpdatedAt   time.Time  `db:"updated_at"`
+	DeletedAt   *time.Time `db:"deleted_at"`
 }
 
 func (SubCategory) TableName() string {
 	return "sub_categories"
 }
 
-// Quiz 모델 (GORM 태그는 이전과 동일하게 type:clob 유지)
+// Quiz 모델
 type Quiz struct {
-	ID            int64          `gorm:"primaryKey;autoIncrement"`
-	Question      string         `gorm:"type:text;not null"`
-	ModelAnswers  string         `gorm:"type:clob;not null"` // CLOB 타입 유지
-	Keywords      string         `gorm:"type:clob;not null"` // CLOB 타입 유지
-	Difficulty    int            `gorm:"not null"`
-	SubCategoryID int64          `gorm:"not null;index"`
-	CreatedAt     time.Time      `gorm:"not null"`
-	UpdatedAt     time.Time      `gorm:"not null"`
-	DeletedAt     gorm.DeletedAt `gorm:"index"`
-	SubCategory   SubCategory    `gorm:"foreignKey:SubCategoryID"`
-	Answers       []Answer       `gorm:"foreignKey:QuizID"`
+	ID            string     `db:"id"`
+	Question      string     `db:"question"`
+	ModelAnswers  string     `db:"model_answers"`
+	Keywords      string     `db:"keywords"`
+	Difficulty    int        `db:"difficulty"`
+	SubCategoryID string     `db:"sub_category_id"`
+	CreatedAt     time.Time  `db:"created_at"`
+	UpdatedAt     time.Time  `db:"updated_at"`
+	DeletedAt     *time.Time `db:"deleted_at"`
 }
 
 func (Quiz) TableName() string {
 	return "quizzes"
 }
 
-// Answer 모델 (GORM 태그는 이전과 동일하게 type:clob 유지)
+// Answer 모델
 type Answer struct {
-	ID             int64          `gorm:"primaryKey;autoIncrement"`
-	QuizID         int64          `gorm:"not null;index"`
-	UserAnswer     string         `gorm:"type:text;not null"`
-	Score          float64        `gorm:"type:decimal(3,2);not null"`
-	Explanation    string         `gorm:"type:text;not null"`
-	KeywordMatches StringSlice    `gorm:"type:clob;not null"` // CLOB 타입 유지
-	Completeness   float64        `gorm:"type:decimal(3,2);not null"`
-	Relevance      float64        `gorm:"type:decimal(3,2);not null"`
-	Accuracy       float64        `gorm:"type:decimal(3,2);not null"`
-	AnsweredAt     time.Time      `gorm:"not null"`
-	CreatedAt      time.Time      `gorm:"not null"`
-	UpdatedAt      time.Time      `gorm:"not null"`
-	DeletedAt      gorm.DeletedAt `gorm:"index"`
+	ID             string      `db:"id"`
+	QuizID         string      `db:"quiz_id"`
+	UserAnswer     string      `db:"user_answer"`
+	Score          float64     `db:"score"`
+	Explanation    string      `db:"explanation"`
+	KeywordMatches StringSlice `db:"keyword_matches"`
+	Completeness   float64     `db:"completeness"`
+	Relevance      float64     `db:"relevance"`
+	Accuracy       float64     `db:"accuracy"`
+	AnsweredAt     time.Time   `db:"answered_at"`
+	CreatedAt      time.Time   `db:"created_at"`
+	UpdatedAt      time.Time   `db:"updated_at"`
+	DeletedAt      *time.Time  `db:"deleted_at"`
 }
 
 func (Answer) TableName() string {
