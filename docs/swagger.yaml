@@ -1,0 +1,250 @@
+basePath: /api
+definitions:
+  domain.Answer:
+    description: Detailed result of a user's answer evaluation
+    properties:
+      accuracy:
+        description: 답변 정확도 (0.0 ~ 1.0)
+        type: number
+      answeredAt:
+        type: string
+      completeness:
+        description: 답변 완성도 (0.0 ~ 1.0)
+        type: number
+      explanation:
+        description: LLM이 생성한 피드백
+        type: string
+      id:
+        type: integer
+      keywordMatches:
+        description: 매칭된 키워드들
+        items:
+          type: string
+        type: array
+      quizID:
+        type: integer
+      relevance:
+        description: 답변 관련성 (0.0 ~ 1.0)
+        type: number
+      score:
+        description: 0.0 ~ 1.0 사이의 점수
+        type: number
+      userAnswer:
+        description: 서술형 답변
+        type: string
+    type: object
+  dto.CategoryResponse:
+    description: Category information
+    properties:
+      description:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+    type: object
+  dto.CheckAnswerRequest:
+    description: Request body for checking a quiz answer
+    properties:
+      quiz_id:
+        description: Quiz ID to check
+        example: 1
+        type: integer
+      user_answer:
+        description: User's answer text
+        example: 답안
+        type: string
+    type: object
+  dto.CheckAnswerResponse:
+    properties:
+      accuracy:
+        description: 답변 정확도 (0.0 ~ 1.0)
+        type: number
+      completeness:
+        description: 답변 완성도 (0.0 ~ 1.0)
+        type: number
+      explanation:
+        description: LLM이 생성한 피드백
+        type: string
+      keyword_matches:
+        description: Matched keywords from the user's answer @param KeywordMatches
+          body []string false "매칭된 키워드 목록"
+        items:
+          type: string
+        type: array
+      model_answers:
+        description: ModelAnswers represents the model answers (선택적) @param ModelAnswers
+          body []string false "모범 답안 목록"
+        items:
+          type: string
+        type: array
+      next_quiz_id:
+        description: 다음 문제 ID (유사도 기반)
+        type: integer
+      relevance:
+        description: 답변 관련성 (0.0 ~ 1.0)
+        type: number
+      score:
+        description: 종합 점수 (0.0 ~ 1.0)
+        type: number
+    type: object
+  dto.ErrorResponse:
+    properties:
+      error:
+        type: string
+    type: object
+  dto.QuizResponse:
+    description: Quiz information
+    properties:
+      diff_level:
+        type: string
+      id:
+        type: integer
+      keywords:
+        description: Keywords associated with the quiz @param Keywords body []string
+          false "키워드 목록"
+        items:
+          type: string
+        type: array
+      model_answers:
+        description: Model answers for the quiz @param ModelAnswers body []string
+          false "모범 답안 목록"
+        items:
+          type: string
+        type: array
+      question:
+        type: string
+    type: object
+  middleware.ErrorResponse:
+    properties:
+      code:
+        type: string
+      message:
+        type: string
+      status:
+        type: integer
+    type: object
+host: localhost:8090
+info:
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: This is the API for the Quiz Byte application.
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Quiz Byte API
+  version: "1.0"
+paths:
+  /categories:
+    get:
+      consumes:
+      - application/json
+      description: Returns all available quiz categories
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.CategoryResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+      summary: Get all quiz categories
+      tags:
+      - categories
+  /quiz:
+    get:
+      consumes:
+      - application/json
+      - application/json
+      description: |-
+        Get a random quiz by sub category
+        Returns a random quiz question
+      parameters:
+      - description: Sub Category
+        in: query
+        name: sub_category
+        required: true
+        type: string
+      produces:
+      - application/json
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.QuizResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+      summary: Get a random quiz
+      tags:
+      - quiz
+      - quiz
+  /quiz/check:
+    post:
+      consumes:
+      - application/json
+      - application/json
+      description: |-
+        Check an answer for a quiz
+        Checks if the provided answer is correct
+      parameters:
+      - description: Answer Request
+        in: body
+        name: answer
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CheckAnswerRequest'
+      - description: Answer details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CheckAnswerRequest'
+      produces:
+      - application/json
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.CheckAnswerResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Check quiz answer
+      tags:
+      - quiz
+      - quiz
+schemes:
+- http
+- https
+swagger: "2.0"

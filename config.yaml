@@ -1,0 +1,14 @@
+db:
+  host: "localhost"
+  port: 1522
+  user: "system"
+  password: "oracle"
+  name: "FREE"
+
+server:
+  port: 8090
+  read_timeout: 15
+  write_timeout: 15
+
+llm:
+  server: "http://localhost:11434/"
