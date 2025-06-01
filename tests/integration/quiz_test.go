@@ -9,16 +9,18 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
+	"os"              // Added/Ensured
+	"path/filepath"   // Added/Ensured
 	"quiz-byte/internal/domain"
 	"quiz-byte/internal/repository" // 실제 repository 구현체 사용을 위해 import
 	"quiz-byte/internal/repository/models"
-	"strings" // strings 패키지 import
+	"sort"            // Added/Ensured
+	"strings"         // Ensured
 	"testing"
 	"time"
 
 	"quiz-byte/internal/config"
-	"quiz-byte/internal/database"
+	dblogic "quiz-byte/internal/database" // Aliased import for database package
 	"quiz-byte/internal/dto"
 	"quiz-byte/internal/handler"
 	"quiz-byte/internal/logger"
@@ -84,7 +86,7 @@ func TestMain(m *testing.M) {
 
 	dsn := cfg.GetDSN()
 	logInstance.Info("Connecting to database with DSN", zap.String("dsn", dsn))
-	db, err = database.NewSQLXOracleDB(dsn)
+	db, err = dblogic.NewSQLXOracleDB(dsn) // Use the alias 'dblogic'
 	if err != nil {
 		logInstance.Fatal("Failed to connect to database", zap.Error(err))
 	}
@@ -140,93 +142,89 @@ func TestMain(m *testing.M) {
 }
 
 func initDatabase(db *sqlx.DB) error {
-	logInstance.Info("Initializing database schema...")
+	logInstance.Info("Initializing database schema using migrations...")
 
-	// Drop tables if they exist
-	tablesToDrop := []string{"answers", "quizzes", "sub_categories", "categories"}
-	for _, tableName := range tablesToDrop {
-		logInstance.Info("Attempting to drop table", zap.String("table", tableName))
-		dropSQL := fmt.Sprintf("DROP TABLE %s CASCADE CONSTRAINTS", tableName)
-		_, err := db.Exec(dropSQL)
-		if err != nil {
-			if strings.Contains(strings.ToUpper(err.Error()), "ORA-00942") {
-				logInstance.Info("Table does not exist", zap.String("table", tableName))
+	migrationsDir := "../database/migrations"
+
+	wd, err := os.Getwd()
+	if err != nil {
+		logInstance.Warn("Failed to get current working directory", zap.Error(err))
+	} else {
+		logInstance.Info("Current working directory for test", zap.String("wd", wd))
+		expectedDownMigrationsPath := filepath.Join(wd, migrationsDir)
+		logInstance.Info("Expecting to find DOWN migrations in", zap.String("path", expectedDownMigrationsPath))
+		if _, statErr := os.Stat(expectedDownMigrationsPath); os.IsNotExist(statErr) {
+			logInstance.Error("Down migrations directory does not exist at expected path", zap.String("path", expectedDownMigrationsPath))
+		}
+	}
+
+	files, err := os.ReadDir(migrationsDir)
+	if err != nil {
+		return fmt.Errorf("could not read migrations directory %s: %w. Check CWD and relative path. CWD: %s", migrationsDir, err, wd)
+	}
+
+	var downFiles []string
+	for _, file := range files {
+		if strings.HasSuffix(file.Name(), ".down.sql") {
+			downFiles = append(downFiles, file.Name())
+		}
+	}
+	// Sort in reverse filename order
+	sort.Sort(sort.Reverse(sort.StringSlice(downFiles)))
+
+	for _, fileName := range downFiles {
+		logInstance.Info("Executing down migration", zap.String("file", fileName))
+		filePath := filepath.Join(migrationsDir, fileName)
+		content, errReadFile := os.ReadFile(filePath)
+		if errReadFile != nil {
+			return fmt.Errorf("could not read migration file %s: %w", filePath, errReadFile)
+		}
+
+		if strings.TrimSpace(string(content)) == "" {
+			logInstance.Info("Skipping empty down migration file", zap.String("file", fileName))
+			continue
+		}
+
+		_, errExec := db.Exec(string(content))
+		if errExec != nil {
+			type oracleError interface {
+				Code() int
+			}
+			if oErr, ok := errExec.(oracleError); ok {
+				if oErr.Code() == 942 || oErr.Code() == 2443 || oErr.Code() == 1418 || oErr.Code() == 2289 {
+					logInstance.Warn("Ignoring Oracle error for down migration (object likely did not exist)",
+						zap.String("file", fileName), zap.Int("oracle_code", oErr.Code()), zap.Error(errExec))
+				} else {
+					return fmt.Errorf("oracle error executing down migration %s (code %d): %w", fileName, oErr.Code(), errExec)
+				}
 			} else {
-				return fmt.Errorf("failed to drop table %s: %w", tableName, err)
+				if strings.Contains(strings.ToLower(errExec.Error()), "does not exist") ||
+					strings.Contains(strings.ToLower(errExec.Error()), "unknown table") ||
+					strings.Contains(strings.ToLower(errExec.Error()), "nonexistent constraint") { // For other DBs
+					logInstance.Warn("Ignoring generic 'does not exist' error for down migration", zap.String("file", fileName), zap.Error(errExec))
+				} else {
+					return fmt.Errorf("non-oracle error executing down migration %s: %w", fileName, errExec)
+				}
 			}
 		}
 	}
 
-	// Create tables in order
-	err := createTables(db)
-	if err != nil {
-		return fmt.Errorf("failed to create tables: %w", err)
+	logInstance.Info("Attempting to run UP migrations using dblogic.RunMigrations.", zap.String("expected_up_migrations_path_for_RunMigrations", filepath.Join(wd, "database/migrations")))
+
+	upMigrationsPathInternal := "database/migrations"
+	if _, statErr := os.Stat(filepath.Join(wd, upMigrationsPathInternal)); os.IsNotExist(statErr) {
+		logInstance.Error("UP migrations directory (database/migrations) does not exist relative to CWD. dblogic.RunMigrations will likely fail.",
+			zap.String("cwd", wd),
+			zap.String("path_used_by_RunMigrations", upMigrationsPathInternal),
+			zap.String("resolved_path_attempted", filepath.Join(wd, upMigrationsPathInternal)))
 	}
 
-	logInstance.Info("Database schema initialized successfully")
-	return nil
-}
-
-func createTables(db *sqlx.DB) error {
-	queries := []string{
-		`CREATE TABLE categories (
-			id VARCHAR2(26) PRIMARY KEY,
-			name VARCHAR2(100) NOT NULL UNIQUE,
-			description VARCHAR2(500),
-			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-			deleted_at TIMESTAMP WITH TIME ZONE
-		)`,
-		`CREATE TABLE sub_categories (
-			id VARCHAR2(26) PRIMARY KEY,
-			category_id VARCHAR2(26) NOT NULL,
-			name VARCHAR2(100) NOT NULL,
-			description VARCHAR2(500),
-			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-			deleted_at TIMESTAMP WITH TIME ZONE,
-			CONSTRAINT fk_category FOREIGN KEY (category_id) 
-			REFERENCES categories(id)
-		)`,
-		`CREATE TABLE quizzes (
-			id VARCHAR2(26) PRIMARY KEY,
-			question CLOB NOT NULL,
-			model_answers CLOB DEFAULT '',
-			keywords CLOB DEFAULT '',
-			difficulty NUMBER NOT NULL,
-			sub_category_id VARCHAR2(26) NOT NULL,
-			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-			deleted_at TIMESTAMP WITH TIME ZONE,
-			CONSTRAINT fk_sub_category FOREIGN KEY (sub_category_id) 
-			REFERENCES sub_categories(id)
-		)`,
-		`CREATE TABLE answers (
-			id VARCHAR2(26) PRIMARY KEY,
-			quiz_id VARCHAR2(26) NOT NULL,
-			user_answer CLOB NOT NULL,
-			score NUMBER(5,2) NOT NULL,
-			explanation CLOB NOT NULL,
-			keyword_matches CLOB DEFAULT '',
-			completeness NUMBER(5,2) NOT NULL,
-			relevance NUMBER(5,2) NOT NULL,
-			accuracy NUMBER(5,2) NOT NULL,
-			answered_at TIMESTAMP WITH TIME ZONE NOT NULL,
-			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-			deleted_at TIMESTAMP WITH TIME ZONE,
-			CONSTRAINT fk_quiz FOREIGN KEY (quiz_id) 
-			REFERENCES quizzes(id)
-		)`,
+	if err := dblogic.RunMigrations(db.DB); err != nil {
+		logInstance.Error("Failed to run up migrations via dblogic.RunMigrations", zap.Error(err), zap.String("cwd_when_called", wd))
+		return fmt.Errorf("failed to run up migrations (CWD: %s): %w", wd, err)
 	}
 
-	for _, query := range queries {
-		_, err := db.Exec(query)
-		if err != nil {
-			return fmt.Errorf("failed to execute query: %s: %w", query, err)
-		}
-	}
-
+	logInstance.Info("Database schema initialized successfully via migrations")
 	return nil
 }
 
