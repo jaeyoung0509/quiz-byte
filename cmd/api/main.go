@@ -99,7 +99,7 @@ func main() {
 	}
 
 	// Connect to database
-	db, err := database.NewOracleDB(cfg.GetDSN())
+	db, err := database.NewSQLXOracleDB(cfg.GetDSN())
 	if err != nil {
 		log.Fatal("Failed to connect to database", zap.Error(err))
 	}

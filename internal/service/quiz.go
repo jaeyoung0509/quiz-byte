@@ -92,7 +92,7 @@ func (s *quizService) CheckAnswer(req *dto.CheckAnswerRequest) (*dto.CheckAnswer
 
 	// Find next similar quiz
 	nextQuiz, err := s.repo.GetSimilarQuiz(req.QuizID)
-	var nextQuizID int64
+	var nextQuizID string // Changed to string
 	if err == nil && nextQuiz != nil {
 		nextQuizID = nextQuiz.ID
 	}

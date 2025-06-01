@@ -69,8 +69,8 @@ func NewInternalError(message string, err error) *DomainError {
 	return NewError(ErrInternal, message, err)
 }
 
-func NewQuizNotFoundError(quizID int64) *DomainError {
-	return NewError(ErrQuizNotFound, fmt.Sprintf("Quiz not found with ID: %d", quizID), nil)
+func NewQuizNotFoundError(quizID string) *DomainError {
+	return NewError(ErrQuizNotFound, fmt.Sprintf("Quiz not found with ID: %s", quizID), nil)
 }
 
 func NewInvalidAnswerError(message string) *DomainError {

@@ -30,7 +30,7 @@ func (e *NotFoundError) Error() string {
 
 // Category represents a quiz category
 type Category struct {
-	ID            int64
+	ID            string
 	Name          string
 	Description   string
 	CreatedAt     time.Time
@@ -59,8 +59,8 @@ func (c *Category) Validate() error {
 
 // SubCategory represents a subcategory under a main category
 type SubCategory struct {
-	ID          int64
-	CategoryID  int64
+	ID          string
+	CategoryID  string
 	Name        string
 	Description string
 	CreatedAt   time.Time
@@ -68,7 +68,7 @@ type SubCategory struct {
 }
 
 // NewSubCategory creates a new SubCategory instance
-func NewSubCategory(categoryID int64, name, description string) *SubCategory {
+func NewSubCategory(categoryID string, name, description string) *SubCategory {
 	now := time.Now()
 	return &SubCategory{
 		CategoryID:  categoryID,
@@ -81,7 +81,7 @@ func NewSubCategory(categoryID int64, name, description string) *SubCategory {
 
 // Validate validates the subcategory
 func (s *SubCategory) Validate() error {
-	if s.CategoryID == 0 {
+	if s.CategoryID == "" {
 		return NewValidationError("category ID is required")
 	}
 	if s.Name == "" {
@@ -92,25 +92,27 @@ func (s *SubCategory) Validate() error {
 
 // Quiz represents a quiz in the domain
 type Quiz struct {
-	ID           int64
-	Question     string
-	ModelAnswers []string // 모범 답안들
-	Keywords     []string // 유사도 매칭용 키워드
-	Difficulty   int      // 난이도 (1: Easy, 2: Medium, 3: Hard)
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID            string
+	Question      string
+	ModelAnswers  []string // 모범 답안들
+	Keywords      []string // 유사도 매칭용 키워드
+	Difficulty    int      // 난이도 (1: Easy, 2: Medium, 3: Hard)
+	SubCategoryID string   // FK to SubCategory
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 // NewQuiz creates a new Quiz instance
-func NewQuiz(question string, modelAnswers []string, keywords []string, difficulty int) *Quiz {
+func NewQuiz(question string, modelAnswers []string, keywords []string, difficulty int, subCategoryID string) *Quiz {
 	now := time.Now()
 	return &Quiz{
-		Question:     question,
-		ModelAnswers: modelAnswers,
-		Keywords:     keywords,
-		Difficulty:   difficulty,
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		Question:      question,
+		ModelAnswers:  modelAnswers,
+		Keywords:      keywords,
+		Difficulty:    difficulty,
+		SubCategoryID: subCategoryID,
+		CreatedAt:     now,
+		UpdatedAt:     now,
 	}
 }
 
@@ -155,8 +157,8 @@ func (q *Quiz) Validate() error {
 // Answer represents a user's answer to a quiz
 // @Description Detailed result of a user's answer evaluation
 type Answer struct {
-	ID             int64
-	QuizID         int64
+	ID             string
+	QuizID         string
 	UserAnswer     string   // 서술형 답변
 	Score          float64  // 0.0 ~ 1.0 사이의 점수
 	Explanation    string   // LLM이 생성한 피드백
@@ -168,7 +170,7 @@ type Answer struct {
 }
 
 // NewAnswer creates a new Answer instance
-func NewAnswer(quizID int64, userAnswer string) *Answer {
+func NewAnswer(quizID string, userAnswer string) *Answer {
 	return &Answer{
 		QuizID:     quizID,
 		UserAnswer: userAnswer,
@@ -178,7 +180,7 @@ func NewAnswer(quizID int64, userAnswer string) *Answer {
 
 // Validate validates the answer
 func (a *Answer) Validate() error {
-	if a.QuizID == 0 {
+	if a.QuizID == "" {
 		return NewValidationError("quiz ID is required")
 	}
 	if a.UserAnswer == "" {
@@ -189,8 +191,8 @@ func (a *Answer) Validate() error {
 
 // QuizEvaluation represents the evaluation criteria for a quiz
 type QuizEvaluation struct {
-	ID              int64
-	QuizID          int64
+	ID              string
+	QuizID          string
 	MinimumKeywords int      // 최소 필요 키워드 수
 	RequiredTopics  []string // 필수 포함 주제들
 	ScoreRanges     []string // 점수 범위별 기준
@@ -202,7 +204,7 @@ type QuizEvaluation struct {
 
 // NewQuizEvaluation creates a new QuizEvaluation instance
 func NewQuizEvaluation(
-	quizID int64,
+	quizID string,
 	minKeywords int,
 	requiredTopics []string,
 	sampleAnswers []string,
@@ -223,7 +225,7 @@ func NewQuizEvaluation(
 
 // Validate validates the quiz evaluation
 func (e *QuizEvaluation) Validate() error {
-	if e.QuizID == 0 {
+	if e.QuizID == "" {
 		return NewValidationError("quiz ID is required")
 	}
 	if e.MinimumKeywords == 0 {
@@ -268,11 +270,11 @@ func (e *InvalidCategoryError) Error() string {
 
 // QuizNotFoundError represents a quiz not found error
 type QuizNotFoundError struct {
-	quizID int64
+	quizID string
 }
 
 func (e *QuizNotFoundError) Error() string {
-	return fmt.Sprintf("quiz not found: %d", e.quizID)
+	return fmt.Sprintf("quiz not found: %s", e.quizID)
 }
 
 // LLMServiceError represents an LLM service error
@@ -287,6 +289,6 @@ func (e *LLMServiceError) Error() string {
 // QuizRepositoryOps provides additional repository operations
 type QuizRepositoryOps interface {
 	GetRandomQuiz() (*Quiz, error)
-	GetSimilarQuiz(quizID int64) (*Quiz, error)
+	GetSimilarQuiz(quizID string) (*Quiz, error)
 	SaveAnswer(answer *Answer) error
 }

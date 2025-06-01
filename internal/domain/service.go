@@ -3,19 +3,19 @@ package domain
 // QuizService defines the core business operations for quizzes
 type QuizService interface {
 	// GetRandomQuiz returns a random quiz from the specified subcategory
-	GetRandomQuiz(subCategoryID int64) (*Quiz, error)
+	GetRandomQuiz(subCategoryID string) (*Quiz, error)
 
 	// CheckAnswer evaluates a user's answer to a quiz
-	CheckAnswer(quizID int64, userAnswer string) (*Answer, error)
+	CheckAnswer(quizID string, userAnswer string) (*Answer, error)
 
 	// GetNextQuiz returns a similar quiz based on keywords
-	GetNextQuiz(currentQuizID int64) (*Quiz, error)
+	GetNextQuiz(currentQuizID string) (*Quiz, error)
 
 	// GetAllCategories returns all categories with their subcategories
 	GetAllCategories() ([]*Category, error)
 
 	// GetSubCategories returns all subcategories for a given category
-	GetSubCategories(categoryID int64) ([]*SubCategory, error)
+	GetSubCategories(categoryID string) ([]*SubCategory, error)
 }
 
 // QuizRepository defines the interface for quiz persistence
@@ -23,10 +23,10 @@ type QuizRepository interface {
 	QuizRepositoryOps
 
 	// GetRandomQuizBySubCategory returns a random quiz from the specified subcategory
-	GetRandomQuizBySubCategory(subCategoryID int64) (*Quiz, error)
+	GetRandomQuizBySubCategory(subCategoryID string) (*Quiz, error)
 
 	// GetQuizByID retrieves a quiz by its ID
-	GetQuizByID(id int64) (*Quiz, error)
+	GetQuizByID(id string) (*Quiz, error)
 
 	// GetAllSubCategories returns all available subcategories
 	GetAllSubCategories() ([]string, error)
@@ -41,7 +41,7 @@ type QuizRepository interface {
 	SaveQuizEvaluation(evaluation *QuizEvaluation) error
 
 	// GetQuizEvaluation retrieves evaluation criteria for a quiz
-	GetQuizEvaluation(quizID int64) (*QuizEvaluation, error)
+	GetQuizEvaluation(quizID string) (*QuizEvaluation, error)
 }
 
 // CategoryRepository defines the interface for category persistence
@@ -50,7 +50,7 @@ type CategoryRepository interface {
 	GetAllCategories() ([]*Category, error)
 
 	// GetSubCategories returns all subcategories for a given category
-	GetSubCategories(categoryID int64) ([]*SubCategory, error)
+	GetSubCategories(categoryID string) ([]*SubCategory, error)
 
 	// SaveCategory persists a new category
 	SaveCategory(category *Category) error
