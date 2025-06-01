@@ -23,7 +23,7 @@ import (
 	"quiz-byte/internal/logger"
 	"quiz-byte/internal/service"
 
-	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tmc/langchaingo/llms/ollama"
@@ -343,7 +343,7 @@ func TestGetRandomQuiz(t *testing.T) {
 
 	encodedSubCategoryName := url.QueryEscape(testSubCategoryName)
 	req := httptest.NewRequest(http.MethodGet, "/api/quiz?sub_category="+encodedSubCategoryName, nil)
-	resp, err := app.Test(req, fiber.TestConfig{Timeout: 60 * time.Second})
+	resp, err := app.Test(req)
 	require.NoError(t, err, "app.Test for /api/quiz should not return an error")
 
 	respBodyBytes, _ := cloneResponseBody(resp)
@@ -379,7 +379,7 @@ func TestCheckAnswer(t *testing.T) {
 
 	logInstance.Info("Fetching a quiz for TestCheckAnswer", zap.String("sub_category", testSubCategoryName))
 	reqGet := httptest.NewRequest(http.MethodGet, targetURLGetQuiz, nil)
-	respGet, err := app.Test(reqGet, fiber.TestConfig{Timeout: 180 * time.Second})
+	respGet, err := app.Test(reqGet)
 	require.NoError(t, err)
 
 	respGetBodyBytes, _ := cloneResponseBody(respGet)
@@ -403,7 +403,7 @@ func TestCheckAnswer(t *testing.T) {
 	reqPost := httptest.NewRequest(http.MethodPost, "/api/quiz/check", bytes.NewReader(requestBody))
 	reqPost.Header.Set("Content-Type", "application/json")
 
-	respPost, err := app.Test(reqPost, fiber.TestConfig{Timeout: 180 * time.Second})
+	respPost, err := app.Test(reqPost)
 	require.NoError(t, err)
 
 	respPostBodyBytes, _ := cloneResponseBody(respPost)

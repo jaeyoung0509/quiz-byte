@@ -5,7 +5,7 @@ import (
 	"quiz-byte/internal/domain"
 	"quiz-byte/internal/logger"
 
-	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
 )
 
@@ -34,7 +34,7 @@ func mapErrorToHTTPStatus(err *domain.DomainError) int {
 
 // ErrorHandler is a middleware that handles errors and returns appropriate HTTP responses
 func ErrorHandler() fiber.Handler {
-	return func(c fiber.Ctx) error {
+	return func(c *fiber.Ctx) error {
 		// Recover from panic
 		defer func() {
 			if err := recover(); err != nil {
@@ -59,7 +59,7 @@ func ErrorHandler() fiber.Handler {
 }
 
 // respondWithError sends an error response to the client
-func respondWithError(c fiber.Ctx, err error) {
+func respondWithError(c *fiber.Ctx, err error) {
 	l := logger.Get()
 
 	var appErr *domain.DomainError

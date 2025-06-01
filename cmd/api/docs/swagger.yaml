@@ -1,5 +1,5 @@
 basePath: /api
-host: localhost:8080
+host: localhost:8090
 info:
   contact:
     email: support@swagger.io
@@ -13,4 +13,7 @@ info:
   title: Quiz Byte API
   version: "1.0"
 paths: {}
+schemes:
+- http
+- https
 swagger: "2.0"

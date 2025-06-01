@@ -5,10 +5,10 @@ test:
 
 test-integration:
 	@echo "Downloading LLM model..."
-	@mkdir -p models
-	@if [ ! -f models/gemma-2b-it-q4_k_m.gguf ]; then \
-		curl -L https://huggingface.co/TheBloke/gemma-2b-it-GGUF/resolve/main/gemma-2b-it-q4_k_m.gguf -o models/gemma-2b-it-q4_k_m.gguf; \
-	fi
+	# @mkdir -p models
+	# @if [ ! -f models/gemma-2b-it-q4_k_m.gguf ]; then \
+	# 	curl -L https://huggingface.co/TheBloke/gemma-2b-it-GGUF/resolve/main/gemma-2b-it-q4_k_m.gguf -o models/gemma-2b-it-q4_k_m.gguf; \
+	# fi
 	@echo "Starting test services..."
 	@docker-compose -f docker-compose.test.yml up -d
 	@echo "Waiting for services to start..."
