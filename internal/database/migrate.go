@@ -11,8 +11,8 @@ import (
 	_ "github.com/sijms/go-ora/v2" // Ensure go-ora driver is registered
 )
 
-func RunMigrations(db *sql.DB) error {
-	migrationsDir := "database/migrations"
+func RunMigrations(db *sql.DB, path string) error {
+	migrationsDir := path
 	files, err := os.ReadDir(migrationsDir)
 	if err != nil {
 		return fmt.Errorf("could not read migrations directory: %v", err)

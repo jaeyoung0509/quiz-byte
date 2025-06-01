@@ -9,13 +9,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"              // Added/Ensured
-	"path/filepath"   // Added/Ensured
+	"os"
+	"path/filepath"
 	"quiz-byte/internal/domain"
 	"quiz-byte/internal/repository" // 실제 repository 구현체 사용을 위해 import
 	"quiz-byte/internal/repository/models"
-	"sort"            // Added/Ensured
-	"strings"         // Ensured
+	"strings"
 	"testing"
 	"time"
 
@@ -91,7 +90,7 @@ func TestMain(m *testing.M) {
 		logInstance.Fatal("Failed to connect to database", zap.Error(err))
 	}
 
-	if err := initDatabase(db); err != nil {
+	if err := initDatabase(cfg); err != nil {
 		logInstance.Fatal("Failed to initialize database", zap.Error(err))
 	}
 
@@ -141,87 +140,32 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func initDatabase(db *sqlx.DB) error {
+func initDatabase(cfg *config.Config) error {
 	logInstance.Info("Initializing database schema using migrations...")
 
-	migrationsDir := "../database/migrations"
+	migrateDB, err := dblogic.NewMigrateOracleDB(cfg.GetDSN())
+	if err != nil {
+		logInstance.Error("Failed to create migrate database instance", zap.Error(err))
+		return fmt.Errorf("failed to create migrate database instance: %w", err)
+	}
+	defer migrateDB.Close()
 
+	// 현재 작업 디렉토리를 기준으로 migrations 디렉토리 경로 설정
 	wd, err := os.Getwd()
 	if err != nil {
-		logInstance.Warn("Failed to get current working directory", zap.Error(err))
-	} else {
-		logInstance.Info("Current working directory for test", zap.String("wd", wd))
-		expectedDownMigrationsPath := filepath.Join(wd, migrationsDir)
-		logInstance.Info("Expecting to find DOWN migrations in", zap.String("path", expectedDownMigrationsPath))
-		if _, statErr := os.Stat(expectedDownMigrationsPath); os.IsNotExist(statErr) {
-			logInstance.Error("Down migrations directory does not exist at expected path", zap.String("path", expectedDownMigrationsPath))
-		}
+		return fmt.Errorf("failed to get working directory: %w", err)
 	}
 
-	files, err := os.ReadDir(migrationsDir)
-	if err != nil {
-		return fmt.Errorf("could not read migrations directory %s: %w. Check CWD and relative path. CWD: %s", migrationsDir, err, wd)
-	}
+	// tests/integration에서 실행될 때 프로젝트 루트로 이동하여 migrations 디렉토리 찾기
+	migrationsDir := "../../database/migrations"
+	absPath := filepath.Join(wd, migrationsDir)
 
-	var downFiles []string
-	for _, file := range files {
-		if strings.HasSuffix(file.Name(), ".down.sql") {
-			downFiles = append(downFiles, file.Name())
-		}
-	}
-	// Sort in reverse filename order
-	sort.Sort(sort.Reverse(sort.StringSlice(downFiles)))
+	logInstance.Info("Using migrations directory", zap.String("path", absPath))
 
-	for _, fileName := range downFiles {
-		logInstance.Info("Executing down migration", zap.String("file", fileName))
-		filePath := filepath.Join(migrationsDir, fileName)
-		content, errReadFile := os.ReadFile(filePath)
-		if errReadFile != nil {
-			return fmt.Errorf("could not read migration file %s: %w", filePath, errReadFile)
-		}
-
-		if strings.TrimSpace(string(content)) == "" {
-			logInstance.Info("Skipping empty down migration file", zap.String("file", fileName))
-			continue
-		}
-
-		_, errExec := db.Exec(string(content))
-		if errExec != nil {
-			type oracleError interface {
-				Code() int
-			}
-			if oErr, ok := errExec.(oracleError); ok {
-				if oErr.Code() == 942 || oErr.Code() == 2443 || oErr.Code() == 1418 || oErr.Code() == 2289 {
-					logInstance.Warn("Ignoring Oracle error for down migration (object likely did not exist)",
-						zap.String("file", fileName), zap.Int("oracle_code", oErr.Code()), zap.Error(errExec))
-				} else {
-					return fmt.Errorf("oracle error executing down migration %s (code %d): %w", fileName, oErr.Code(), errExec)
-				}
-			} else {
-				if strings.Contains(strings.ToLower(errExec.Error()), "does not exist") ||
-					strings.Contains(strings.ToLower(errExec.Error()), "unknown table") ||
-					strings.Contains(strings.ToLower(errExec.Error()), "nonexistent constraint") { // For other DBs
-					logInstance.Warn("Ignoring generic 'does not exist' error for down migration", zap.String("file", fileName), zap.Error(errExec))
-				} else {
-					return fmt.Errorf("non-oracle error executing down migration %s: %w", fileName, errExec)
-				}
-			}
-		}
-	}
-
-	logInstance.Info("Attempting to run UP migrations using dblogic.RunMigrations.", zap.String("expected_up_migrations_path_for_RunMigrations", filepath.Join(wd, "database/migrations")))
-
-	upMigrationsPathInternal := "database/migrations"
-	if _, statErr := os.Stat(filepath.Join(wd, upMigrationsPathInternal)); os.IsNotExist(statErr) {
-		logInstance.Error("UP migrations directory (database/migrations) does not exist relative to CWD. dblogic.RunMigrations will likely fail.",
-			zap.String("cwd", wd),
-			zap.String("path_used_by_RunMigrations", upMigrationsPathInternal),
-			zap.String("resolved_path_attempted", filepath.Join(wd, upMigrationsPathInternal)))
-	}
-
-	if err := dblogic.RunMigrations(db.DB); err != nil {
-		logInstance.Error("Failed to run up migrations via dblogic.RunMigrations", zap.Error(err), zap.String("cwd_when_called", wd))
-		return fmt.Errorf("failed to run up migrations (CWD: %s): %w", wd, err)
+	// 마이그레이션 실행
+	if err := dblogic.RunMigrations(migrateDB, absPath); err != nil {
+		logInstance.Error("Failed to run migrations", zap.Error(err))
+		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 
 	logInstance.Info("Database schema initialized successfully via migrations")
