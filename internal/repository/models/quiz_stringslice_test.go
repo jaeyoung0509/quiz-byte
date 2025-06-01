@@ -6,8 +6,6 @@ import (
 	"testing"
 )
 
-// stringDelimiter is defined in quiz.go
-
 func TestStringSlice_Value(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -104,9 +102,9 @@ func TestStringSlice_Scan(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "string with delimiter as part of element", // "part1|||part2|||orange"
+			name:    "string with delimiter as part of element",                       // "part1|||part2|||orange"
 			value:   "part1" + stringDelimiter + "part2" + stringDelimiter + "orange", // This is "part1|||part2|||orange"
-			wantS:   StringSlice{"part1", "part2", "orange"}, // Because strings.Split("part1|||part2|||orange", "|||") is {"part1", "part2", "orange"}
+			wantS:   StringSlice{"part1", "part2", "orange"},                          // Because strings.Split("part1|||part2|||orange", "|||") is {"part1", "part2", "orange"}
 			wantErr: false,
 		},
 		{
@@ -146,18 +144,17 @@ func TestStringSlice_Scan(t *testing.T) {
 			wantErr: true,
 		},
 		{
-            name:    "single empty string from db (results in one empty string in slice after split)",
-            value:   "", // This is already covered by "empty string input" which expects StringSlice{}
-            wantS:   StringSlice{},
-            wantErr: false,
-        },
+			name:    "single empty string from db (results in one empty string in slice after split)",
+			value:   "", // This is already covered by "empty string input" which expects StringSlice{}
+			wantS:   StringSlice{},
+			wantErr: false,
+		},
 		{
-            name:    "string that splits into a single empty string", // e.g. if db somehow stores just "|||" but means one empty element
-            value:   stringDelimiter, // this would split into {"", ""}
-            wantS:   StringSlice{"", ""}, // current Scan logic: strings.Split("|||", "|||") -> ["", ""]
-            wantErr: false,
-        },
-
+			name:    "string that splits into a single empty string", // e.g. if db somehow stores just "|||" but means one empty element
+			value:   stringDelimiter,                                 // this would split into {"", ""}
+			wantS:   StringSlice{"", ""},                             // current Scan logic: strings.Split("|||", "|||") -> ["", ""]
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -174,10 +171,10 @@ func TestStringSlice_Scan(t *testing.T) {
 			// If an error is expected and wantS is nil (or zero value), this check is fine.
 			// If wantS was something specific for an error case, adjust logic.
 			if tt.wantErr && tt.wantS != nil && !reflect.DeepEqual(s, tt.wantS) {
-                 // This case might be relevant if Scan modified s before returning an error,
-                 // but typically s should be in a predictable (e.g. zero) state.
-                 t.Errorf("StringSlice.Scan() gotS = %v with error, want %v", s, tt.wantS)
-            }
+				// This case might be relevant if Scan modified s before returning an error,
+				// but typically s should be in a predictable (e.g. zero) state.
+				t.Errorf("StringSlice.Scan() gotS = %v with error, want %v", s, tt.wantS)
+			}
 		})
 	}
 }
