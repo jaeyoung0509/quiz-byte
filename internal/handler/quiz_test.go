@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// MockQuizRepository는 QuizRepository 인터페이스를 구현하는 mock 객체입니다.
+// MockQuizRepository is a mock object that implements the QuizRepository interface.
 type MockQuizRepository struct {
 	mock.Mock
 }

@@ -120,9 +120,9 @@ func main() {
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
-		ReadTimeout:  20 * time.Second, // 읽기 타임아웃
-		WriteTimeout: 20 * time.Second, // 쓰기 타임아웃
-		IdleTimeout:  20 * time.Second, // 유휴 타임아웃
+		ReadTimeout:  20 * time.Second, // Read timeout
+		WriteTimeout: 20 * time.Second, // Write timeout
+		IdleTimeout:  20 * time.Second, // Idle timeout
 		BodyLimit:    10 * 1024 * 1024, // 10MB
 	})
 
