@@ -27,7 +27,7 @@ func setupCategoryTestDB(t *testing.T) (*sqlx.DB, sqlmock.Sqlmock) {
 
 func TestGetAllCategories(t *testing.T) {
 	db, mock := setupCategoryTestDB(t)
-	repo := NewCategoryRepository(db)
+	repo := NewCategoryDatabaseAdapter(db)
 
 	now := time.Now()
 	expectedCategories := []models.Category{
@@ -57,7 +57,7 @@ func TestGetAllCategories(t *testing.T) {
 
 func TestGetAllCategories_Empty(t *testing.T) {
 	db, mock := setupCategoryTestDB(t)
-	repo := NewCategoryRepository(db)
+	repo := NewCategoryDatabaseAdapter(db)
 
 	rows := sqlmock.NewRows([]string{"id", "name", "description", "created_at", "updated_at", "deleted_at"})
 
@@ -74,7 +74,7 @@ func TestGetAllCategories_Empty(t *testing.T) {
 
 func TestGetSubCategories(t *testing.T) {
 	db, mock := setupCategoryTestDB(t)
-	repo := NewCategoryRepository(db)
+	repo := NewCategoryDatabaseAdapter(db)
 
 	categoryID := util.NewULID()
 	now := time.Now()
@@ -107,7 +107,7 @@ func TestGetSubCategories(t *testing.T) {
 
 func TestGetSubCategories_Empty(t *testing.T) {
 	db, mock := setupCategoryTestDB(t)
-	repo := NewCategoryRepository(db)
+	repo := NewCategoryDatabaseAdapter(db)
 	categoryID := util.NewULID()
 
 	rows := sqlmock.NewRows([]string{"id", "category_id", "name", "description", "created_at", "updated_at", "deleted_at"})
@@ -126,7 +126,7 @@ func TestGetSubCategories_Empty(t *testing.T) {
 
 func TestSaveCategory(t *testing.T) {
 	db, mock := setupCategoryTestDB(t)
-	repo := NewCategoryRepository(db)
+	repo := NewCategoryDatabaseAdapter(db)
 
 	domainCategory := &domain.Category{
 		Name:        "Test Category",
@@ -150,7 +150,7 @@ func TestSaveCategory(t *testing.T) {
 
 func TestSaveSubCategory(t *testing.T) {
 	db, mock := setupCategoryTestDB(t)
-	repo := NewCategoryRepository(db)
+	repo := NewCategoryDatabaseAdapter(db)
 
 	domainSubCategory := &domain.SubCategory{
 		CategoryID:  util.NewULID(),
