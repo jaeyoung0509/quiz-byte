@@ -3,22 +3,21 @@ package service
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"quiz-byte/internal/domain"
 	"quiz-byte/internal/dto"
 	"quiz-byte/internal/logger" // For logging cache operations
 	"strings"
 	"time" // For cache expiration
 
-	"go.uber.org/zap" // For logging
 	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap" // For logging
 )
 
 const (
-	quizAnswerCachePrefix   = "quizanswers:"
-	similarityThreshold     = 0.95 // Example threshold
-	cacheExpiration         = 24 * time.Hour
-	embeddingVectorSize     = 1536 // OpenAI Ada v2 embeddings are 1536 dimensional
+	QuizAnswerCachePrefix = "quizanswers:"
+	SimilarityThreshold   = 0.95 // Example threshold
+	CacheExpiration       = 24 * time.Hour
+	EmbeddingVectorSize   = 1536 // OpenAI Ada v2 embeddings are 1536 dimensional
 )
 
 // LLMResponse represents the response from the LLM service
@@ -41,10 +40,10 @@ type QuizService interface {
 
 // quizService implements QuizService
 type quizService struct {
-	repo           domain.QuizRepository
-	evaluator      domain.AnswerEvaluator
-	redisClient    *redis.Client
-	openAIAPIKey   string
+	repo         domain.QuizRepository
+	evaluator    domain.AnswerEvaluator
+	redisClient  *redis.Client
+	openAIAPIKey string
 }
 
 // NewQuizService creates a new instance of quizService
@@ -55,10 +54,10 @@ func NewQuizService(
 	openAIAPIKey string,
 ) QuizService {
 	return &quizService{
-		repo:           repo,
-		evaluator:      evaluator,
-		redisClient:    redisClient,
-		openAIAPIKey:   openAIAPIKey,
+		repo:         repo,
+		evaluator:    evaluator,
+		redisClient:  redisClient,
+		openAIAPIKey: openAIAPIKey,
 	}
 }
 
@@ -83,7 +82,7 @@ func (s *quizService) GetRandomQuiz(subCategory string) (*dto.QuizResponse, erro
 // CheckAnswer implements QuizService
 func (s *quizService) CheckAnswer(req *dto.CheckAnswerRequest) (*dto.CheckAnswerResponse, error) {
 	ctx := context.Background()
-	cacheKey := quizAnswerCachePrefix + req.QuizID
+	cacheKey := QuizAnswerCachePrefix + req.QuizID
 
 	// 1. Cache Read Logic
 	if s.redisClient != nil && s.openAIAPIKey != "" { // Only attempt cache read if Redis and API key are available
@@ -112,7 +111,7 @@ func (s *quizService) CheckAnswer(req *dto.CheckAnswerRequest) (*dto.CheckAnswer
 
 					logger.Get().Debug("Calculated similarity", zap.Float64("similarity", similarity), zap.String("quizID", req.QuizID), zap.String("userAnswer", req.UserAnswer), zap.String("cachedAnswer", cachedUserAnswerText))
 
-					if similarity > similarityThreshold {
+					if similarity > SimilarityThreshold {
 						var cachedEval dto.CheckAnswerResponse
 						if errUnmarshal := json.Unmarshal([]byte(cachedEvalDataStr), &cachedEval); errUnmarshal == nil {
 							logger.Get().Info("Cache hit: Found similar answer", zap.String("quizID", req.QuizID), zap.String("userAnswer", req.UserAnswer), zap.Float64("similarity", similarity))
@@ -120,9 +119,10 @@ func (s *quizService) CheckAnswer(req *dto.CheckAnswerRequest) (*dto.CheckAnswer
 							if quizForModelAnswer != nil {
 								cachedEval.ModelAnswer = strings.Join(quizForModelAnswer.ModelAnswers, "\n")
 							}
+							logger.Get().Warn("Failed to unmarshal cached evaluation data", zap.Error(errUnmarshal), zap.String("quizID", req.QuizID))
 							return &cachedEval, nil
 						}
-						logger.Get().Warn("Failed to unmarshal cached evaluation data", zap.Error(errUnmarshal), zap.String("quizID", req.QuizID))
+
 					}
 				}
 			}
@@ -194,7 +194,7 @@ func (s *quizService) CheckAnswer(req *dto.CheckAnswerRequest) (*dto.CheckAnswer
 				logger.Get().Error("Failed to cache LLM evaluation (HSet)", zap.Error(errCacheSet), zap.String("quizID", req.QuizID))
 			} else {
 				// Set expiration for the hash key
-				errExpire := s.redisClient.Expire(ctx, cacheKey, cacheExpiration).Err()
+				errExpire := s.redisClient.Expire(ctx, cacheKey, CacheExpiration).Err()
 				if errExpire != nil {
 					logger.Get().Error("Failed to set cache expiration", zap.Error(errExpire), zap.String("quizID", req.QuizID))
 				} else {

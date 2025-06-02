@@ -2,6 +2,7 @@ package integration
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -32,7 +33,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tmc/langchaingo/llms/ollama"
 	"go.uber.org/zap"
-)
 
 	"quiz-byte/internal/cache" // For Redis client
 
@@ -40,19 +40,19 @@ import (
 )
 
 var app *fiber.App
-var logInstance *zap.Logger         // 전역 로거 인스턴스
-var db *sqlx.DB                     // 전역 DB 인스턴스
-var redisClient *redis.Client       // 전역 Redis 클라이언트 인스턴스
+var logInstance *zap.Logger            // 전역 로거 인스턴스
+var db *sqlx.DB                        // 전역 DB 인스턴스
+var redisClient *redis.Client          // 전역 Redis 클라이언트 인스턴스
 var mockEvaluator *MockAnswerEvaluator // Mock for AnswerEvaluator
 
 var subCategoryNameToIDMap map[string]string
 
 // MockAnswerEvaluator is a mock implementation of domain.AnswerEvaluator
 type MockAnswerEvaluator struct {
-	EvaluateAnswerFunc    func(question, modelAnswer, userAnswer string, keywords []string) (*domain.Answer, error)
-	EvaluateAnswerCalled  bool
-	EvaluateAnswerCount int
-	LastUserAnswer      string
+	EvaluateAnswerFunc   func(question, modelAnswer, userAnswer string, keywords []string) (*domain.Answer, error)
+	EvaluateAnswerCalled bool
+	EvaluateAnswerCount  int
+	LastUserAnswer       string
 }
 
 func (m *MockAnswerEvaluator) EvaluateAnswer(question, modelAnswer, userAnswer string, keywords []string) (*domain.Answer, error) {
@@ -159,7 +159,6 @@ func TestMain(m *testing.M) {
 	}
 
 	evaluator := domain.NewLLMEvaluator(llm) // Real evaluator for non-caching tests if needed
-	mockEvaluator = &MockAnswerEvaluator{}   // Initialize the mock evaluator
 
 	// Initialize Redis Client for tests
 	redisClient, err = cache.NewRedisClient(cfg)
@@ -172,7 +171,7 @@ func TestMain(m *testing.M) {
 	// Use MOCK evaluator for the service being tested by default for most handlers
 	// Specific tests can re-initialize service with real evaluator if needed.
 	// For now, TestCheckAnswer will be refactored to TestCheckAnswer_LLM (real) and TestCheckAnswer_Caching (mock)
-	quizService := service.NewQuizService(quizDomainRepo, mockEvaluator, redisClient, cfg.OpenAIAPIKey)
+	quizService := service.NewQuizService(quizDomainRepo, evaluator, redisClient, cfg.OpenAIAPIKey)
 	quizHandler := handler.NewQuizHandler(quizService)
 
 	// This is the main app used by tests.
@@ -537,7 +536,6 @@ func TestGetBulkQuizzes(t *testing.T) {
 		}
 		require.NotEmpty(t, validSubCategoryName, "No valid subcategory name found for test.")
 		logInstance.Info("TestGetBulkQuizzes/SuccessfulRetrieval using", zap.String("sub_category", validSubCategoryName), zap.String("sub_category_id", validSubCategoryID))
-
 
 		req := httptest.NewRequest(http.MethodGet, "/api/quizzes?sub_category="+url.QueryEscape(validSubCategoryName)+"&count=3", nil)
 		resp, err := app.Test(req)
