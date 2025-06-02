@@ -220,21 +220,7 @@ func (h *QuizHandler) GetBulkQuizzes(c *fiber.Ctx) error {
 			zap.String("sub_category", subCategory),
 			zap.Int("count", count),
 		)
-
-		switch err.(type) {
-		case *domain.InvalidCategoryError: // Assuming this error type might be returned by service
-			return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
-				Error: "INVALID_CATEGORY: " + err.Error(),
-			})
-		case *domain.InternalError: // Catch internal errors from service/repo
-			return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
-				Error: "INTERNAL_ERROR",
-			})
-		default:
-			return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
-				Error: "INTERNAL_ERROR",
-			})
-		}
+		return err
 	}
 
 	return c.JSON(result)
