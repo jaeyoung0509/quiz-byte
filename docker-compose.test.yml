@@ -84,6 +84,16 @@ services:
 #           cpus: "2.0" # LLM 추론에 사용될 CPU 코어 수
 #     restart: unless-stopped
 
+  redis:
+    image: "redis:alpine"
+    container_name: quiz-test-redis
+    ports:
+      - "6380:6379" # Use a different host port for test Redis to avoid conflict if dev Redis is running
+    volumes:
+      - redis_data_test:/data
+
 volumes:
   oracle_data_23ai:
+    driver: local
+  redis_data_test: # Define the redis_data_test volume
     driver: local

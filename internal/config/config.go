@@ -13,6 +13,14 @@ type Config struct {
 	DB        DBConfig
 	Server    ServerConfig
 	LLMServer string
+	Redis     RedisConfig
+	OpenAIAPIKey string `yaml:"openai_api_key"`
+}
+
+type RedisConfig struct {
+	Address  string `yaml:"address"`
+	Password string `yaml:"password"`
+	DB       int    `yaml:"db"`
 }
 
 type DBConfig struct {
@@ -71,6 +79,12 @@ func LoadConfig() (*Config, error) {
 			WriteTimeout: viper.GetDuration("server.write_timeout") * time.Second,
 		},
 		LLMServer: viper.GetString("llm.server"),
+		Redis: RedisConfig{
+			Address:  viper.GetString("redis.address"),
+			Password: viper.GetString("redis.password"),
+			DB:       viper.GetInt("redis.db"),
+		},
+		OpenAIAPIKey: viper.GetString("openai_api_key"),
 	}
 
 	// Override with environment variables if set
@@ -94,6 +108,16 @@ func LoadConfig() (*Config, error) {
 	}
 	if llmServer := os.Getenv("LLM_SERVER"); llmServer != "" {
 		config.LLMServer = llmServer
+	}
+	if redisAddress := os.Getenv("REDIS_ADDRESS"); redisAddress != "" {
+		config.Redis.Address = redisAddress
+	}
+	if redisPassword := os.Getenv("REDIS_PASSWORD"); redisPassword != "" {
+		config.Redis.Password = redisPassword
+	}
+	// REDIS_DB environment variable can also be added if needed
+	if openAIKey := os.Getenv("OPENAI_API_KEY"); openAIKey != "" {
+		config.OpenAIAPIKey = openAIKey
 	}
 
 	return config, nil

@@ -362,6 +362,61 @@ func (a *QuizDatabaseAdapter) GetRandomQuizBySubCategory(subCategoryID string) (
 	return toDomainQuiz(&modelQuiz)
 }
 
+// GetQuizzesByCriteria implements domain.QuizRepository
+func (a *QuizDatabaseAdapter) GetQuizzesByCriteria(subCategoryID string, count int) ([]*domain.Quiz, error) {
+	var modelQuizzes []*models.Quiz
+	query := `SELECT
+		id "id",
+		question "question",
+		model_answers "model_answers",
+		keywords "keywords",
+		difficulty "difficulty",
+		sub_category_id "sub_category_id",
+		created_at "created_at",
+		updated_at "updated_at",
+		deleted_at "deleted_at"
+	FROM quizzes
+	WHERE sub_category_id = :1
+	AND deleted_at IS NULL
+	ORDER BY DBMS_RANDOM.VALUE
+	FETCH FIRST :2 ROWS ONLY`
+
+	// Using NamedQuery for clarity with multiple parameters
+	rows, err := a.db.NamedQuery(query, map[string]interface{}{"1": subCategoryID, "2": count})
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute query for GetQuizzesByCriteria: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var modelQuiz models.Quiz
+		if err := rows.StructScan(&modelQuiz); err != nil {
+			return nil, fmt.Errorf("failed to scan quiz row: %w", err)
+		}
+		modelQuizzes = append(modelQuizzes, &modelQuiz)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error during rows iteration for GetQuizzesByCriteria: %w", err)
+	}
+
+	if len(modelQuizzes) == 0 {
+		return []*domain.Quiz{}, nil // Return empty slice, not nil, if no quizzes found
+	}
+
+	domainQuizzes := make([]*domain.Quiz, 0, len(modelQuizzes))
+	for _, mq := range modelQuizzes {
+		dq, err := toDomainQuiz(mq)
+		if err != nil {
+			// Log or handle individual conversion errors if necessary
+			return nil, fmt.Errorf("failed to convert model quiz to domain quiz: %w", err)
+		}
+		domainQuizzes = append(domainQuizzes, dq)
+	}
+
+	return domainQuizzes, nil
+}
+
 // Helper functions for model conversion
 func toDomainQuiz(m *models.Quiz) (*domain.Quiz, error) {
 	if m == nil {

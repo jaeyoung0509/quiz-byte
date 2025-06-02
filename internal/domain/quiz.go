@@ -286,9 +286,19 @@ func (e *LLMServiceError) Error() string {
 	return fmt.Sprintf("LLM service error: %v", e.cause)
 }
 
-// QuizRepositoryOps provides additional repository operations
-type QuizRepositoryOps interface {
+// QuizRepository defines the interface for quiz data storage
+type QuizRepository interface {
+	GetQuizByID(id string) (*Quiz, error)
 	GetRandomQuiz() (*Quiz, error)
 	GetSimilarQuiz(quizID string) (*Quiz, error)
+	GetAllSubCategories() ([]string, error)
 	SaveAnswer(answer *Answer) error
+	GetQuizzesByCriteria(subCategoryID string, count int) ([]*Quiz, error)
+}
+
+// QuizRepositoryOps provides additional repository operations (consider merging or refactoring)
+type QuizRepositoryOps interface {
+	GetRandomQuiz() (*Quiz, error) // Duplicate of method in QuizRepository
+	GetSimilarQuiz(quizID string) (*Quiz, error) // Duplicate of method in QuizRepository
+	SaveAnswer(answer *Answer) error             // Duplicate of method in QuizRepository
 }

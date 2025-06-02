@@ -1,0 +1,23 @@
+# Database Configuration
+db:
+  host: "localhost" # For local development, will be "oracle-db" in Docker
+  port: 1521
+  user: "system"
+  password: "oracle" # Make sure to use a strong password in production
+  name: "QUIZDB"    # Service name or SID for Oracle
+
+# Server Configuration
+server:
+  port: 8090
+  read_timeout: 15  # seconds
+  write_timeout: 15 # seconds
+
+# LLM Server Configuration
+llm:
+  server: "http://localhost:8080" # Address of your LLM server
+
+# Redis Configuration
+redis:
+  address: "localhost:6379" # For local development, will be "redis:6379" in Docker
+  password: "" # Leave empty if no password is set
+  db: 0 # Default Redis database

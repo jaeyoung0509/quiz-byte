@@ -5,10 +5,13 @@ import (
 	"quiz-byte/internal/dto"
 	"quiz-byte/internal/logger"
 	"quiz-byte/internal/service"
+	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/zap"
 )
+
+const DefaultBulkQuizCount = 10
 
 // QuizHandler handles quiz-related HTTP requests
 type QuizHandler struct {
@@ -59,7 +62,6 @@ func (h *QuizHandler) GetAllSubCategories(c *fiber.Ctx) error {
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /quiz [get]
 // GetRandomQuiz handles GET /api/quiz
-// GetRandomQuiz godoc
 // @Summary Get a random quiz
 // @Description Returns a random quiz question
 // @Tags quiz
@@ -118,7 +120,6 @@ func (h *QuizHandler) GetRandomQuiz(c *fiber.Ctx) error {
 // @Failure 503 {object} dto.ErrorResponse
 // @Router /quiz/check [post]
 // CheckAnswer handles POST /api/quiz/check
-// CheckAnswer godoc
 // @Summary Check quiz answer
 // @Description Checks if the provided answer is correct
 // @Tags quiz
@@ -164,6 +165,70 @@ func (h *QuizHandler) CheckAnswer(c *fiber.Ctx) error {
 		case *domain.LLMServiceError:
 			return c.Status(fiber.StatusServiceUnavailable).JSON(dto.ErrorResponse{
 				Error: "LLM_SERVICE_UNAVAILABLE",
+			})
+		default:
+			return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+				Error: "INTERNAL_ERROR",
+			})
+		}
+	}
+
+	return c.JSON(result)
+}
+
+// GetBulkQuizzes godoc
+// @Summary Get multiple quizzes by sub-category
+// @Description Returns a list of quizzes based on sub-category and count
+// @Tags quiz
+// @Accept json
+// @Produce json
+// @Param sub_category query string true "Sub-category of the quizzes"
+// @Param count query int false "Number of quizzes to fetch (default: 10, max: 50)"
+// @Success 200 {object} dto.BulkQuizzesResponse
+// @Failure 400 {object} dto.ErrorResponse "INVALID_REQUEST if sub_category is missing or count is invalid"
+// @Failure 500 {object} dto.ErrorResponse "INTERNAL_ERROR for other server-side issues"
+// @Router /quizzes [get]
+func (h *QuizHandler) GetBulkQuizzes(c *fiber.Ctx) error {
+	subCategory := c.Query("sub_category")
+	if subCategory == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Error: "INVALID_REQUEST: sub_category is required",
+		})
+	}
+
+	countStr := c.Query("count")
+	count := DefaultBulkQuizCount // Default value
+	if countStr != "" {
+		var err error
+		count, err = strconv.Atoi(countStr)
+		if err != nil || count <= 0 || count > 50 { // Basic validation for count
+			return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+				Error: "INVALID_REQUEST: count must be a positive integer between 1 and 50",
+			})
+		}
+	}
+
+	req := &dto.BulkQuizzesRequest{
+		SubCategory: subCategory,
+		Count:       count,
+	}
+
+	result, err := h.service.GetBulkQuizzes(req)
+	if err != nil {
+		logger.Get().Error("Failed to get bulk quizzes",
+			zap.Error(err),
+			zap.String("sub_category", subCategory),
+			zap.Int("count", count),
+		)
+
+		switch err.(type) {
+		case *domain.InvalidCategoryError: // Assuming this error type might be returned by service
+			return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+				Error: "INVALID_CATEGORY: " + err.Error(),
+			})
+		case *domain.InternalError: // Catch internal errors from service/repo
+			return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+				Error: "INTERNAL_ERROR",
 			})
 		default:
 			return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
