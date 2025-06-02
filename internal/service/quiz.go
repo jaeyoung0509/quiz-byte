@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
 
@@ -42,7 +41,7 @@ type QuizService interface {
 type quizService struct {
 	repo         domain.QuizRepository
 	evaluator    domain.AnswerEvaluator
-	redisClient  *redis.Client
+	cache        domain.Cache
 	openAIAPIKey string
 }
 
@@ -50,13 +49,13 @@ type quizService struct {
 func NewQuizService(
 	repo domain.QuizRepository,
 	evaluator domain.AnswerEvaluator,
-	redisClient *redis.Client,
+	cache domain.Cache,
 	openAIAPIKey string,
 ) QuizService {
 	return &quizService{
 		repo:         repo,
 		evaluator:    evaluator,
-		redisClient:  redisClient,
+		cache:        cache,
 		openAIAPIKey: openAIAPIKey,
 	}
 }
@@ -85,61 +84,48 @@ func (s *quizService) CheckAnswer(req *dto.CheckAnswerRequest) (*dto.CheckAnswer
 	cacheKey := QuizAnswerCachePrefix + req.QuizID
 
 	// 1. Cache Read Logic
-	if s.redisClient != nil && s.openAIAPIKey != "" { // Only attempt cache read if Redis and API key are available
-		cachedAnswersMap, err := s.redisClient.HGetAll(ctx, cacheKey).Result()
-		if err == nil && len(cachedAnswersMap) > 0 { // Cache hit on the Hash key itself
+	if s.cache != nil && s.openAIAPIKey != "" {
+		// Try to get cached similar answer
+		cachedAnswersMap, err := s.cache.HGetAll(ctx, cacheKey)
+		if err == nil && len(cachedAnswersMap) > 0 {
+			// Try to find similar answer in cache
 			currentAnswerEmbedding, errEmbed := GenerateOpenAIEmbedding(ctx, req.UserAnswer, s.openAIAPIKey)
-			if errEmbed != nil {
-				logger.Get().Error("Failed to generate embedding for current answer", zap.Error(errEmbed), zap.String("quizID", req.QuizID))
-				// Proceed as cache miss if embedding fails
-			} else {
+			if errEmbed == nil {
 				for cachedUserAnswerText, cachedEvalDataStr := range cachedAnswersMap {
-					// Note: Storing raw text and re-generating embeddings for cached answers on each check is inefficient.
-					// A better approach would be to store embeddings alongside the answer, or use a vector DB.
-					// For this exercise, we follow the described path of re-generating.
-					cachedAnswerEmbedding, errEmbedCached := GenerateOpenAIEmbedding(ctx, cachedUserAnswerText, s.openAIAPIKey)
-					if errEmbedCached != nil {
-						logger.Get().Warn("Failed to generate embedding for cached answer", zap.Error(errEmbedCached), zap.String("cachedAnswer", cachedUserAnswerText))
-						continue // Skip this cached item
+					cachedAnswerEmbedding, errEmbed := GenerateOpenAIEmbedding(ctx, cachedUserAnswerText, s.openAIAPIKey)
+					if errEmbed != nil {
+						logger.Get().Warn("Failed to generate embedding for cached answer",
+							zap.Error(errEmbed),
+							zap.String("cachedAnswer", cachedUserAnswerText))
+						continue
 					}
 
 					similarity, errSim := CosineSimilarity(currentAnswerEmbedding, cachedAnswerEmbedding)
-					if errSim != nil {
-						logger.Get().Warn("Failed to calculate cosine similarity", zap.Error(errSim), zap.String("quizID", req.QuizID))
-						continue // Skip this cached item
+					if errSim != nil || similarity <= SimilarityThreshold {
+						continue
 					}
 
-					logger.Get().Debug("Calculated similarity", zap.Float64("similarity", similarity), zap.String("quizID", req.QuizID), zap.String("userAnswer", req.UserAnswer), zap.String("cachedAnswer", cachedUserAnswerText))
+					// Found similar answer in cache
+					var cachedEval dto.CheckAnswerResponse
+					if errUnmarshal := json.Unmarshal([]byte(cachedEvalDataStr), &cachedEval); errUnmarshal == nil {
+						logger.Get().Info("Cache hit: Found similar answer",
+							zap.String("quizID", req.QuizID),
+							zap.String("userAnswer", req.UserAnswer),
+							zap.Float64("similarity", similarity))
 
-					if similarity > SimilarityThreshold {
-						var cachedEval dto.CheckAnswerResponse
-						if errUnmarshal := json.Unmarshal([]byte(cachedEvalDataStr), &cachedEval); errUnmarshal == nil {
-							logger.Get().Info("Cache hit: Found similar answer", zap.String("quizID", req.QuizID), zap.String("userAnswer", req.UserAnswer), zap.Float64("similarity", similarity))
-							quizForModelAnswer, _ := s.repo.GetQuizByID(req.QuizID)
-							if quizForModelAnswer != nil {
-								cachedEval.ModelAnswer = strings.Join(quizForModelAnswer.ModelAnswers, "\n")
-							}
-							logger.Get().Warn("Failed to unmarshal cached evaluation data", zap.Error(errUnmarshal), zap.String("quizID", req.QuizID))
-							return &cachedEval, nil
+						// Update model answer from latest quiz data
+						quiz, _ := s.repo.GetQuizByID(req.QuizID)
+						if quiz != nil {
+							cachedEval.ModelAnswer = strings.Join(quiz.ModelAnswers, "\n")
 						}
-
+						return &cachedEval, nil
 					}
 				}
 			}
-		} else if err != nil && err != redis.Nil { // redis.Nil means key doesn't exist, which is a valid cache miss.
-			logger.Get().Error("Redis HGetAll failed", zap.Error(err), zap.String("cacheKey", cacheKey))
-			// Proceed as cache miss
-		}
-	} else {
-		if s.redisClient == nil {
-			logger.Get().Warn("Redis client not initialized, skipping cache read.")
-		}
-		if s.openAIAPIKey == "" {
-			logger.Get().Warn("OpenAI API key not configured, skipping cache read based on embeddings.")
+		} else if err != nil && err != domain.ErrCacheMiss {
+			logger.Get().Error("Cache lookup failed", zap.Error(err), zap.String("key", cacheKey))
 		}
 	}
-
-	logger.Get().Info("Cache miss: No similar answer found in cache or error in cache lookup", zap.String("quizID", req.QuizID), zap.String("userAnswer", req.UserAnswer))
 
 	// 2. Original Logic: Fetch quiz, validate, call LLM (if cache miss)
 	quiz, err := s.repo.GetQuizByID(req.QuizID)
@@ -184,26 +170,27 @@ func (s *quizService) CheckAnswer(req *dto.CheckAnswerRequest) (*dto.CheckAnswer
 	}
 
 	// 3. Cache Write Logic
-	if s.redisClient != nil {
+	if s.cache != nil {
 		evaluatedAnswerJSON, errMarshal := json.Marshal(response)
 		if errMarshal != nil {
-			logger.Get().Error("Failed to marshal LLM evaluation for caching", zap.Error(errMarshal), zap.String("quizID", req.QuizID))
+			logger.Get().Error("Failed to marshal LLM evaluation for caching",
+				zap.Error(errMarshal),
+				zap.String("quizID", req.QuizID))
 		} else {
-			errCacheSet := s.redisClient.HSet(ctx, cacheKey, req.UserAnswer, string(evaluatedAnswerJSON)).Err()
-			if errCacheSet != nil {
-				logger.Get().Error("Failed to cache LLM evaluation (HSet)", zap.Error(errCacheSet), zap.String("quizID", req.QuizID))
+			if err := s.cache.HSet(ctx, cacheKey, req.UserAnswer, string(evaluatedAnswerJSON)); err != nil {
+				logger.Get().Error("Failed to cache LLM evaluation",
+					zap.Error(err),
+					zap.String("quizID", req.QuizID))
+			} else if err := s.cache.Expire(ctx, cacheKey, CacheExpiration); err != nil {
+				logger.Get().Error("Failed to set cache expiration",
+					zap.Error(err),
+					zap.String("quizID", req.QuizID))
 			} else {
-				// Set expiration for the hash key
-				errExpire := s.redisClient.Expire(ctx, cacheKey, CacheExpiration).Err()
-				if errExpire != nil {
-					logger.Get().Error("Failed to set cache expiration", zap.Error(errExpire), zap.String("quizID", req.QuizID))
-				} else {
-					logger.Get().Info("LLM evaluation cached successfully", zap.String("quizID", req.QuizID), zap.String("userAnswer", req.UserAnswer))
-				}
+				logger.Get().Info("LLM evaluation cached successfully",
+					zap.String("quizID", req.QuizID),
+					zap.String("userAnswer", req.UserAnswer))
 			}
 		}
-	} else {
-		logger.Get().Warn("Redis client not initialized, skipping cache write.")
 	}
 
 	return response, nil

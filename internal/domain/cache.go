@@ -33,4 +33,16 @@ type Cache interface {
 
 	// Ping checks the health of the cache service.
 	Ping(ctx context.Context) error
+
+	// HGet retrieves a value by field from a hash stored at key.
+	HGet(ctx context.Context, key, field string) (string, error)
+
+	// HGetAll retrieves all fields and values of a hash stored at key.
+	HGetAll(ctx context.Context, key string) (map[string]string, error)
+
+	// HSet sets field in the hash stored at key to value.
+	HSet(ctx context.Context, key string, field string, value string) error
+
+	// Expire sets an expiration time on key.
+	Expire(ctx context.Context, key string, expiration time.Duration) error
 }

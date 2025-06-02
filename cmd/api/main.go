@@ -126,7 +126,7 @@ func main() {
 	log.Info("RedisCacheAdapter initialized", zap.String("adapter_type", "RedisCacheAdapter")) // Optional: for confirmation
 
 	// Initialize service
-	svc := service.NewQuizService(domainRepo, evaluator, redisClient, cfg.OpenAIAPIKey)
+	svc := service.NewQuizService(domainRepo, evaluator, cacheAdapter, cfg.OpenAIAPIKey)
 
 	// Initialize handler
 	handler := handler.NewQuizHandler(svc)
@@ -155,7 +155,7 @@ func main() {
 
 	// Setup routes
 	app.Get("/api/categories", handler.GetAllSubCategories)
-	app.Get("/api/quiz", handler.GetRandomQuiz) // Single random quiz
+	app.Get("/api/quiz", handler.GetRandomQuiz)     // Single random quiz
 	app.Get("/api/quizzes", handler.GetBulkQuizzes) // Multiple quizzes by criteria
 	app.Post("/api/quiz/check", handler.CheckAnswer)
 
