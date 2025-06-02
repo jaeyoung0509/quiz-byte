@@ -4,9 +4,15 @@ go 1.24.1
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
+	github.com/go-redis/redismock/v9 v9.2.0
 	github.com/godoes/gorm-oracle v1.6.11
 	github.com/gofiber/fiber/v2 v2.52.8
 	github.com/gofiber/swagger v1.1.1
+	github.com/jmoiron/sqlx v1.4.0
+	github.com/oklog/ulid/v2 v2.1.1
+	github.com/redis/go-redis/v9 v9.9.0
+	github.com/sashabaranov/go-openai v1.40.1
+	github.com/sijms/go-ora/v2 v2.8.24
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.10.0
 	github.com/swaggo/swag v1.16.4
@@ -32,22 +38,17 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
-	github.com/jmoiron/sqlx v1.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/mailru/easyjson v0.9.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
-	github.com/oklog/ulid/v2 v2.1.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/pkoukk/tiktoken-go v0.1.6 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/redis/go-redis/v9 v9.9.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
-	github.com/sashabaranov/go-openai v1.40.1 // indirect
-	github.com/sijms/go-ora/v2 v2.8.24 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.12.0 // indirect
 	github.com/spf13/cast v1.7.1 // indirect

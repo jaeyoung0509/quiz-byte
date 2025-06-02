@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"quiz-byte/internal/adapter" // Make sure this import is added
 	"quiz-byte/internal/cache"
 	"quiz-byte/internal/config"
 	"quiz-byte/internal/database"
@@ -119,6 +120,10 @@ func main() {
 		log.Fatal("Failed to connect to Redis", zap.Error(err))
 	}
 	log.Info("Successfully connected to Redis")
+
+	// Initialize Cache Adapter (NEW LINES TO ADD)
+	cacheAdapter := adapter.NewRedisCacheAdapter(redisClient)
+	log.Info("RedisCacheAdapter initialized", zap.String("adapter_type", "RedisCacheAdapter")) // Optional: for confirmation
 
 	// Initialize service
 	svc := service.NewQuizService(domainRepo, evaluator, redisClient, cfg.OpenAIAPIKey)

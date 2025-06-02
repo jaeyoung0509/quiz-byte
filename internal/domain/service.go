@@ -30,13 +30,6 @@ type QuizRepository interface {
 	GetSubCategoryIDByName(name string) (string, error)
 }
 
-// QuizRepositoryOps provides additional repository operations (consider merging or refactoring)
-type QuizRepositoryOps interface {
-	GetRandomQuiz() (*Quiz, error)               // Duplicate of method in QuizRepository
-	GetSimilarQuiz(quizID string) (*Quiz, error) // Duplicate of method in QuizRepository
-	SaveAnswer(answer *Answer) error             // Duplicate of method in QuizRepository
-}
-
 // CategoryRepository defines the interface for category persistence
 type CategoryRepository interface {
 	// GetAllCategories returns all categories

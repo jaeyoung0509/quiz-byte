@@ -10,17 +10,17 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-type categoryRepository struct {
+type CategoryDatabaseAdapter struct {
 	db *sqlx.DB
 }
 
-// NewCategoryRepository creates a new instance of CategoryRepository
-func NewCategoryRepository(db *sqlx.DB) domain.CategoryRepository {
-	return &categoryRepository{db: db}
+// NewCategoryDatabaseAdapter creates a new instance of CategoryDatabaseAdapter
+func NewCategoryDatabaseAdapter(db *sqlx.DB) domain.CategoryRepository {
+	return &CategoryDatabaseAdapter{db: db}
 }
 
 // GetAllCategories returns all categories
-func (r *categoryRepository) GetAllCategories() ([]*domain.Category, error) {
+func (r *CategoryDatabaseAdapter) GetAllCategories() ([]*domain.Category, error) {
 	var categories []models.Category
 	query := "SELECT id, name, description, created_at, updated_at, deleted_at FROM categories WHERE deleted_at IS NULL"
 	err := r.db.Select(&categories, query)
@@ -39,7 +39,7 @@ func (r *categoryRepository) GetAllCategories() ([]*domain.Category, error) {
 }
 
 // GetSubCategories returns all subcategories for a given category
-func (r *categoryRepository) GetSubCategories(categoryID string) ([]*domain.SubCategory, error) {
+func (r *CategoryDatabaseAdapter) GetSubCategories(categoryID string) ([]*domain.SubCategory, error) {
 	var subCategories []models.SubCategory
 	query := "SELECT id, category_id, name, description, created_at, updated_at, deleted_at FROM sub_categories WHERE category_id = $1 AND deleted_at IS NULL"
 	err := r.db.Select(&subCategories, query, categoryID)
@@ -58,7 +58,7 @@ func (r *categoryRepository) GetSubCategories(categoryID string) ([]*domain.SubC
 }
 
 // SaveCategory persists a new category
-func (r *categoryRepository) SaveCategory(category *domain.Category) error {
+func (r *CategoryDatabaseAdapter) SaveCategory(category *domain.Category) error {
 	modelCategory := convertToModelCategory(category)
 	modelCategory.ID = util.NewULID()
 	modelCategory.CreatedAt = time.Now()
@@ -77,7 +77,7 @@ func (r *categoryRepository) SaveCategory(category *domain.Category) error {
 }
 
 // SaveSubCategory persists a new subcategory
-func (r *categoryRepository) SaveSubCategory(subCategory *domain.SubCategory) error {
+func (r *CategoryDatabaseAdapter) SaveSubCategory(subCategory *domain.SubCategory) error {
 	modelSubCategory := convertToModelSubCategory(subCategory)
 	modelSubCategory.ID = util.NewULID()
 	modelSubCategory.CreatedAt = time.Now()
