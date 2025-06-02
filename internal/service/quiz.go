@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"quiz-byte/internal/domain"
 	"quiz-byte/internal/dto"
-	"quiz-byte/internal/logger" // For logging cache operations
+	"quiz-byte/internal/logger"
 	"strings"
-	"time" // For cache expiration
+	"time"
 
 	"github.com/redis/go-redis/v9"
-	"go.uber.org/zap" // For logging
+	"go.uber.org/zap"
 )
 
 const (
@@ -228,9 +228,17 @@ func (s *quizService) GetBulkQuizzes(req *dto.BulkQuizzesRequest) (*dto.BulkQuiz
 		req.Count = 50 // Cap at 50
 	}
 
-	domainQuizzes, err := s.repo.GetQuizzesByCriteria(req.SubCategory, req.Count)
+	// Get subcategory ID using case-insensitive comparison
+	subCategoryID, err := s.repo.GetSubCategoryIDByName(req.SubCategory)
 	if err != nil {
-		// Consider wrapping error for more context if needed, e.g., using domain.NewInternalError
+		return nil, domain.NewInternalError("Failed to get subcategory ID", err)
+	}
+	if subCategoryID == "" {
+		return nil, domain.NewInvalidCategoryError(req.SubCategory)
+	}
+
+	domainQuizzes, err := s.repo.GetQuizzesByCriteria(subCategoryID, req.Count)
+	if err != nil {
 		return nil, domain.NewInternalError("Failed to get bulk quizzes from repository", err)
 	}
 
@@ -245,7 +253,7 @@ func (s *quizService) GetBulkQuizzes(req *dto.BulkQuizzesRequest) (*dto.BulkQuiz
 		quizResponses = append(quizResponses, dto.QuizResponse{
 			ID:           quiz.ID,
 			Question:     quiz.Question,
-			ModelAnswers: quiz.ModelAnswers, // Assuming ModelAnswers should be included; adjust if not
+			ModelAnswers: quiz.ModelAnswers,
 			Keywords:     quiz.Keywords,
 			DiffLevel:    quiz.DifficultyToString(),
 		})
