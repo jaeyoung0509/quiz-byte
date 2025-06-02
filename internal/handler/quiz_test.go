@@ -42,6 +42,14 @@ func (m *MockQuizRepository) GetQuizByID(id int) (*models.Quiz, error) {
 	return args.Get(0).(*models.Quiz), args.Error(1)
 }
 
+func (m *MockQuizRepository) GetQuizzesByCriteria(limit int, offset int, criteria map[string]interface{}) ([]*models.Quiz, error) {
+	args := m.Called(limit, offset, criteria)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*models.Quiz), args.Error(1)
+}
+
 // MockQuizService is a mock implementation of service.QuizService
 type MockQuizService struct {
 	mock.Mock
@@ -69,6 +77,14 @@ func (m *MockQuizService) GetAllSubCategories() ([]string, error) {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).([]string), args.Error(1)
+}
+
+func (m *MockQuizService) GetBulkQuizzes(req *dto.BulkQuizzesRequest) (*dto.BulkQuizzesResponse, error) {
+	args := m.Called(req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*dto.BulkQuizzesResponse), args.Error(1)
 }
 
 func TestGetAllSubCategories(t *testing.T) {
@@ -224,7 +240,6 @@ func TestCheckAnswer(t *testing.T) {
 				Relevance:      1.0,
 				Accuracy:       1.0,
 				ModelAnswer:    "4",
-				NextQuizID:     util.NewULID(),
 			},
 			mockError:      nil,
 			expectedStatus: http.StatusOK,

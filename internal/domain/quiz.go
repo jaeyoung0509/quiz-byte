@@ -285,10 +285,3 @@ type LLMServiceError struct {
 func (e *LLMServiceError) Error() string {
 	return fmt.Sprintf("LLM service error: %v", e.cause)
 }
-
-// QuizRepositoryOps provides additional repository operations
-type QuizRepositoryOps interface {
-	GetRandomQuiz() (*Quiz, error)
-	GetSimilarQuiz(quizID string) (*Quiz, error)
-	SaveAnswer(answer *Answer) error
-}

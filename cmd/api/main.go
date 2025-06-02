@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"quiz-byte/internal/cache"
 	"quiz-byte/internal/config"
 	"quiz-byte/internal/database"
 	"quiz-byte/internal/domain"
@@ -112,8 +113,15 @@ func main() {
 	// Initialize LLM evaluator
 	evaluator := domain.NewLLMEvaluator(llm) // Pass the created llm instance
 
+	// Initialize Redis Client
+	redisClient, err := cache.NewRedisClient(cfg)
+	if err != nil {
+		log.Fatal("Failed to connect to Redis", zap.Error(err))
+	}
+	log.Info("Successfully connected to Redis")
+
 	// Initialize service
-	svc := service.NewQuizService(domainRepo, evaluator) // Remove cfg.LLMServer
+	svc := service.NewQuizService(domainRepo, evaluator, redisClient, cfg.OpenAIAPIKey)
 
 	// Initialize handler
 	handler := handler.NewQuizHandler(svc)
@@ -142,7 +150,8 @@ func main() {
 
 	// Setup routes
 	app.Get("/api/categories", handler.GetAllSubCategories)
-	app.Get("/api/quiz", handler.GetRandomQuiz)
+	app.Get("/api/quiz", handler.GetRandomQuiz) // Single random quiz
+	app.Get("/api/quizzes", handler.GetBulkQuizzes) // Multiple quizzes by criteria
 	app.Post("/api/quiz/check", handler.CheckAnswer)
 
 	// Start server in a goroutine

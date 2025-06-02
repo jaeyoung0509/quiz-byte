@@ -10,10 +10,11 @@ import (
 	"quiz-byte/internal/repository/models"
 	"quiz-byte/internal/util"
 
+	"strings" // Added for strings.Join
+
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
-	"strings" // Added for strings.Join
 )
 
 // setupTestDB creates a new sqlx.DB instance and sqlmock for testing.
@@ -187,41 +188,6 @@ func TestGetRandomQuiz(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestSaveQuiz(t *testing.T) {
-	db, mock := setupTestDB(t)
-	repo := NewQuizDatabaseAdapter(db)
-
-	domainQuiz := &domain.Quiz{
-		Question:     "What is SQLx?",
-		ModelAnswers: []string{"A set of extensions on top of standard database/sql"},
-		Keywords:     []string{"sql", "go", "database"},
-		Difficulty:   2,
-		SubCategoryID: util.NewULID(),
-	}
-
-	insertQuery := `INSERT INTO quizzes (id, question, model_answers, keywords, difficulty, sub_category_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-
-	mock.ExpectExec(regexp.QuoteMeta(insertQuery)).
-		WithArgs(
-			sqlmock.AnyArg(),
-			domainQuiz.Question,
-			strings.Join(domainQuiz.ModelAnswers, stringDelimiter),
-			strings.Join(domainQuiz.Keywords, stringDelimiter),
-			domainQuiz.Difficulty,
-			domainQuiz.SubCategoryID,
-			sqlmock.AnyArg(),
-			sqlmock.AnyArg(),
-		).WillReturnResult(sqlmock.NewResult(0, 1))
-
-	err := repo.SaveQuiz(domainQuiz)
-
-	assert.NoError(t, err)
-	assert.NotEmpty(t, domainQuiz.ID)
-	assert.NotZero(t, domainQuiz.CreatedAt)
-	assert.NotZero(t, domainQuiz.UpdatedAt)
-	assert.NoError(t, mock.ExpectationsWereMet())
-}
-
 func TestGetQuizByID_NotFound(t *testing.T) {
 	db, mock := setupTestDB(t)
 	repo := NewQuizDatabaseAdapter(db)
@@ -238,42 +204,6 @@ func TestGetQuizByID_NotFound(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Nil(t, result)
-	assert.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestUpdateQuiz(t *testing.T) {
-	db, mock := setupTestDB(t)
-	repo := NewQuizDatabaseAdapter(db)
-
-	quizID := util.NewULID()
-	subCatID := util.NewULID()
-	domainQuiz := &domain.Quiz{
-		ID:            quizID,
-		Question:      "Updated Question?",
-		ModelAnswers:  []string{"Updated Answer"},
-		Keywords:      []string{"updated", "keyword"},
-		Difficulty:    3,
-		SubCategoryID: subCatID,
-		// UpdatedAt will be set by repo.UpdateQuiz
-	}
-
-	updateQuery := `UPDATE quizzes SET question = ?, model_answers = ?, keywords = ?, difficulty = ?, sub_category_id = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`
-
-	mock.ExpectExec(regexp.QuoteMeta(updateQuery)).
-		WithArgs(
-			domainQuiz.Question,
-			strings.Join(domainQuiz.ModelAnswers, stringDelimiter),
-			strings.Join(domainQuiz.Keywords, stringDelimiter),
-			domainQuiz.Difficulty,
-			domainQuiz.SubCategoryID,
-			sqlmock.AnyArg(), // updated_at
-			domainQuiz.ID,
-		).WillReturnResult(sqlmock.NewResult(0, 1))
-
-	err := repo.UpdateQuiz(domainQuiz)
-
-	assert.NoError(t, err)
-	assert.NotZero(t, domainQuiz.UpdatedAt)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 

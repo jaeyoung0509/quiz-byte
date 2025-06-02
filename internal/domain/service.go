@@ -20,28 +20,21 @@ type QuizService interface {
 
 // QuizRepository defines the interface for quiz persistence
 type QuizRepository interface {
-	QuizRepositoryOps
-
-	// GetRandomQuizBySubCategory returns a random quiz from the specified subcategory
-	GetRandomQuizBySubCategory(subCategoryID string) (*Quiz, error)
-
-	// GetQuizByID retrieves a quiz by its ID
 	GetQuizByID(id string) (*Quiz, error)
-
-	// GetAllSubCategories returns all available subcategories
+	GetRandomQuiz() (*Quiz, error)
+	GetRandomQuizBySubCategory(subCategory string) (*Quiz, error)
+	GetSimilarQuiz(quizID string) (*Quiz, error)
 	GetAllSubCategories() ([]string, error)
+	SaveAnswer(answer *Answer) error
+	GetQuizzesByCriteria(SubCategoryID string, limit int) ([]*Quiz, error)
+	GetSubCategoryIDByName(name string) (string, error)
+}
 
-	// SaveQuiz persists a new quiz
-	SaveQuiz(quiz *Quiz) error
-
-	// UpdateQuiz updates an existing quiz
-	UpdateQuiz(quiz *Quiz) error
-
-	// SaveQuizEvaluation persists quiz evaluation criteria
-	SaveQuizEvaluation(evaluation *QuizEvaluation) error
-
-	// GetQuizEvaluation retrieves evaluation criteria for a quiz
-	GetQuizEvaluation(quizID string) (*QuizEvaluation, error)
+// QuizRepositoryOps provides additional repository operations (consider merging or refactoring)
+type QuizRepositoryOps interface {
+	GetRandomQuiz() (*Quiz, error)               // Duplicate of method in QuizRepository
+	GetSimilarQuiz(quizID string) (*Quiz, error) // Duplicate of method in QuizRepository
+	SaveAnswer(answer *Answer) error             // Duplicate of method in QuizRepository
 }
 
 // CategoryRepository defines the interface for category persistence

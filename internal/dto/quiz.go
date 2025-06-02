@@ -30,7 +30,7 @@ type QuizResponse struct {
 // @Description Request body for checking a quiz answer
 type CheckAnswerRequest struct {
 	QuizID     string `json:"quiz_id" example:"ulid-generated-id"` // Quiz ID to check
-	UserAnswer string `json:"user_answer" example:"Your answer"`     // User's answer text
+	UserAnswer string `json:"user_answer" example:"Your answer"`   // User's answer text
 }
 
 // CheckAnswerResponse represents the evaluation result in the API response
@@ -42,7 +42,6 @@ type CheckAnswerResponse struct {
 	Relevance      float64  `json:"relevance"`              // Answer relevance (0.0 ~ 1.0)
 	Accuracy       float64  `json:"accuracy"`               // Answer accuracy (0.0 ~ 1.0)
 	ModelAnswer    string   `json:"model_answer,omitempty"` // Model answer (optional)
-	NextQuizID     string   `json:"next_quiz_id,omitempty"` // Next quiz ID (similarity-based)
 }
 
 // QuizEvaluationResponse represents the evaluation criteria in the API response
@@ -54,4 +53,25 @@ type QuizEvaluationResponse struct {
 // ErrorResponse represents an error in the API response
 type ErrorResponse struct {
 	Error string `json:"error"`
+}
+
+// BulkQuizzesRequest represents a request to get bulk quizzes
+// @Description Request query parameters for getting bulk quizzes
+type BulkQuizzesRequest struct {
+	SubCategory string `query:"sub_category" validate:"required"`        // Sub-category of the quizzes
+	Count       int    `query:"count" validate:"omitempty,gte=1,lte=50"` // Number of quizzes to fetch (default: 10)
+}
+
+// BulkQuizzesResponse represents a list of quizzes in the API response
+// @Description Response body for a list of quizzes
+type BulkQuizzesResponse struct {
+	Quizzes []QuizResponse `json:"quizzes"`
+}
+
+// BulkQuizResponse represents multiple quizzes in the API response
+type BulkQuizResponse struct {
+	Quizzes     []QuizResponse `json:"quizzes"`
+	Total       int            `json:"total"`
+	PageSize    int            `json:"page_size"`
+	CurrentPage int            `json:"current_page"`
 }

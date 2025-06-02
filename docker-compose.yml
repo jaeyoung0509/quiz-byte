@@ -58,6 +58,16 @@ services:
   #     oracle-db:
   #       condition: service_healthy
 
+  redis:
+    image: "redis:alpine"
+    container_name: quiz-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
 volumes:
   oracle-data:
     name: quiz-oracle-data
+  redis_data: # Define the redis_data volume
+    name: quiz-redis-data
