@@ -19,7 +19,6 @@ type QuizService interface {
 }
 
 // QuizRepository defines the interface for quiz persistence
-// QuizRepository defines the interface for quiz data storage
 type QuizRepository interface {
 	GetQuizByID(id string) (*Quiz, error)
 	GetRandomQuiz() (*Quiz, error)
@@ -28,6 +27,7 @@ type QuizRepository interface {
 	GetAllSubCategories() ([]string, error)
 	SaveAnswer(answer *Answer) error
 	GetQuizzesByCriteria(SubCategoryID string, limit int) ([]*Quiz, error)
+	GetSubCategoryIDByName(name string) (string, error)
 }
 
 // QuizRepositoryOps provides additional repository operations (consider merging or refactoring)
