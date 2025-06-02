@@ -47,4 +47,4 @@ node_modules/
 __pycache__/
 
 # Local config
-config/config.yaml
+config.yaml

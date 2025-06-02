@@ -70,7 +70,6 @@ func (h *QuizHandler) GetAllSubCategories(c *fiber.Ctx) error {
 // @Success 200 {object} dto.QuizResponse
 // @Failure 404 {object} middleware.ErrorResponse
 // @Failure 500 {object} middleware.ErrorResponse
-// @Router /quiz [get]
 func (h *QuizHandler) GetRandomQuiz(c *fiber.Ctx) error {
 	subCategory := c.Query("sub_category")
 	if subCategory == "" {
