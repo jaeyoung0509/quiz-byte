@@ -16,6 +16,8 @@ type QuizService interface {
 
 	// GetSubCategories returns all subcategories for a given category
 	GetSubCategories(categoryID string) ([]*SubCategory, error)
+
+	InvalidateQuizCache(ctx context.Context, quizID string) error
 }
 
 // QuizRepository defines the interface for quiz persistence
