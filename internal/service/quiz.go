@@ -7,6 +7,7 @@ import (
 	"quiz-byte/internal/config" // Added import
 	"quiz-byte/internal/dto"
 	"quiz-byte/internal/logger"
+	"quiz-byte/internal/util" // Added
 	"strings"
 	"time"
 
@@ -47,10 +48,11 @@ type QuizService interface {
 
 // quizService implements QuizService
 type quizService struct {
-	repo      domain.QuizRepository
-	evaluator domain.AnswerEvaluator
-	cache     domain.Cache
-	cfg       *config.Config // Changed from openAIAPIKey
+	repo             domain.QuizRepository
+	evaluator        domain.AnswerEvaluator
+	cache            domain.Cache
+	cfg              *config.Config // Changed from openAIAPIKey
+	embeddingService domain.EmbeddingService // Added
 }
 
 // NewQuizService creates a new instance of quizService
@@ -59,12 +61,14 @@ func NewQuizService(
 	evaluator domain.AnswerEvaluator,
 	cache domain.Cache,
 	cfg *config.Config, // Changed parameter
+	embeddingService domain.EmbeddingService, // Added
 ) QuizService {
 	return &quizService{
-		repo:      repo,
-		evaluator: evaluator,
-		cache:     cache,
-		cfg:       cfg, // Updated field
+		repo:             repo,
+		evaluator:        evaluator,
+		cache:            cache,
+		cfg:              cfg, // Updated field
+		embeddingService: embeddingService, // Added
 	}
 }
 
@@ -93,7 +97,7 @@ func (s *quizService) CheckAnswer(req *dto.CheckAnswerRequest) (*dto.CheckAnswer
 
 	// 1. Cache Read Logic
 	if s.cache != nil && s.cfg != nil && s.cfg.Embedding.Source != "" {
-		currentAnswerEmbedding, errEmbed := GenerateEmbedding(ctx, req.UserAnswer, s.cfg)
+		currentAnswerEmbedding, errEmbed := s.embeddingService.Generate(ctx, req.UserAnswer)
 		if errEmbed != nil {
 			logger.Get().Warn("Failed to generate embedding for current answer, skipping cache lookup",
 				zap.Error(errEmbed),
@@ -159,7 +163,7 @@ func (s *quizService) CheckAnswer(req *dto.CheckAnswerRequest) (*dto.CheckAnswer
 
 	// 3. Cache Write Logic
 	if s.cache != nil && s.cfg != nil && s.cfg.Embedding.Source != "" {
-		userAnswerEmbedding, errEmbed := GenerateEmbedding(ctx, req.UserAnswer, s.cfg)
+		userAnswerEmbedding, errEmbed := s.embeddingService.Generate(ctx, req.UserAnswer)
 		if errEmbed != nil {
 			logger.Get().Error("Failed to generate embedding for user answer, evaluation will be cached without embedding",
 				zap.Error(errEmbed),
@@ -224,7 +228,7 @@ func (s *quizService) tryGetEvaluationFromCachedItem(ctx context.Context, curren
 		return nil
 	}
 
-	similarity, errSim := CosineSimilarity(currentAnswerEmbedding, cachedEntry.Embedding)
+	similarity, errSim := util.CosineSimilarity(currentAnswerEmbedding, cachedEntry.Embedding)
 	if errSim != nil {
 		logger.Get().Warn("Failed to calculate cosine similarity for cached answer",
 			zap.Error(errSim),

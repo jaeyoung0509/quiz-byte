@@ -16,9 +16,11 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"fmt" // For error formatting
 	"os"
 	"os/signal"
 	"quiz-byte/internal/adapter" // Make sure this import is added
+	"quiz-byte/internal/adapter/embedding" // Added
 	"quiz-byte/internal/cache"
 	"quiz-byte/internal/config"
 	"quiz-byte/internal/database"
@@ -85,6 +87,33 @@ func main() {
 
 	log := logger.Get()
 
+	// Initialize Embedding Service
+	var embeddingService domain.EmbeddingService
+	switch cfg.Embedding.Source {
+	case "ollama":
+		log.Info("Initializing Ollama Embedding Service",
+			zap.String("server_url", cfg.Embedding.OllamaServerURL),
+			zap.String("model", cfg.Embedding.OllamaModel))
+		var ollamaErr error
+		embeddingService, ollamaErr = embedding.NewOllamaEmbeddingService(cfg.Embedding.OllamaServerURL, cfg.Embedding.OllamaModel)
+		if ollamaErr != nil {
+			log.Fatal("Failed to create Ollama Embedding Service", zap.Error(ollamaErr))
+		}
+		log.Info("Ollama Embedding Service initialized successfully")
+	case "openai":
+		log.Info("Initializing OpenAI Embedding Service",
+			zap.String("model", cfg.Embedding.OpenAIModel)) // Assuming model name is relevant here
+		var openaiErr error
+		// Ensure cfg.OpenAIAPIKey and cfg.Embedding.OpenAIModel are the correct fields from your config struct
+		embeddingService, openaiErr = embedding.NewOpenAIEmbeddingService(cfg.OpenAIAPIKey, cfg.Embedding.OpenAIModel)
+		if openaiErr != nil {
+			log.Fatal("Failed to create OpenAI Embedding Service", zap.Error(openaiErr))
+		}
+		log.Info("OpenAI Embedding Service initialized successfully")
+	default:
+		log.Fatal(fmt.Sprintf("Unsupported embedding source: %s. Please check EMBEDDING_SOURCE in config.", cfg.Embedding.Source))
+	}
+
 	// Configure HTTP client for Ollama
 	ollamaHTTPClient := &http.Client{
 		Timeout: 20 * time.Second, // Or from config
@@ -126,7 +155,7 @@ func main() {
 	log.Info("RedisCacheAdapter initialized", zap.String("adapter_type", "RedisCacheAdapter")) // Optional: for confirmation
 
 	// Initialize service
-	svc := service.NewQuizService(domainRepo, evaluator, cacheAdapter, cfg)
+	svc := service.NewQuizService(domainRepo, evaluator, cacheAdapter, cfg, embeddingService)
 
 	// Initialize handler
 	handler := handler.NewQuizHandler(svc)
