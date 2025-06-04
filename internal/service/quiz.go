@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"quiz-byte/internal/domain"
+	"quiz-byte/internal/config" // Added import
 	"quiz-byte/internal/dto"
 	"quiz-byte/internal/logger"
 	"strings"
@@ -14,10 +15,17 @@ import (
 
 const (
 	QuizAnswerCachePrefix = "quizanswers:"
-	SimilarityThreshold   = 0.95 // Example threshold
-	CacheExpiration       = 24 * time.Hour
-	EmbeddingVectorSize   = 1536 // OpenAI Ada v2 embeddings are 1536 dimensional
+	// SimilarityThreshold   = 0.95 // Now comes from config
+	CacheExpiration     = 24 * time.Hour
+	// EmbeddingVectorSize   = 1536 // Not directly used, embedding managed by GenerateEmbedding
 )
+
+// CachedAnswerEvaluation defines the structure for cached answer evaluations including embeddings
+type CachedAnswerEvaluation struct {
+	Evaluation *dto.CheckAnswerResponse `json:"evaluation"`
+	Embedding  []float32                `json:"embedding"`
+	UserAnswer string                   `json:"user_answer,omitempty"` // For debugging/logging
+}
 
 // LLMResponse represents the response from the LLM service
 type LLMResponse struct {
@@ -39,10 +47,10 @@ type QuizService interface {
 
 // quizService implements QuizService
 type quizService struct {
-	repo         domain.QuizRepository
-	evaluator    domain.AnswerEvaluator
-	cache        domain.Cache
-	openAIAPIKey string
+	repo      domain.QuizRepository
+	evaluator domain.AnswerEvaluator
+	cache     domain.Cache
+	cfg       *config.Config // Changed from openAIAPIKey
 }
 
 // NewQuizService creates a new instance of quizService
@@ -50,13 +58,13 @@ func NewQuizService(
 	repo domain.QuizRepository,
 	evaluator domain.AnswerEvaluator,
 	cache domain.Cache,
-	openAIAPIKey string,
+	cfg *config.Config, // Changed parameter
 ) QuizService {
 	return &quizService{
-		repo:         repo,
-		evaluator:    evaluator,
-		cache:        cache,
-		openAIAPIKey: openAIAPIKey,
+		repo:      repo,
+		evaluator: evaluator,
+		cache:     cache,
+		cfg:       cfg, // Updated field
 	}
 }
 
@@ -84,46 +92,26 @@ func (s *quizService) CheckAnswer(req *dto.CheckAnswerRequest) (*dto.CheckAnswer
 	cacheKey := QuizAnswerCachePrefix + req.QuizID
 
 	// 1. Cache Read Logic
-	if s.cache != nil && s.openAIAPIKey != "" {
-		// Try to get cached similar answer
-		cachedAnswersMap, err := s.cache.HGetAll(ctx, cacheKey)
-		if err == nil && len(cachedAnswersMap) > 0 {
-			// Try to find similar answer in cache
-			currentAnswerEmbedding, errEmbed := GenerateOpenAIEmbedding(ctx, req.UserAnswer, s.openAIAPIKey)
-			if errEmbed == nil {
-				for cachedUserAnswerText, cachedEvalDataStr := range cachedAnswersMap {
-					cachedAnswerEmbedding, errEmbed := GenerateOpenAIEmbedding(ctx, cachedUserAnswerText, s.openAIAPIKey)
-					if errEmbed != nil {
-						logger.Get().Warn("Failed to generate embedding for cached answer",
-							zap.Error(errEmbed),
-							zap.String("cachedAnswer", cachedUserAnswerText))
-						continue
-					}
-
-					similarity, errSim := CosineSimilarity(currentAnswerEmbedding, cachedAnswerEmbedding)
-					if errSim != nil || similarity <= SimilarityThreshold {
-						continue
-					}
-
-					// Found similar answer in cache
-					var cachedEval dto.CheckAnswerResponse
-					if errUnmarshal := json.Unmarshal([]byte(cachedEvalDataStr), &cachedEval); errUnmarshal == nil {
-						logger.Get().Info("Cache hit: Found similar answer",
-							zap.String("quizID", req.QuizID),
-							zap.String("userAnswer", req.UserAnswer),
-							zap.Float64("similarity", similarity))
-
-						// Update model answer from latest quiz data
-						quiz, _ := s.repo.GetQuizByID(req.QuizID)
-						if quiz != nil {
-							cachedEval.ModelAnswer = strings.Join(quiz.ModelAnswers, "\n")
-						}
-						return &cachedEval, nil
+	if s.cache != nil && s.cfg != nil && s.cfg.Embedding.Source != "" {
+		currentAnswerEmbedding, errEmbed := GenerateEmbedding(ctx, req.UserAnswer, s.cfg)
+		if errEmbed != nil {
+			logger.Get().Warn("Failed to generate embedding for current answer, skipping cache lookup",
+				zap.Error(errEmbed),
+				zap.String("quizID", req.QuizID),
+				zap.String("userAnswer", req.UserAnswer))
+		} else {
+			cachedAnswersMap, err := s.cache.HGetAll(ctx, cacheKey)
+			if err == nil && len(cachedAnswersMap) > 0 {
+				for _, cachedEvalDataStr := range cachedAnswersMap {
+					// Call the helper method
+					evaluation := s.tryGetEvaluationFromCachedItem(ctx, currentAnswerEmbedding, cachedEvalDataStr, req.QuizID, req.UserAnswer)
+					if evaluation != nil {
+						return evaluation, nil // Cache Hit
 					}
 				}
+			} else if err != nil && err != domain.ErrCacheMiss {
+				logger.Get().Error("Cache HGetAll failed", zap.Error(err), zap.String("key", cacheKey))
 			}
-		} else if err != nil && err != domain.ErrCacheMiss {
-			logger.Get().Error("Cache lookup failed", zap.Error(err), zap.String("key", cacheKey))
 		}
 	}
 
@@ -170,30 +158,103 @@ func (s *quizService) CheckAnswer(req *dto.CheckAnswerRequest) (*dto.CheckAnswer
 	}
 
 	// 3. Cache Write Logic
-	if s.cache != nil {
-		evaluatedAnswerJSON, errMarshal := json.Marshal(response)
-		if errMarshal != nil {
-			logger.Get().Error("Failed to marshal LLM evaluation for caching",
-				zap.Error(errMarshal),
-				zap.String("quizID", req.QuizID))
+	if s.cache != nil && s.cfg != nil && s.cfg.Embedding.Source != "" {
+		userAnswerEmbedding, errEmbed := GenerateEmbedding(ctx, req.UserAnswer, s.cfg)
+		if errEmbed != nil {
+			logger.Get().Error("Failed to generate embedding for user answer, evaluation will be cached without embedding",
+				zap.Error(errEmbed),
+				zap.String("quizID", req.QuizID),
+				zap.String("userAnswer", req.UserAnswer))
+			// Decide if we still cache the response without embedding or skip.
+			// For now, let's cache without embedding if generation failed.
+			// The read logic already handles missing embeddings.
+			// However, the task implies embedding should be stored.
+			// "if errEmbed != nil, log the error and do not attempt to save this answer to the cache with an embedding"
+			// This means we should not proceed to cache this specific entry if embedding fails.
 		} else {
-			if err := s.cache.HSet(ctx, cacheKey, req.UserAnswer, string(evaluatedAnswerJSON)); err != nil {
-				logger.Get().Error("Failed to cache LLM evaluation",
-					zap.Error(err),
-					zap.String("quizID", req.QuizID))
-			} else if err := s.cache.Expire(ctx, cacheKey, CacheExpiration); err != nil {
-				logger.Get().Error("Failed to set cache expiration",
-					zap.Error(err),
+			cachedEval := CachedAnswerEvaluation{
+				Evaluation: response,
+				Embedding:  userAnswerEmbedding,
+				UserAnswer: req.UserAnswer,
+			}
+			cachedJSON, errMarshal := json.Marshal(cachedEval)
+			if errMarshal != nil {
+				logger.Get().Error("Failed to marshal answer evaluation for caching",
+					zap.Error(errMarshal),
 					zap.String("quizID", req.QuizID))
 			} else {
-				logger.Get().Info("LLM evaluation cached successfully",
-					zap.String("quizID", req.QuizID),
-					zap.String("userAnswer", req.UserAnswer))
+				// Using req.UserAnswer as the field key in the hash, as per original logic and task notes.
+				if err := s.cache.HSet(ctx, cacheKey, req.UserAnswer, string(cachedJSON)); err != nil {
+					logger.Get().Error("Failed to cache answer evaluation",
+						zap.Error(err),
+						zap.String("quizID", req.QuizID))
+				} else if err := s.cache.Expire(ctx, cacheKey, CacheExpiration); err != nil {
+					logger.Get().Error("Failed to set cache expiration",
+						zap.Error(err),
+						zap.String("quizID", req.QuizID))
+				} else {
+					logger.Get().Info("Answer evaluation and embedding cached successfully",
+						zap.String("quizID", req.QuizID),
+						zap.String("userAnswer", req.UserAnswer))
+				}
 			}
 		}
 	}
 
 	return response, nil
+}
+
+// tryGetEvaluationFromCachedItem processes a single cached item and returns an evaluation if it's a valid hit.
+func (s *quizService) tryGetEvaluationFromCachedItem(ctx context.Context, currentAnswerEmbedding []float32, cachedEvalDataStr string, quizIDForLookup string, userAnswerForLog string) *dto.CheckAnswerResponse {
+	var cachedEntry CachedAnswerEvaluation
+	errUnmarshal := json.Unmarshal([]byte(cachedEvalDataStr), &cachedEntry)
+	if errUnmarshal != nil {
+		logger.Get().Warn("Failed to unmarshal cached answer evaluation",
+			zap.Error(errUnmarshal),
+			zap.String("quizID", quizIDForLookup),
+			zap.String("userAnswer", userAnswerForLog)) // Added userAnswerForLog for context
+		return nil
+	}
+
+	if len(cachedEntry.Embedding) == 0 {
+		logger.Get().Debug("Skipping cached entry due to missing embedding",
+			zap.String("quizID", quizIDForLookup),
+			zap.String("cachedUserAnswer", cachedEntry.UserAnswer),
+			zap.String("userAnswer", userAnswerForLog)) // Added userAnswerForLog for context
+		return nil
+	}
+
+	similarity, errSim := CosineSimilarity(currentAnswerEmbedding, cachedEntry.Embedding)
+	if errSim != nil {
+		logger.Get().Warn("Failed to calculate cosine similarity for cached answer",
+			zap.Error(errSim),
+			zap.String("quizID", quizIDForLookup),
+			zap.String("userAnswer", userAnswerForLog)) // Added userAnswerForLog for context
+		return nil
+	}
+
+	if similarity >= s.cfg.Embedding.SimilarityThreshold {
+		logger.Get().Info("Cache hit: Found similar answer",
+			zap.String("quizID", quizIDForLookup),
+			zap.String("userAnswer", userAnswerForLog),
+			zap.Float64("similarity", similarity),
+			zap.String("cachedUserAnswer", cachedEntry.UserAnswer))
+
+		// Update model answer from latest quiz data
+		quizForModelAnswer, err := s.repo.GetQuizByID(quizIDForLookup)
+		if err != nil {
+			logger.Get().Error("Failed to get quiz by ID for updating model answer in cache hit",
+				zap.Error(err),
+				zap.String("quizID", quizIDForLookup))
+			// Return the cached evaluation anyway, as updating model answer is an enhancement
+			return cachedEntry.Evaluation
+		}
+		if quizForModelAnswer != nil { // Should ideally not be nil if no error
+			cachedEntry.Evaluation.ModelAnswer = strings.Join(quizForModelAnswer.ModelAnswers, "\n")
+		}
+		return cachedEntry.Evaluation
+	}
+	return nil // No match or below threshold
 }
 
 // GetAllSubCategories implements QuizService

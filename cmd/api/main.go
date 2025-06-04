@@ -126,7 +126,7 @@ func main() {
 	log.Info("RedisCacheAdapter initialized", zap.String("adapter_type", "RedisCacheAdapter")) // Optional: for confirmation
 
 	// Initialize service
-	svc := service.NewQuizService(domainRepo, evaluator, cacheAdapter, cfg.OpenAIAPIKey)
+	svc := service.NewQuizService(domainRepo, evaluator, cacheAdapter, cfg)
 
 	// Initialize handler
 	handler := handler.NewQuizHandler(svc)
