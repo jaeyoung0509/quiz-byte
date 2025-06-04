@@ -2,45 +2,29 @@ package service
 
 import (
 	"context"
-	"encoding/json"
-	// "fmt"     // Removed unused import
-	// "strings" // Removed unused import
-	"context"
-	"encoding/json"
-	"fmt" // Added for error creation
+	"fmt"
+	"os"
 	"testing"
 	"time"
+
+	// Removed "encoding/json" as it's not directly used by these tests anymore for cache data setup
 
 	"quiz-byte/internal/config"
 	"quiz-byte/internal/domain"
 	"quiz-byte/internal/dto"
+	"quiz-byte/internal/logger"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"os" // For TestMain
-	"quiz-byte/internal/logger" // For logger initialization
 )
 
 // TestMain will be used to initialize the logger for all tests in this package
 func TestMain(m *testing.M) {
-	// Setup: Initialize logger
-	// Use a minimal config for logger initialization during tests
-	cfg := &config.Config{
-		// Assuming logger.Initialize doesn't strictly need other fields,
-		// or uses defaults if they are not present.
-		// Based on logger.Initialize, ENV determines prod/dev logging format.
-		// Let's not set ENV, so it defaults to development logging.
-	}
+	cfg := &config.Config{}
 	if err := logger.Initialize(cfg); err != nil {
-		// Handle error, perhaps by logging to stderr and exiting
-		// For simplicity in this context, we'll panic if logger init fails.
 		panic("Failed to initialize logger for tests: " + err.Error())
 	}
-
-	// Run the tests
 	exitVal := m.Run()
-
-	// Teardown: Sync logger (optional, but good practice)
 	_ = logger.Sync()
 	os.Exit(exitVal)
 }
@@ -53,22 +37,6 @@ type MockQuizRepository struct {
 
 func (m *MockQuizRepository) GetRandomQuiz() (*domain.Quiz, error) {
 	args := m.Called()
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*domain.Quiz), args.Error(1)
-}
-
-func (m *MockQuizRepository) GetSimilarQuiz(quizID string) (*domain.Quiz, error) { // Added missing method
-	args := m.Called(quizID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*domain.Quiz), args.Error(1)
-}
-
-func (m *MockQuizRepository) GetRandomQuizBySubCategory(subCategoryID string) (*domain.Quiz, error) { // Added missing method
-	args := m.Called(subCategoryID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -93,12 +61,7 @@ func (m *MockQuizRepository) GetSubCategoryIDByName(name string) (string, error)
 	return args.String(0), args.Error(1)
 }
 
-func (m *MockQuizRepository) SaveAnswer(answer *domain.Answer) error { // Added missing method
-	args := m.Called(answer)
-	return args.Error(0)
-}
-
-func (m *MockQuizRepository) GetQuizzesByCriteria(subCategoryID string, count int) ([]*domain.Quiz, error) { // Changed to []*domain.Quiz
+func (m *MockQuizRepository) GetQuizzesByCriteria(subCategoryID string, count int) ([]*domain.Quiz, error) {
 	args := m.Called(subCategoryID, count)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -110,7 +73,7 @@ type MockAnswerEvaluator struct {
 	mock.Mock
 }
 
-func (m *MockAnswerEvaluator) EvaluateAnswer(question, modelAnswer, userAnswer string, keywords []string) (*domain.Answer, error) { // Changed to *domain.Answer
+func (m *MockAnswerEvaluator) EvaluateAnswer(question, modelAnswer, userAnswer string, keywords []string) (*domain.Answer, error) {
 	args := m.Called(question, modelAnswer, userAnswer, keywords)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -122,416 +85,303 @@ type MockCache struct {
 	mock.Mock
 }
 
-func (m *MockCache) Get(ctx context.Context, key string) (string, error) {
-	args := m.Called(ctx, key)
-	return args.String(0), args.Error(1)
-}
-
-func (m *MockCache) Set(ctx context.Context, key string, value string, expiration time.Duration) error {
-	args := m.Called(ctx, key, value, expiration)
-	return args.Error(0)
-}
-
+// Methods for MockCache remain, as it's still used by InvalidateQuizCache
 func (m *MockCache) Delete(ctx context.Context, key string) error {
 	args := m.Called(ctx, key)
 	return args.Error(0)
 }
+// Add other MockCache methods if InvalidateQuizCache or other QuizService methods use them.
+// For now, only Delete is explicitly shown as used by InvalidateQuizCache.
+// HGetAll, HSet, Expire are not directly used by QuizService for answer caching anymore.
 
-func (m *MockCache) Ping(ctx context.Context) error {
-	args := m.Called(ctx)
-	return args.Error(0)
+type MockEmbeddingService struct {
+	mock.Mock
 }
 
-func (m *MockCache) HGet(ctx context.Context, key, field string) (string, error) {
-	args := m.Called(ctx, key, field)
-	return args.String(0), args.Error(1)
-}
-
-func (m *MockCache) HGetAll(ctx context.Context, key string) (map[string]string, error) {
-	args := m.Called(ctx, key)
+func (m *MockEmbeddingService) Generate(ctx context.Context, text string) ([]float32, error) {
+	args := m.Called(ctx, text)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(map[string]string), args.Error(1)
+	return args.Get(0).([]float32), args.Error(1)
 }
 
-func (m *MockCache) HSet(ctx context.Context, key string, field string, value string) error {
-	args := m.Called(ctx, key, field, value)
-	return args.Error(0)
+// MockAnswerCacheService
+type MockAnswerCacheService struct {
+	mock.Mock
 }
 
-func (m *MockCache) Expire(ctx context.Context, key string, expiration time.Duration) error {
-	args := m.Called(ctx, key, expiration)
+func (m *MockAnswerCacheService) GetAnswerFromCache(ctx context.Context, quizID string, userAnswerEmbedding []float32, userAnswerText string) (*dto.CheckAnswerResponse, error) {
+	args := m.Called(ctx, quizID, userAnswerEmbedding, userAnswerText)
+	if args.Get(0) == nil { // If the first argument (response) is nil
+		return nil, args.Error(1) // Return nil response and the error
+	}
+	return args.Get(0).(*dto.CheckAnswerResponse), args.Error(1)
+}
+
+func (m *MockAnswerCacheService) PutAnswerToCache(ctx context.Context, quizID string, userAnswerText string, userAnswerEmbedding []float32, evaluation *dto.CheckAnswerResponse) error {
+	args := m.Called(ctx, quizID, userAnswerText, userAnswerEmbedding, evaluation)
 	return args.Error(0)
 }
 
 // --- Tests for CheckAnswer Caching ---
 
-func TestCheckAnswer_Caching(t *testing.T) {
+func TestCheckAnswer_With_AnswerCacheService(t *testing.T) { // Renamed test function
 	ctx := context.Background()
-	req := &dto.CheckAnswerRequest{
+	baseReq := &dto.CheckAnswerRequest{
 		QuizID:     "quiz123",
 		UserAnswer: "some user answer",
 	}
-	cacheKey := QuizAnswerCachePrefix + req.QuizID
-
-	// Dummy embedding for test purposes when we need to simulate successful embedding
-	// For tests checking failure of GenerateEmbedding, we'll provide a config that causes it to fail.
-	// The actual values here don't matter as much as their presence/absence or similarity.
-	testUserAnswerEmbedding := []float32{0.1, 0.2, 0.3}
 
 	baseCfg := config.Config{
 		Embedding: config.EmbeddingConfig{
-			Source:              "ollama", // Using ollama as it's less likely to have globally configured keys
-			OllamaModel:         "test-embed-model",
-			OllamaServerURL:     "http://localhost:11435", // A non-existent server to make real embedding calls fail if not mocked
-			SimilarityThreshold: 0.9,
+			SimilarityThreshold: 0.9, // Still used by AnswerCacheService, but QuizService is unaware of it directly
 		},
 	}
 
-	t.Run("Cache Hit - Similar Answer", func(t *testing.T) {
+	t.Run("Cache Hit from AnswerCacheService (Embedding Success)", func(t *testing.T) {
+		req := *baseReq
+
 		mockRepo := new(MockQuizRepository)
 		mockEvaluator := new(MockAnswerEvaluator)
-		mockCache := new(MockCache)
-
-		cfg := baseCfg // Copy base config
-		// For this test, we assume GenerateEmbedding for req.UserAnswer would produce testUserAnswerEmbedding
-		// And we place a similar embedding in the cache.
-		// Note: CosineSimilarity will be called with these.
-		cachedEmbedding := make([]float32, len(testUserAnswerEmbedding))
-		copy(cachedEmbedding, testUserAnswerEmbedding)
-		cachedEmbedding[0] += 0.01 // Make it slightly different but similar
-
-		cachedEvalResponse := &dto.CheckAnswerResponse{Score: 0.8, Explanation: "Cached explanation"}
-		cachedData := CachedAnswerEvaluation{
-			Evaluation: cachedEvalResponse,
-			Embedding:  cachedEmbedding,
-			UserAnswer: "similar cached answer",
-		}
-		marshaledCachedData, _ := json.Marshal(cachedData)
-		cacheReturnMap := map[string]string{cachedData.UserAnswer: string(marshaledCachedData)}
-
-		// This test is now more about "Cache Read Path - Current Embedding Generation Fails, Fallback to LLM"
-		// because GenerateEmbedding for req.UserAnswer will fail due to network, skipping similarity check.
-		mockCache.On("HGetAll", ctx, cacheKey).Return(cacheReturnMap, nil).Maybe() // May not be called if GenerateEmbedding fails before it. It IS called after.
-
-		// Setup for the fallback LLM evaluation path
-		fallbackQuiz := &domain.Quiz{
-			ID:           req.QuizID,
-			Question:     "Test Question for Cache Hit Fallback",
-			ModelAnswers: []string{"Fallback Model Answer"},
-			Keywords:     []string{"fallback", "key"},
-		}
-		// GetQuizByID is called once in the main path after embedding fails or cache is missed.
-		mockRepo.On("GetQuizByID", req.QuizID).Return(fallbackQuiz, nil).Once()
-
-		fallbackEvalResult := &domain.Answer{Score: 0.99, Explanation: "Fallback LLM explanation"}
-		mockEvaluator.On("EvaluateAnswer", fallbackQuiz.Question, fallbackQuiz.ModelAnswers[0], req.UserAnswer, fallbackQuiz.Keywords).Return(fallbackEvalResult, nil).Once()
-
-		// Since GenerateEmbedding for the write path will also fail (connection refused), HSet will not be called.
-		// mockCache.On("HSet", ctx, cacheKey, req.UserAnswer, mock.AnythingOfType("string")).Return(nil).Once()
-		// mockCache.On("Expire", ctx, cacheKey, CacheExpiration).Return(nil).Once()
-
-		service := NewQuizService(mockRepo, mockEvaluator, mockCache, &cfg)
-		response, err := service.CheckAnswer(req)
-
-		assert.NoError(t, err)
-		assert.NotNil(t, response)
-		assert.Equal(t, fallbackEvalResult.Score, response.Score)
-
-		mockEvaluator.AssertCalled(t, "EvaluateAnswer", fallbackQuiz.Question, fallbackQuiz.ModelAnswers[0], req.UserAnswer, fallbackQuiz.Keywords)
-		mockCache.AssertNotCalled(t, "HSet") // HSet is not called because GenerateEmbedding for write fails
-		mockCache.AssertNotCalled(t, "Expire")
-		mockRepo.AssertExpectations(t)
-		mockCache.AssertExpectations(t)
-		mockEvaluator.AssertExpectations(t)
-	})
-
-	t.Run("Cache Miss - Low Similarity", func(t *testing.T) {
-		mockRepo := new(MockQuizRepository)
-		mockEvaluator := new(MockAnswerEvaluator)
-		mockCache := new(MockCache)
+		mockEmbSvc := new(MockEmbeddingService)
+		mockAnswerCacheSvc := new(MockAnswerCacheService)
+		// mockCache is still needed for NewQuizService, but not directly for these cache operations
+		mockDirectCache := new(MockCache)
 		cfg := baseCfg
 
-		// This test is now "Cache Read Path - Current Embedding Generation Fails, Fallback to LLM"
-		// (Similar to the previous one, as the similarity check is bypassed)
-		// Embedding for cached answer (very different) - this difference won't be tested due to GenerateEmbedding failure for current answer.
-		cachedEmbedding := []float32{0.9, 0.8, 0.7}
+		userAnswerEmbedding := []float32{0.1, 0.2, 0.3}
+		mockEmbSvc.On("Generate", ctx, req.UserAnswer).Return(userAnswerEmbedding, nil).Once()
 
-		cachedEvalResponse := &dto.CheckAnswerResponse{Score: 0.3, Explanation: "Dissimilar cached explanation"}
-		cachedData := CachedAnswerEvaluation{
-			Evaluation: cachedEvalResponse,
-			Embedding:  cachedEmbedding,
-			UserAnswer: "dissimilar cached answer",
-		}
-		marshaledCachedData, _ := json.Marshal(cachedData)
-		cacheReturnMap := map[string]string{cachedData.UserAnswer: string(marshaledCachedData)}
+		expectedCachedResponse := &dto.CheckAnswerResponse{Score: 0.8, Explanation: "From AnswerCacheService"}
+		mockAnswerCacheSvc.On("GetAnswerFromCache", ctx, req.QuizID, userAnswerEmbedding, req.UserAnswer).Return(expectedCachedResponse, nil).Once()
 
-		mockCache.On("HGetAll", ctx, cacheKey).Return(cacheReturnMap, nil).Maybe() // May not be called if GenerateEmbedding fails.
-
-		quizForEval := &domain.Quiz{ID: req.QuizID, Question: "Q1_low_similarity", ModelAnswers: []string{"Model Ans Low Sim"}, Keywords: []string{"k1ls"}}
-		// GetQuizByID is called once in the main path.
-		mockRepo.On("GetQuizByID", req.QuizID).Return(quizForEval, nil).Once()
-
-		evalResult := &domain.Answer{Score: 0.88, Explanation: "LLM explanation for low similarity fallback"}
-		mockEvaluator.On("EvaluateAnswer", quizForEval.Question, quizForEval.ModelAnswers[0], req.UserAnswer, quizForEval.Keywords).Return(evalResult, nil).Once()
-
-		// Since GenerateEmbedding for the write path will also fail, HSet will not be called.
-		// mockCache.On("HSet", ctx, cacheKey, req.UserAnswer, mock.AnythingOfType("string")).Return(nil).Once()
-		// mockCache.On("Expire", ctx, cacheKey, CacheExpiration).Return(nil).Once()
-
-		service := NewQuizService(mockRepo, mockEvaluator, mockCache, &cfg)
-		response, err := service.CheckAnswer(req)
+		service := NewQuizService(mockRepo, mockEvaluator, mockDirectCache, &cfg, mockEmbSvc, mockAnswerCacheSvc)
+		response, err := service.CheckAnswer(&req)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, response)
-		assert.Equal(t, evalResult.Score, response.Score)
-		mockEvaluator.AssertCalled(t, "EvaluateAnswer", quizForEval.Question, quizForEval.ModelAnswers[0], req.UserAnswer, quizForEval.Keywords)
-		mockCache.AssertNotCalled(t, "HSet") // HSet is not called
-		mockCache.AssertNotCalled(t, "Expire")
-		mockRepo.AssertExpectations(t)
-		mockCache.AssertExpectations(t)
-		mockEvaluator.AssertExpectations(t)
+		assert.Equal(t, expectedCachedResponse.Score, response.Score)
+		assert.Equal(t, expectedCachedResponse.Explanation, response.Explanation)
+
+		mockEmbSvc.AssertExpectations(t)
+		mockAnswerCacheSvc.AssertExpectations(t)
+		mockEvaluator.AssertNotCalled(t, "EvaluateAnswer")
+		mockRepo.AssertNotCalled(t, "GetQuizByID") // Not called by QuizService directly in cache hit
 	})
 
-	t.Run("Cache Miss - Empty Cache", func(t *testing.T) {
+	t.Run("Cache Miss from AnswerCacheService (Embedding Success), LLM Fallback, Cache Write", func(t *testing.T) {
+		req := *baseReq
+
 		mockRepo := new(MockQuizRepository)
 		mockEvaluator := new(MockAnswerEvaluator)
-		mockCache := new(MockCache)
+		mockEmbSvc := new(MockEmbeddingService)
+		mockAnswerCacheSvc := new(MockAnswerCacheService)
+		mockDirectCache := new(MockCache)
 		cfg := baseCfg
 
-		// HGetAll will not be called because GenerateEmbedding for req.UserAnswer fails with baseCfg
-		// mockCache.On("HGetAll", ctx, cacheKey).Return(map[string]string{}, nil).Once()
+		userAnswerEmbedding := []float32{0.1, 0.2, 0.3}
+		mockEmbSvc.On("Generate", ctx, req.UserAnswer).Return(userAnswerEmbedding, nil).Once()
+
+		// Simulate cache miss from AnswerCacheService
+		mockAnswerCacheSvc.On("GetAnswerFromCache", ctx, req.QuizID, userAnswerEmbedding, req.UserAnswer).Return(nil, nil).Once()
 
 		quizForEval := &domain.Quiz{ID: req.QuizID, Question: "Q1", ModelAnswers: []string{"Model Ans"}, Keywords: []string{"k1"}}
 		mockRepo.On("GetQuizByID", req.QuizID).Return(quizForEval, nil).Once()
 
-		evalResult := &domain.Answer{Score: 0.77, Explanation: "Fresh LLM explanation"}
-		mockEvaluator.On("EvaluateAnswer", quizForEval.Question, quizForEval.ModelAnswers[0], req.UserAnswer, quizForEval.Keywords).Return(evalResult, nil).Once()
+		llmEvalResult := &domain.Answer{Score: 0.77, Explanation: "Fresh LLM explanation"}
+		mockEvaluator.On("EvaluateAnswer", quizForEval.Question, quizForEval.ModelAnswers[0], req.UserAnswer, quizForEval.Keywords).Return(llmEvalResult, nil).Once()
 
-		// Since GenerateEmbedding for the write path will also fail, HSet will not be called.
-		// mockCache.On("HSet", ctx, cacheKey, req.UserAnswer, mock.AnythingOfType("string")).Return(nil).Once()
-		// mockCache.On("Expire", ctx, cacheKey, CacheExpiration).Return(nil).Once()
+		// Construct the expected response for PutAnswerToCache
+		expectedResponseToCache := &dto.CheckAnswerResponse{
+			Score:          llmEvalResult.Score,
+			Explanation:    llmEvalResult.Explanation,
+			KeywordMatches: llmEvalResult.KeywordMatches,
+			Completeness:   llmEvalResult.Completeness,
+			Relevance:      llmEvalResult.Relevance,
+			Accuracy:       llmEvalResult.Accuracy,
+			ModelAnswer:    quizForEval.ModelAnswers[0],
+		}
+		mockAnswerCacheSvc.On("PutAnswerToCache", ctx, req.QuizID, req.UserAnswer, userAnswerEmbedding, expectedResponseToCache).Return(nil).Once()
 
-		service := NewQuizService(mockRepo, mockEvaluator, mockCache, &cfg)
-		response, err := service.CheckAnswer(req)
+		service := NewQuizService(mockRepo, mockEvaluator, mockDirectCache, &cfg, mockEmbSvc, mockAnswerCacheSvc)
+		response, err := service.CheckAnswer(&req)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, response)
-		assert.Equal(t, evalResult.Score, response.Score)
-		mockEvaluator.AssertCalled(t, "EvaluateAnswer", quizForEval.Question, quizForEval.ModelAnswers[0], req.UserAnswer, quizForEval.Keywords)
-		mockCache.AssertNotCalled(t, "HSet") // HSet is not called
-		mockCache.AssertNotCalled(t, "Expire")
+		assert.Equal(t, llmEvalResult.Score, response.Score)
+
+		mockEmbSvc.AssertExpectations(t)
+		mockAnswerCacheSvc.AssertExpectations(t)
 		mockRepo.AssertExpectations(t)
-		mockCache.AssertExpectations(t)
 		mockEvaluator.AssertExpectations(t)
 	})
 
-	t.Run("Cache_Write_Attempt_EmbeddingGenFails_HSetNotCalled", func(t *testing.T) { // Renamed test
+	t.Run("Embedding Generation Fails, No Cache Interaction, LLM Fallback", func(t *testing.T) {
+		req := *baseReq
+
 		mockRepo := new(MockQuizRepository)
 		mockEvaluator := new(MockAnswerEvaluator)
-		mockCache := new(MockCache)
+		mockEmbSvc := new(MockEmbeddingService)
+		mockAnswerCacheSvc := new(MockAnswerCacheService)
+		mockDirectCache := new(MockCache)
+		cfg := baseCfg
 
-		// Config that should allow GenerateEmbedding to run (even if Ollama isn't actually there)
-		cfgWriteTest := config.Config{ // Config that allows GenerateEmbedding to attempt network call
-			Embedding: config.EmbeddingConfig{
-				Source:          "ollama",
-				OllamaModel:     "test-model-for-write-fail",
-				OllamaServerURL: "http://localhost:11437", // Non-existent server to ensure network error
-			},
-		}
+		mockEmbSvc.On("Generate", ctx, req.UserAnswer).Return(nil, fmt.Errorf("embedding generation failed")).Once()
 
-		mockCache.On("HGetAll", ctx, cacheKey).Return(map[string]string{}, domain.ErrCacheMiss).Maybe()
-
-		quizForEval := &domain.Quiz{ID: req.QuizID, Question: "Q1", ModelAnswers: []string{"Model Ans"}, Keywords: []string{"k1"}}
+		quizForEval := &domain.Quiz{ID: req.QuizID, Question: "Q_embed_fail", ModelAnswers: []string{"Model_embed_fail"}, Keywords: []string{"k_ef"}}
 		mockRepo.On("GetQuizByID", req.QuizID).Return(quizForEval, nil).Once()
 
-		llmResponse := &domain.Answer{Score: 0.95, Explanation: "LLM explanation for write test"}
-		mockEvaluator.On("EvaluateAnswer", quizForEval.Question, quizForEval.ModelAnswers[0], req.UserAnswer, quizForEval.Keywords).Return(llmResponse, nil).Once()
+		llmEvalResult := &domain.Answer{Score: 0.65, Explanation: "LLM fallback due to embedding fail"}
+		mockEvaluator.On("EvaluateAnswer", quizForEval.Question, quizForEval.ModelAnswers[0], req.UserAnswer, quizForEval.Keywords).Return(llmEvalResult, nil).Once()
 
-		// HSet and Expire should NOT be called because GenerateEmbedding for the write path will fail.
-		// mockCache.On("HSet", ...
-		// mockCache.On("Expire", ...
-
-		service := NewQuizService(mockRepo, mockEvaluator, mockCache, &cfgWriteTest)
-		_, err := service.CheckAnswer(req)
-
-		assert.NoError(t, err)
-		mockCache.AssertNotCalled(t, "HSet") // Assert HSet is NOT called
-		mockCache.AssertNotCalled(t, "Expire")
-
-		mockRepo.AssertExpectations(t)
-		mockCache.AssertExpectations(t) // Verifies HGetAll was called as expected (if at all)
-		mockEvaluator.AssertExpectations(t)
-	})
-
-	t.Run("GenerateEmbedding Fails During Cache Read (Config Error)", func(t *testing.T) {
-		mockRepo := new(MockQuizRepository)
-		mockEvaluator := new(MockAnswerEvaluator)
-		mockCache := new(MockCache)
-
-		// Config that will make GenerateEmbedding fail (e.g. unsupported source)
-		cfgBadEmbed := config.Config{
-			Embedding: config.EmbeddingConfig{
-				Source: "unsupported_source_for_read_fail_test",
-			},
-		}
-
-		// Cache HGetAll should not even be called if GenerateEmbedding for current answer fails due to config.
-		// Or, if it's called, the error from GenerateEmbedding should prevent cache usage.
-		// The current code calls GenerateEmbedding first. If it fails, it logs and proceeds to evaluator.
-
-		quizForEval := &domain.Quiz{ID: req.QuizID, Question: "Q1", ModelAnswers: []string{"Model Ans"}, Keywords: []string{"k1"}}
-		mockRepo.On("GetQuizByID", req.QuizID).Return(quizForEval, nil).Once()
-
-		evalResult := &domain.Answer{Score: 0.65, Explanation: "LLM fallback due to embed read fail"} // Changed to domain.Answer
-		mockEvaluator.On("EvaluateAnswer", quizForEval.Question, quizForEval.ModelAnswers[0], req.UserAnswer, quizForEval.Keywords).Return(evalResult, nil).Once()
-
-		// HSet should also not be called if embedding source is bad, because cache is disabled.
-		// The condition `s.cfg != nil && s.cfg.Embedding.Source != ""` applies to both read and write.
-		// Let's refine: if Source is just bad, the cache is skipped entirely.
-
-		service := NewQuizService(mockRepo, mockEvaluator, mockCache, &cfgBadEmbed)
-		response, err := service.CheckAnswer(req)
+		service := NewQuizService(mockRepo, mockEvaluator, mockDirectCache, &cfg, mockEmbSvc, mockAnswerCacheSvc)
+		response, err := service.CheckAnswer(&req)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, response)
-		assert.Equal(t, evalResult.Score, response.Score)
+		assert.Equal(t, llmEvalResult.Score, response.Score)
 
-		mockCache.AssertNotCalled(t, "HGetAll") // Cache is skipped
-		mockCache.AssertNotCalled(t, "HSet")    // Cache is skipped
-		mockEvaluator.AssertCalled(t, "EvaluateAnswer", quizForEval.Question, quizForEval.ModelAnswers[0], req.UserAnswer, quizForEval.Keywords)
+		mockEmbSvc.AssertExpectations(t)
+		mockAnswerCacheSvc.AssertNotCalled(t, "GetAnswerFromCache")
+		mockAnswerCacheSvc.AssertNotCalled(t, "PutAnswerToCache")
 		mockRepo.AssertExpectations(t)
 		mockEvaluator.AssertExpectations(t)
 	})
 
-	t.Run("GenerateEmbedding Fails During Cache Write (Config Error)", func(t *testing.T) {
+	t.Run("AnswerCacheService is nil, Embedding Success, LLM Fallback, No Cache Write", func(t *testing.T) {
+		req := *baseReq
+
 		mockRepo := new(MockQuizRepository)
 		mockEvaluator := new(MockAnswerEvaluator)
-		mockCache := new(MockCache)
+		mockEmbSvc := new(MockEmbeddingService)
+		// mockAnswerCacheSvc is not created, nil is passed
+		mockDirectCache := new(MockCache)
+		cfg := baseCfg
 
-		// Config that will make GenerateEmbedding fail for the write part
-		cfgBadEmbedWrite := config.Config{
-			Embedding: config.EmbeddingConfig{
-				Source: "unsupported_source_for_write_fail_test",
-			},
-		}
-		// This means cache is effectively disabled.
+		userAnswerEmbedding := []float32{0.1, 0.2, 0.3}
+		mockEmbSvc.On("Generate", ctx, req.UserAnswer).Return(userAnswerEmbedding, nil).Once()
 
-		mockCache.On("HGetAll", ctx, cacheKey).Return(map[string]string{}, domain.ErrCacheMiss).Maybe() // May or may not be called depending on Source check
-
-		quizForEval := &domain.Quiz{ID: req.QuizID, Question: "Q1", ModelAnswers: []string{"Model Ans"}, Keywords: []string{"k1"}}
+		quizForEval := &domain.Quiz{ID: req.QuizID, Question: "Q_nil_ans_cache", ModelAnswers: []string{"Model_nil_ans_cache"}, Keywords: []string{"k_nac"}}
 		mockRepo.On("GetQuizByID", req.QuizID).Return(quizForEval, nil).Once()
 
-		evalResult := &domain.Answer{Score: 0.55, Explanation: "LLM fallback due to embed write fail"} // Changed to domain.Answer
-		mockEvaluator.On("EvaluateAnswer", quizForEval.Question, quizForEval.ModelAnswers[0], req.UserAnswer, quizForEval.Keywords).Return(evalResult, nil).Once()
+		llmEvalResult := &domain.Answer{Score: 0.60, Explanation: "LLM fallback, nil AnswerCacheService"}
+		mockEvaluator.On("EvaluateAnswer", quizForEval.Question, quizForEval.ModelAnswers[0], req.UserAnswer, quizForEval.Keywords).Return(llmEvalResult, nil).Once()
 
-		service := NewQuizService(mockRepo, mockEvaluator, mockCache, &cfgBadEmbedWrite)
-		response, err := service.CheckAnswer(req)
+		service := NewQuizService(mockRepo, mockEvaluator, mockDirectCache, &cfg, mockEmbSvc, nil) // Pass nil for AnswerCacheService
+		response, err := service.CheckAnswer(&req)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, response)
-		assert.Equal(t, evalResult.Score, response.Score)
+		assert.Equal(t, llmEvalResult.Score, response.Score)
 
-		mockCache.AssertNotCalled(t, "HSet") // HSet should not be called if embedding config is invalid for write
-		mockEvaluator.AssertCalled(t, "EvaluateAnswer", quizForEval.Question, quizForEval.ModelAnswers[0], req.UserAnswer, quizForEval.Keywords)
+		mockEmbSvc.AssertExpectations(t)
 		mockRepo.AssertExpectations(t)
 		mockEvaluator.AssertExpectations(t)
+		// No calls to mockAnswerCacheSvc to assert as it's nil
 	})
 
-	t.Run("Cache disabled if Embedding Source is empty", func(t *testing.T) {
+	t.Run("EmbeddingService is nil, No Cache Interaction, LLM Fallback", func(t *testing.T) {
+		req := *baseReq
 		mockRepo := new(MockQuizRepository)
 		mockEvaluator := new(MockAnswerEvaluator)
-		mockCache := new(MockCache)
+		mockAnswerCacheSvc := new(MockAnswerCacheService) // mock AnswerCacheService
+		mockDirectCache := new(MockCache)
+		cfg := baseCfg
 
-		cfgNoSource := config.Config{
-			Embedding: config.EmbeddingConfig{
-				Source: "", // Embedding source is empty
-			},
-		}
+		// EmbeddingService is nil
+		service := NewQuizService(mockRepo, mockEvaluator, mockDirectCache, &cfg, nil, mockAnswerCacheSvc)
 
-		quizForEval := &domain.Quiz{ID: req.QuizID, Question: "Q1", ModelAnswers: []string{"Model Ans"}, Keywords: []string{"k1"}}
+		quizForEval := &domain.Quiz{ID: req.QuizID, Question: "Q_nil_embed_svc", ModelAnswers: []string{"Model_nil_embed_svc"}, Keywords: []string{"k_nes"}}
 		mockRepo.On("GetQuizByID", req.QuizID).Return(quizForEval, nil).Once()
 
-		evalResult := &domain.Answer{Score: 0.50, Explanation: "LLM because cache disabled"} // Changed to domain.Answer
-		mockEvaluator.On("EvaluateAnswer", quizForEval.Question, quizForEval.ModelAnswers[0], req.UserAnswer, quizForEval.Keywords).Return(evalResult, nil).Once()
+		llmEvalResult := &domain.Answer{Score: 0.55, Explanation: "LLM fallback, nil EmbeddingService"}
+		mockEvaluator.On("EvaluateAnswer", quizForEval.Question, quizForEval.ModelAnswers[0], req.UserAnswer, quizForEval.Keywords).Return(llmEvalResult, nil).Once()
 
-		service := NewQuizService(mockRepo, mockEvaluator, mockCache, &cfgNoSource)
-		response, err := service.CheckAnswer(req)
+		response, err := service.CheckAnswer(&req)
 
 		assert.NoError(t, err)
-		assert.Equal(t, evalResult.Score, response.Score)
-		mockCache.AssertNotCalled(t, "HGetAll")
-		mockCache.AssertNotCalled(t, "HSet")
+		assert.NotNil(t, response)
+		assert.Equal(t, llmEvalResult.Score, response.Score)
+
+		mockAnswerCacheSvc.AssertNotCalled(t, "GetAnswerFromCache")
+		mockAnswerCacheSvc.AssertNotCalled(t, "PutAnswerToCache")
 		mockRepo.AssertExpectations(t)
 		mockEvaluator.AssertExpectations(t)
 	})
+
 }
 
+// TestInvalidateQuizCache remains largely the same
+// It uses the 'service.AnswerCachePrefix' constant now, which should be available if in same package.
+// If constants are not directly accessible due to helper files or structure,
+// this might need adjustment, but typically service constants are accessible within the service package.
 func TestInvalidateQuizCache(t *testing.T) {
 	ctx := context.Background()
 	quizID := "testQuiz123"
-	cacheKey := QuizAnswerCachePrefix + quizID
+	// Assuming AnswerCachePrefix is accessible within the service package.
+	// If internal/service/answer_cache.go defines `const AnswerCachePrefix = "quizanswers:"`
+	// and both quiz.go and quiz_test.go are in package `service`, this is fine.
+	cacheKey := AnswerCachePrefix + quizID
+	cfg := &config.Config{} // Minimal config
 
 	t.Run("Successful Invalidation", func(t *testing.T) {
 		mockRepo := new(MockQuizRepository)
 		mockEvaluator := new(MockAnswerEvaluator)
-		mockCache := new(MockCache)
-		cfg := &config.Config{} // Minimal config
+		mockCache := new(MockCache) // This is the direct cache used by InvalidateQuizCache
+		mockEmbSvc := new(MockEmbeddingService)
+		mockAnswerCacheSvc := new(MockAnswerCacheService) // Passed to NewQuizService
 
-		service := NewQuizService(mockRepo, mockEvaluator, mockCache, cfg)
+		service := NewQuizService(mockRepo, mockEvaluator, mockCache, cfg, mockEmbSvc, mockAnswerCacheSvc)
 
-		mockCache.On("Delete", mock.AnythingOfType("*context.emptyCtx"), cacheKey).Return(nil).Once()
+		mockCache.On("Delete", ctx, cacheKey).Return(nil).Once()
 
 		err := service.InvalidateQuizCache(ctx, quizID)
 
 		assert.NoError(t, err)
 		mockCache.AssertExpectations(t)
-		// Ensure other mocks are not called if they shouldn't be
 		mockRepo.AssertNotCalled(t, "GetQuizByID")
 		mockEvaluator.AssertNotCalled(t, "EvaluateAnswer")
+		mockEmbSvc.AssertNotCalled(t, "Generate")
+		mockAnswerCacheSvc.AssertNotCalled(t, "GetAnswerFromCache")
 	})
 
 	t.Run("Cache Deletion Fails", func(t *testing.T) {
 		mockRepo := new(MockQuizRepository)
 		mockEvaluator := new(MockAnswerEvaluator)
 		mockCache := new(MockCache)
-		cfg := &config.Config{}
+		mockEmbSvc := new(MockEmbeddingService)
+		mockAnswerCacheSvc := new(MockAnswerCacheService)
 
-		service := NewQuizService(mockRepo, mockEvaluator, mockCache, cfg)
+		service := NewQuizService(mockRepo, mockEvaluator, mockCache, cfg, mockEmbSvc, mockAnswerCacheSvc)
 
 		expectedErr := fmt.Errorf("cache delete error")
-		mockCache.On("Delete", mock.AnythingOfType("*context.emptyCtx"), cacheKey).Return(expectedErr).Once()
+		mockCache.On("Delete", ctx, cacheKey).Return(expectedErr).Once()
 
 		err := service.InvalidateQuizCache(ctx, quizID)
 
 		assert.Error(t, err)
-		// Check if the error is the wrapped domain error
-		if assert.Error(t, err) {
-			internalErr, ok := err.(*domain.InternalError) // Type assertion
-			assert.True(t, ok, "Error should be of type domain.InternalError")
-			if ok {
-				assert.Contains(t, internalErr.Message, "failed to invalidate cache for quiz")
-				assert.ErrorIs(t, internalErr.Err, expectedErr, "Wrapped error should be the original expected error")
-			}
+		if internalErr, ok := err.(*domain.InternalError); ok {
+			assert.Contains(t, internalErr.Message, "failed to invalidate cache for quiz")
+			assert.ErrorIs(t, internalErr.Err, expectedErr)
+		} else {
+			t.Errorf("Expected error of type *domain.InternalError, got %T", err)
 		}
 		mockCache.AssertExpectations(t)
 	})
 
-	t.Run("Cache Not Configured", func(t *testing.T) {
+	t.Run("Cache Not Configured (nil cache client for InvalidateQuizCache)", func(t *testing.T) {
 		mockRepo := new(MockQuizRepository)
 		mockEvaluator := new(MockAnswerEvaluator)
-		// mockCache is not created, service will get nil for cache
-		cfg := &config.Config{}
+		mockEmbSvc := new(MockEmbeddingService)
+		mockAnswerCacheSvc := new(MockAnswerCacheService)
 
-		service := NewQuizService(mockRepo, mockEvaluator, nil, cfg) // Pass nil for cache
+		// Pass nil for the direct cache instance used by InvalidateQuizCache
+		service := NewQuizService(mockRepo, mockEvaluator, nil, cfg, mockEmbSvc, mockAnswerCacheSvc)
 
 		err := service.InvalidateQuizCache(ctx, quizID)
 
-		assert.NoError(t, err, "Expected no error when cache is not configured")
-		// logger.Get().Warn is called, but checking logs in unit tests can be complex.
-		// The main thing is that it doesn't panic and returns nil as per implementation.
-		mockRepo.AssertNotCalled(t, "GetQuizByID")
-		mockEvaluator.AssertNotCalled(t, "EvaluateAnswer")
+		assert.NoError(t, err, "Expected no error when cache is not configured for InvalidateQuizCache")
 	})
 }
+[end of internal/service/quiz_test.go]

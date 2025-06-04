@@ -7,26 +7,12 @@ import (
 	"quiz-byte/internal/config" // Added import
 	"quiz-byte/internal/dto"
 	"quiz-byte/internal/logger"
-	"quiz-byte/internal/util" // Added
+	// "quiz-byte/internal/util" // No longer directly used for CosineSimilarity here
 	"strings"
-	"time"
+	// "time" // No longer directly used for CacheExpiration here
 
 	"go.uber.org/zap"
 )
-
-const (
-	QuizAnswerCachePrefix = "quizanswers:"
-	// SimilarityThreshold   = 0.95 // Now comes from config
-	CacheExpiration     = 24 * time.Hour
-	// EmbeddingVectorSize   = 1536 // Not directly used, embedding managed by GenerateEmbedding
-)
-
-// CachedAnswerEvaluation defines the structure for cached answer evaluations including embeddings
-type CachedAnswerEvaluation struct {
-	Evaluation *dto.CheckAnswerResponse `json:"evaluation"`
-	Embedding  []float32                `json:"embedding"`
-	UserAnswer string                   `json:"user_answer,omitempty"` // For debugging/logging
-}
 
 // LLMResponse represents the response from the LLM service
 type LLMResponse struct {
@@ -50,25 +36,28 @@ type QuizService interface {
 type quizService struct {
 	repo             domain.QuizRepository
 	evaluator        domain.AnswerEvaluator
-	cache            domain.Cache
-	cfg              *config.Config // Changed from openAIAPIKey
-	embeddingService domain.EmbeddingService // Added
+	cache            domain.Cache // Retained for InvalidateQuizCache, though AnswerCacheService also has a cache. Consider if this is needed.
+	cfg              *config.Config
+	embeddingService domain.EmbeddingService
+	answerCache      AnswerCacheService // New field
 }
 
 // NewQuizService creates a new instance of quizService
 func NewQuizService(
 	repo domain.QuizRepository,
 	evaluator domain.AnswerEvaluator,
-	cache domain.Cache,
-	cfg *config.Config, // Changed parameter
-	embeddingService domain.EmbeddingService, // Added
+	cache domain.Cache, // Retained for now
+	cfg *config.Config,
+	embeddingService domain.EmbeddingService,
+	answerCache AnswerCacheService, // New parameter
 ) QuizService {
 	return &quizService{
 		repo:             repo,
 		evaluator:        evaluator,
-		cache:            cache,
-		cfg:              cfg, // Updated field
-		embeddingService: embeddingService, // Added
+		cache:            cache, // Retained for now
+		cfg:              cfg,
+		embeddingService: embeddingService,
+		answerCache:      answerCache, // Assign new field
 	}
 }
 
@@ -93,33 +82,43 @@ func (s *quizService) GetRandomQuiz(subCategory string) (*dto.QuizResponse, erro
 // CheckAnswer implements QuizService
 func (s *quizService) CheckAnswer(req *dto.CheckAnswerRequest) (*dto.CheckAnswerResponse, error) {
 	ctx := context.Background()
-	cacheKey := QuizAnswerCachePrefix + req.QuizID
+	// cacheKey variable is removed as it's now handled by AnswerCacheService
 
-	// 1. Cache Read Logic
-	if s.cache != nil && s.cfg != nil && s.cfg.Embedding.Source != "" {
-		currentAnswerEmbedding, errEmbed := s.embeddingService.Generate(ctx, req.UserAnswer)
+	var userAnswerEmbedding []float32
+	var errEmbed error
+
+	if s.embeddingService != nil {
+		userAnswerEmbedding, errEmbed = s.embeddingService.Generate(ctx, req.UserAnswer)
 		if errEmbed != nil {
-			logger.Get().Warn("Failed to generate embedding for current answer, skipping cache lookup",
+			logger.Get().Warn("QuizService: Failed to generate embedding for current answer, cache will be skipped.",
 				zap.Error(errEmbed),
 				zap.String("quizID", req.QuizID),
 				zap.String("userAnswer", req.UserAnswer))
-		} else {
-			cachedAnswersMap, err := s.cache.HGetAll(ctx, cacheKey)
-			if err == nil && len(cachedAnswersMap) > 0 {
-				for _, cachedEvalDataStr := range cachedAnswersMap {
-					// Call the helper method
-					evaluation := s.tryGetEvaluationFromCachedItem(ctx, currentAnswerEmbedding, cachedEvalDataStr, req.QuizID, req.UserAnswer)
-					if evaluation != nil {
-						return evaluation, nil // Cache Hit
-					}
-				}
-			} else if err != nil && err != domain.ErrCacheMiss {
-				logger.Get().Error("Cache HGetAll failed", zap.Error(err), zap.String("key", cacheKey))
-			}
+			// errEmbed being non-nil will prevent cache usage later
 		}
+	} else {
+		logger.Get().Debug("QuizService: Embedding service not available, cache will be skipped.", zap.String("quizID", req.QuizID))
+		// userAnswerEmbedding remains nil, errEmbed remains nil
+		// This state will also skip cache usage that depends on embeddings
 	}
 
-	// 2. Original Logic: Fetch quiz, validate, call LLM (if cache miss)
+	// 1. Cache Read Logic (delegated to AnswerCacheService)
+	if s.answerCache != nil && errEmbed == nil && len(userAnswerEmbedding) > 0 {
+		cachedResp, errCacheGet := s.answerCache.GetAnswerFromCache(ctx, req.QuizID, userAnswerEmbedding, req.UserAnswer)
+		if errCacheGet != nil {
+			// Log actual errors, not misses (misses are logged by AnswerCacheService)
+			logger.Get().Error("QuizService: Error getting answer from AnswerCacheService",
+				zap.Error(errCacheGet),
+				zap.String("quizID", req.QuizID))
+			// Proceed to LLM evaluation as if it was a cache miss
+		} else if cachedResp != nil {
+			logger.Get().Info("QuizService: Cache hit from AnswerCacheService.", zap.String("quizID", req.QuizID))
+			return cachedResp, nil // Cache Hit
+		}
+		// If cachedResp is nil and errCacheGet is nil, it's a cache miss, proceed to LLM.
+	}
+
+	// 2. Original Logic: Fetch quiz, validate, call LLM (if cache miss or error)
 	quiz, err := s.repo.GetQuizByID(req.QuizID)
 	if err != nil {
 		return nil, domain.NewInternalError("Failed to get quiz", err)
@@ -161,105 +160,22 @@ func (s *quizService) CheckAnswer(req *dto.CheckAnswerRequest) (*dto.CheckAnswer
 		ModelAnswer:    strings.Join(quiz.ModelAnswers, "\n"),
 	}
 
-	// 3. Cache Write Logic
-	if s.cache != nil && s.cfg != nil && s.cfg.Embedding.Source != "" {
-		userAnswerEmbedding, errEmbed := s.embeddingService.Generate(ctx, req.UserAnswer)
-		if errEmbed != nil {
-			logger.Get().Error("Failed to generate embedding for user answer, evaluation will be cached without embedding",
-				zap.Error(errEmbed),
-				zap.String("quizID", req.QuizID),
-				zap.String("userAnswer", req.UserAnswer))
-			// Decide if we still cache the response without embedding or skip.
-			// For now, let's cache without embedding if generation failed.
-			// The read logic already handles missing embeddings.
-			// However, the task implies embedding should be stored.
-			// "if errEmbed != nil, log the error and do not attempt to save this answer to the cache with an embedding"
-			// This means we should not proceed to cache this specific entry if embedding fails.
-		} else {
-			cachedEval := CachedAnswerEvaluation{
-				Evaluation: response,
-				Embedding:  userAnswerEmbedding,
-				UserAnswer: req.UserAnswer,
-			}
-			cachedJSON, errMarshal := json.Marshal(cachedEval)
-			if errMarshal != nil {
-				logger.Get().Error("Failed to marshal answer evaluation for caching",
-					zap.Error(errMarshal),
-					zap.String("quizID", req.QuizID))
-			} else {
-				// Using req.UserAnswer as the field key in the hash, as per original logic and task notes.
-				if err := s.cache.HSet(ctx, cacheKey, req.UserAnswer, string(cachedJSON)); err != nil {
-					logger.Get().Error("Failed to cache answer evaluation",
-						zap.Error(err),
-						zap.String("quizID", req.QuizID))
-				} else if err := s.cache.Expire(ctx, cacheKey, CacheExpiration); err != nil {
-					logger.Get().Error("Failed to set cache expiration",
-						zap.Error(err),
-						zap.String("quizID", req.QuizID))
-				} else {
-					logger.Get().Info("Answer evaluation and embedding cached successfully",
-						zap.String("quizID", req.QuizID),
-						zap.String("userAnswer", req.UserAnswer))
-				}
-			}
+	// 3. Cache Write Logic (delegated to AnswerCacheService)
+	if s.answerCache != nil && errEmbed == nil && len(userAnswerEmbedding) > 0 && response != nil {
+		errCachePut := s.answerCache.PutAnswerToCache(ctx, req.QuizID, req.UserAnswer, userAnswerEmbedding, response)
+		if errCachePut != nil {
+			// Log errors (actual errors are logged by AnswerCacheService)
+			logger.Get().Error("QuizService: Error putting answer to AnswerCacheService",
+				zap.Error(errCachePut),
+				zap.String("quizID", req.QuizID))
+			// Do not return error to client, just log it.
 		}
 	}
 
 	return response, nil
 }
 
-// tryGetEvaluationFromCachedItem processes a single cached item and returns an evaluation if it's a valid hit.
-func (s *quizService) tryGetEvaluationFromCachedItem(ctx context.Context, currentAnswerEmbedding []float32, cachedEvalDataStr string, quizIDForLookup string, userAnswerForLog string) *dto.CheckAnswerResponse {
-	var cachedEntry CachedAnswerEvaluation
-	errUnmarshal := json.Unmarshal([]byte(cachedEvalDataStr), &cachedEntry)
-	if errUnmarshal != nil {
-		logger.Get().Warn("Failed to unmarshal cached answer evaluation",
-			zap.Error(errUnmarshal),
-			zap.String("quizID", quizIDForLookup),
-			zap.String("userAnswer", userAnswerForLog)) // Added userAnswerForLog for context
-		return nil
-	}
-
-	if len(cachedEntry.Embedding) == 0 {
-		logger.Get().Debug("Skipping cached entry due to missing embedding",
-			zap.String("quizID", quizIDForLookup),
-			zap.String("cachedUserAnswer", cachedEntry.UserAnswer),
-			zap.String("userAnswer", userAnswerForLog)) // Added userAnswerForLog for context
-		return nil
-	}
-
-	similarity, errSim := util.CosineSimilarity(currentAnswerEmbedding, cachedEntry.Embedding)
-	if errSim != nil {
-		logger.Get().Warn("Failed to calculate cosine similarity for cached answer",
-			zap.Error(errSim),
-			zap.String("quizID", quizIDForLookup),
-			zap.String("userAnswer", userAnswerForLog)) // Added userAnswerForLog for context
-		return nil
-	}
-
-	if similarity >= s.cfg.Embedding.SimilarityThreshold {
-		logger.Get().Info("Cache hit: Found similar answer using pre-computed embedding",
-			zap.String("quizID", quizIDForLookup),
-			zap.String("userAnswer", userAnswerForLog),
-			zap.Float64("similarity", similarity),
-			zap.String("cachedUserAnswer", cachedEntry.UserAnswer))
-
-		// Update model answer from latest quiz data
-		quizForModelAnswer, err := s.repo.GetQuizByID(quizIDForLookup)
-		if err != nil {
-			logger.Get().Error("Failed to get quiz by ID for updating model answer in cache hit",
-				zap.Error(err),
-				zap.String("quizID", quizIDForLookup))
-			// Return the cached evaluation anyway, as updating model answer is an enhancement
-			return cachedEntry.Evaluation
-		}
-		if quizForModelAnswer != nil { // Should ideally not be nil if no error
-			cachedEntry.Evaluation.ModelAnswer = strings.Join(quizForModelAnswer.ModelAnswers, "\n")
-		}
-		return cachedEntry.Evaluation
-	}
-	return nil // No match or below threshold
-}
+// tryGetEvaluationFromCachedItem is removed as its logic is now in AnswerCacheService.
 
 // GetAllSubCategories implements QuizService
 func (s *quizService) GetAllSubCategories() ([]string, error) {
@@ -320,25 +236,51 @@ func (s *quizService) GetBulkQuizzes(req *dto.BulkQuizzesRequest) (*dto.BulkQuiz
 func (s *quizService) InvalidateQuizCache(ctx context.Context, quizID string) error {
 	logger.Get().Info("Attempting to invalidate cache for quizID", zap.String("quizID", quizID))
 
-	if s.cache == nil {
-		logger.Get().Warn("Cache client is nil, skipping cache invalidation", zap.String("quizID", quizID))
-		return nil // Or return an error like domain.NewConfigurationError("cache not configured")
+	if s.cache == nil { // Still uses the direct cache reference for this specific function
+		logger.Get().Warn("QuizService: Cache client is nil, skipping cache invalidation for InvalidateQuizCache", zap.String("quizID", quizID))
+		return nil
 	}
 
-	cacheKey := QuizAnswerCachePrefix + quizID
+	// Uses AnswerCachePrefix from the answer_cache.go (or a local constant if preferred for InvalidateQuizCache)
+	// For consistency, let's assume InvalidateQuizCache should also use the prefix defined with AnswerCacheService
+	// However, the current plan implies AnswerCacheService is for Get/Put, not necessarily Delete.
+	// For now, keeping QuizAnswerCachePrefix if it was meant to be distinct or if this method is considered separate.
+	// Let's assume it should use the new prefix for consistency.
+	// If AnswerCachePrefix is not directly accessible, this method might need its own constant or take prefix from config.
+	// For now, using a hardcoded prefix as before, but ideally this should be consistent.
+	// Re-evaluating: InvalidateQuizCache is on quizService, it should use its own cache instance (s.cache)
+	// and its own prefix if that was the design.
+	// The prompt moved QuizAnswerCachePrefix to answer_cache.go as AnswerCachePrefix.
+	// This means InvalidateQuizCache needs access to that, or it needs to be passed, or redefined.
+	// Let's assume it's okay for InvalidateQuizCache to have its own definition or take it from somewhere.
+	// For the purpose of this refactoring, let's assume QuizService should NOT use the s.cache directly for quiz answers
+	// if all quiz answer caching is meant to be via AnswerCacheService.
+	// This InvalidateQuizCache method seems like an outlier now.
+	//
+	// Option 1: AnswerCacheService gets a Delete method.
+	// Option 2: InvalidateQuizCache uses the constants from AnswerCacheService.
+	// Option 3: InvalidateQuizCache is removed or refactored if s.cache is only for other things.
+	//
+	// Given the current structure, and to minimize scope, I'll assume s.cache is still valid for this,
+	// and it might need to use the `service.AnswerCachePrefix` if accessible, or this method might be
+	// slated for further refactoring later if `s.cache` for quiz answers is to be fully encapsulated.
+	// Let's use `service.AnswerCachePrefix` if it were exported (it is).
+	// The `quiz.go` file will need to import `service` or have the const available.
+	// For now, I will use the new constant name `AnswerCachePrefix` from `answer_cache.go`.
+	// This implies that `quiz.go` and `answer_cache.go` are in the same package `service`.
+
+	cacheKey := AnswerCachePrefix + quizID // Using the constant from answer_cache.go
 	err := s.cache.Delete(ctx, cacheKey)
 
 	if err != nil {
-		// domain.ErrCacheMiss is not typically returned by Delete, but if it were, it's not an error for deletion.
-		// However, the current Redis adapter Delete returns nil on success or the direct error from r.client.Del.
-		logger.Get().Error("Failed to invalidate cache",
+		logger.Get().Error("QuizService: Failed to invalidate cache",
 			zap.String("quizID", quizID),
 			zap.String("cacheKey", cacheKey),
 			zap.Error(err))
-		return domain.NewInternalError("failed to invalidate cache for quiz", err) // Wrap error
+		return domain.NewInternalError("failed to invalidate cache for quiz", err)
 	}
 
-	logger.Get().Info("Successfully invalidated cache",
+	logger.Get().Info("QuizService: Successfully invalidated cache",
 		zap.String("quizID", quizID),
 		zap.String("cacheKey", cacheKey))
 	return nil
