@@ -92,20 +92,20 @@ func main() {
 	switch cfg.Embedding.Source {
 	case "ollama":
 		log.Info("Initializing Ollama Embedding Service",
-			zap.String("server_url", cfg.Embedding.OllamaServerURL),
-			zap.String("model", cfg.Embedding.OllamaModel))
+			zap.String("server_url", cfg.Embedding.Ollama.ServerURL),
+			zap.String("model", cfg.Embedding.Ollama.Model))
 		var ollamaErr error
-		embeddingService, ollamaErr = embedding.NewOllamaEmbeddingService(cfg.Embedding.OllamaServerURL, cfg.Embedding.OllamaModel)
+		embeddingService, ollamaErr = embedding.NewOllamaEmbeddingService(cfg.Embedding.Ollama.ServerURL, cfg.Embedding.Ollama.Model)
 		if ollamaErr != nil {
 			log.Fatal("Failed to create Ollama Embedding Service", zap.Error(ollamaErr))
 		}
 		log.Info("Ollama Embedding Service initialized successfully")
 	case "openai":
 		log.Info("Initializing OpenAI Embedding Service",
-			zap.String("model", cfg.Embedding.OpenAIModel)) // Assuming model name is relevant here
+			zap.String("model", cfg.Embedding.OpenAI.Model)) // Assuming model name is relevant here
 		var openaiErr error
 		// Ensure cfg.OpenAIAPIKey and cfg.Embedding.OpenAIModel are the correct fields from your config struct
-		embeddingService, openaiErr = embedding.NewOpenAIEmbeddingService(cfg.OpenAIAPIKey, cfg.Embedding.OpenAIModel)
+		embeddingService, openaiErr = embedding.NewOpenAIEmbeddingService(cfg.Embedding.OpenAI.APIKey, cfg.Embedding.OpenAI.Model)
 		if openaiErr != nil {
 			log.Fatal("Failed to create OpenAI Embedding Service", zap.Error(openaiErr))
 		}

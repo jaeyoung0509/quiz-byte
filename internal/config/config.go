@@ -14,15 +14,24 @@ type Config struct {
 	Server    ServerConfig
 	LLMServer string
 	Redis     RedisConfig
-	OpenAIAPIKey string `yaml:"openai_api_key"`
-	Embedding    EmbeddingConfig // New field
+	Embedding EmbeddingConfig // New field
 }
 
 type EmbeddingConfig struct {
 	Source              string  `yaml:"source"`
-	OllamaModel         string  `yaml:"ollama_model"`
-	OllamaServerURL     string  `yaml:"ollama_server_url"`
 	SimilarityThreshold float64 `yaml:"similarity_threshold"`
+	Ollama              OllamaEmbeddingConfig `yaml:"ollama"`
+	OpenAI              OpenAIEmbeddingConfig `yaml:"openai"`
+}
+
+type OllamaEmbeddingConfig struct {
+	Model     string `yaml:"model"`
+	ServerURL string `yaml:"server_url"`
+}
+
+type OpenAIEmbeddingConfig struct {
+	APIKey string `yaml:"api_key"`
+	Model  string `yaml:"model"`
 }
 
 type RedisConfig struct {
@@ -60,7 +69,34 @@ func LoadConfig() (*Config, error) {
 		viper.AddConfigPath("./config")
 	}
 
+	viper.SetEnvPrefix("APP") // All env vars will need to be prefixed with APP_
 	viper.AutomaticEnv()
+
+	// Database environment variables
+	viper.BindEnv("db.host", "APP_DB_HOST")
+	viper.BindEnv("db.port", "APP_DB_PORT")
+	viper.BindEnv("db.user", "APP_DB_USER")
+	viper.BindEnv("db.password", "APP_DB_PASSWORD")
+	viper.BindEnv("db.name", "APP_DB_NAME")
+
+	// Server environment variables
+	viper.BindEnv("server.port", "APP_SERVER_PORT")
+
+	// LLM Server environment variables
+	viper.BindEnv("llm.server", "APP_LLM_SERVER")
+
+	// Redis environment variables
+	viper.BindEnv("redis.address", "APP_REDIS_ADDRESS")
+	viper.BindEnv("redis.password", "APP_REDIS_PASSWORD")
+	viper.BindEnv("redis.db", "APP_REDIS_DB")
+
+	// Embedding environment variables
+	viper.BindEnv("embedding.source", "APP_EMBEDDING_SOURCE")
+	viper.BindEnv("embedding.similarity_threshold", "APP_EMBEDDING_SIMILARITY_THRESHOLD")
+	viper.BindEnv("embedding.ollama.model", "APP_EMBEDDING_OLLAMA_MODEL")
+	viper.BindEnv("embedding.ollama.server_url", "APP_EMBEDDING_OLLAMA_SERVER_URL")
+	viper.BindEnv("embedding.openai.api_key", "APP_EMBEDDING_OPENAI_API_KEY")
+	viper.BindEnv("embedding.openai.model", "APP_EMBEDDING_OPENAI_MODEL")
 
 	if err := viper.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
@@ -92,51 +128,23 @@ func LoadConfig() (*Config, error) {
 			Password: viper.GetString("redis.password"),
 			DB:       viper.GetInt("redis.db"),
 		},
-		OpenAIAPIKey: viper.GetString("openai_api_key"),
 		Embedding: EmbeddingConfig{
 			Source:              viper.GetString("embedding.source"),
-			OllamaModel:         viper.GetString("embedding.ollama_model"),
-			OllamaServerURL:     viper.GetString("embedding.ollama_server_url"),
 			SimilarityThreshold: viper.GetFloat64("embedding.similarity_threshold"),
+			Ollama: OllamaEmbeddingConfig{
+				Model:     viper.GetString("embedding.ollama.model"),
+				ServerURL: viper.GetString("embedding.ollama.server_url"),
+			},
+			OpenAI: OpenAIEmbeddingConfig{
+				APIKey: viper.GetString("embedding.openai.api_key"),
+				Model:  viper.GetString("embedding.openai.model"),
+			},
 		},
 	}
 
 	// Set default for SimilarityThreshold if not provided or zero
 	if !viper.IsSet("embedding.similarity_threshold") || config.Embedding.SimilarityThreshold == 0 {
 		config.Embedding.SimilarityThreshold = 0.95 // Default value
-	}
-
-	// Override with environment variables if set
-	if port := os.Getenv("DB_PORT"); port != "" {
-		config.DB.Port = viper.GetInt("db.port")
-	}
-	if host := os.Getenv("DB_HOST"); host != "" {
-		config.DB.Host = host
-	}
-	if user := os.Getenv("DB_USER"); user != "" {
-		config.DB.User = user
-	}
-	if password := os.Getenv("DB_PASSWORD"); password != "" {
-		config.DB.Password = password
-	}
-	if dbname := os.Getenv("DB_NAME"); dbname != "" {
-		config.DB.DBName = dbname
-	}
-	if port := os.Getenv("SERVER_PORT"); port != "" {
-		config.Server.Port = viper.GetInt("server.port")
-	}
-	if llmServer := os.Getenv("LLM_SERVER"); llmServer != "" {
-		config.LLMServer = llmServer
-	}
-	if redisAddress := os.Getenv("REDIS_ADDRESS"); redisAddress != "" {
-		config.Redis.Address = redisAddress
-	}
-	if redisPassword := os.Getenv("REDIS_PASSWORD"); redisPassword != "" {
-		config.Redis.Password = redisPassword
-	}
-	// REDIS_DB environment variable can also be added if needed
-	if openAIKey := os.Getenv("OPENAI_API_KEY"); openAIKey != "" {
-		config.OpenAIAPIKey = openAIKey
 	}
 
 	return config, nil
