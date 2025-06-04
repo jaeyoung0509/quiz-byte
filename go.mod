@@ -11,7 +11,6 @@ require (
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/oklog/ulid/v2 v2.1.1
 	github.com/redis/go-redis/v9 v9.9.0
-	github.com/sashabaranov/go-openai v1.40.1
 	github.com/sijms/go-ora/v2 v2.8.24
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.10.0

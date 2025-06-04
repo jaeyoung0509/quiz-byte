@@ -15,6 +15,14 @@ type Config struct {
 	LLMServer string
 	Redis     RedisConfig
 	OpenAIAPIKey string `yaml:"openai_api_key"`
+	Embedding    EmbeddingConfig // New field
+}
+
+type EmbeddingConfig struct {
+	Source              string  `yaml:"source"`
+	OllamaModel         string  `yaml:"ollama_model"`
+	OllamaServerURL     string  `yaml:"ollama_server_url"`
+	SimilarityThreshold float64 `yaml:"similarity_threshold"`
 }
 
 type RedisConfig struct {
@@ -85,6 +93,17 @@ func LoadConfig() (*Config, error) {
 			DB:       viper.GetInt("redis.db"),
 		},
 		OpenAIAPIKey: viper.GetString("openai_api_key"),
+		Embedding: EmbeddingConfig{
+			Source:              viper.GetString("embedding.source"),
+			OllamaModel:         viper.GetString("embedding.ollama_model"),
+			OllamaServerURL:     viper.GetString("embedding.ollama_server_url"),
+			SimilarityThreshold: viper.GetFloat64("embedding.similarity_threshold"),
+		},
+	}
+
+	// Set default for SimilarityThreshold if not provided or zero
+	if !viper.IsSet("embedding.similarity_threshold") || config.Embedding.SimilarityThreshold == 0 {
+		config.Embedding.SimilarityThreshold = 0.95 // Default value
 	}
 
 	// Override with environment variables if set
