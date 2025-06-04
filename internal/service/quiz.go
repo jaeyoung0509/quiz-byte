@@ -234,7 +234,7 @@ func (s *quizService) tryGetEvaluationFromCachedItem(ctx context.Context, curren
 	}
 
 	if similarity >= s.cfg.Embedding.SimilarityThreshold {
-		logger.Get().Info("Cache hit: Found similar answer",
+		logger.Get().Info("Cache hit: Found similar answer using pre-computed embedding",
 			zap.String("quizID", quizIDForLookup),
 			zap.String("userAnswer", userAnswerForLog),
 			zap.Float64("similarity", similarity),
@@ -310,4 +310,32 @@ func (s *quizService) GetBulkQuizzes(req *dto.BulkQuizzesRequest) (*dto.BulkQuiz
 	return &dto.BulkQuizzesResponse{
 		Quizzes: quizResponses,
 	}, nil
+}
+
+// InvalidateQuizCache removes a quiz's answer evaluations from the cache.
+func (s *quizService) InvalidateQuizCache(ctx context.Context, quizID string) error {
+	logger.Get().Info("Attempting to invalidate cache for quizID", zap.String("quizID", quizID))
+
+	if s.cache == nil {
+		logger.Get().Warn("Cache client is nil, skipping cache invalidation", zap.String("quizID", quizID))
+		return nil // Or return an error like domain.NewConfigurationError("cache not configured")
+	}
+
+	cacheKey := QuizAnswerCachePrefix + quizID
+	err := s.cache.Delete(ctx, cacheKey)
+
+	if err != nil {
+		// domain.ErrCacheMiss is not typically returned by Delete, but if it were, it's not an error for deletion.
+		// However, the current Redis adapter Delete returns nil on success or the direct error from r.client.Del.
+		logger.Get().Error("Failed to invalidate cache",
+			zap.String("quizID", quizID),
+			zap.String("cacheKey", cacheKey),
+			zap.Error(err))
+		return domain.NewInternalError("failed to invalidate cache for quiz", err) // Wrap error
+	}
+
+	logger.Get().Info("Successfully invalidated cache",
+		zap.String("quizID", quizID),
+		zap.String("cacheKey", cacheKey))
+	return nil
 }

@@ -1,0 +1,12 @@
+embedding:
+  source: "openai" # or "ollama"
+  similarity_threshold: 0.95
+  # Optional: For ollama - uncomment and set if source is "ollama"
+  # ollama_model: "your_ollama_model_name"
+  # ollama_server_url: "http://localhost:11434"
+  # Optional: For openai - uncomment and set if source is "openai"
+  # openai_api_key: "your_openai_api_key"
+  # openai_model: "text-embedding-ada-002" # Or other OpenAI embedding model
+```
+
+I've added a more complete example including OpenAI specific optional keys as well, as that's a common use case. The comments clarify when to use which keys.

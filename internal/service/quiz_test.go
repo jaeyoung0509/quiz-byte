@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	// "fmt"     // Removed unused import
 	// "strings" // Removed unused import
+	"context"
+	"encoding/json"
+	"fmt" // Added for error creation
 	"testing"
 	"time"
 
@@ -462,5 +465,73 @@ func TestCheckAnswer_Caching(t *testing.T) {
 		mockCache.AssertNotCalled(t, "HSet")
 		mockRepo.AssertExpectations(t)
 		mockEvaluator.AssertExpectations(t)
+	})
+}
+
+func TestInvalidateQuizCache(t *testing.T) {
+	ctx := context.Background()
+	quizID := "testQuiz123"
+	cacheKey := QuizAnswerCachePrefix + quizID
+
+	t.Run("Successful Invalidation", func(t *testing.T) {
+		mockRepo := new(MockQuizRepository)
+		mockEvaluator := new(MockAnswerEvaluator)
+		mockCache := new(MockCache)
+		cfg := &config.Config{} // Minimal config
+
+		service := NewQuizService(mockRepo, mockEvaluator, mockCache, cfg)
+
+		mockCache.On("Delete", mock.AnythingOfType("*context.emptyCtx"), cacheKey).Return(nil).Once()
+
+		err := service.InvalidateQuizCache(ctx, quizID)
+
+		assert.NoError(t, err)
+		mockCache.AssertExpectations(t)
+		// Ensure other mocks are not called if they shouldn't be
+		mockRepo.AssertNotCalled(t, "GetQuizByID")
+		mockEvaluator.AssertNotCalled(t, "EvaluateAnswer")
+	})
+
+	t.Run("Cache Deletion Fails", func(t *testing.T) {
+		mockRepo := new(MockQuizRepository)
+		mockEvaluator := new(MockAnswerEvaluator)
+		mockCache := new(MockCache)
+		cfg := &config.Config{}
+
+		service := NewQuizService(mockRepo, mockEvaluator, mockCache, cfg)
+
+		expectedErr := fmt.Errorf("cache delete error")
+		mockCache.On("Delete", mock.AnythingOfType("*context.emptyCtx"), cacheKey).Return(expectedErr).Once()
+
+		err := service.InvalidateQuizCache(ctx, quizID)
+
+		assert.Error(t, err)
+		// Check if the error is the wrapped domain error
+		if assert.Error(t, err) {
+			internalErr, ok := err.(*domain.InternalError) // Type assertion
+			assert.True(t, ok, "Error should be of type domain.InternalError")
+			if ok {
+				assert.Contains(t, internalErr.Message, "failed to invalidate cache for quiz")
+				assert.ErrorIs(t, internalErr.Err, expectedErr, "Wrapped error should be the original expected error")
+			}
+		}
+		mockCache.AssertExpectations(t)
+	})
+
+	t.Run("Cache Not Configured", func(t *testing.T) {
+		mockRepo := new(MockQuizRepository)
+		mockEvaluator := new(MockAnswerEvaluator)
+		// mockCache is not created, service will get nil for cache
+		cfg := &config.Config{}
+
+		service := NewQuizService(mockRepo, mockEvaluator, nil, cfg) // Pass nil for cache
+
+		err := service.InvalidateQuizCache(ctx, quizID)
+
+		assert.NoError(t, err, "Expected no error when cache is not configured")
+		// logger.Get().Warn is called, but checking logs in unit tests can be complex.
+		// The main thing is that it doesn't panic and returns nil as per implementation.
+		mockRepo.AssertNotCalled(t, "GetQuizByID")
+		mockEvaluator.AssertNotCalled(t, "EvaluateAnswer")
 	})
 }
