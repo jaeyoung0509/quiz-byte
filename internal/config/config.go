@@ -14,7 +14,20 @@ type Config struct {
 	Server    ServerConfig
 	LLMServer string
 	Redis     RedisConfig
-	Embedding EmbeddingConfig // New field
+	Embedding EmbeddingConfig
+	Gemini    GeminiConfig
+	Batch     BatchConfig // New field for Batch operations
+}
+
+// BatchConfig holds configuration for batch processes.
+type BatchConfig struct {
+	NumQuestionsPerSubCategory int `yaml:"num_questions_per_subcategory"`
+}
+
+// GeminiConfig holds configuration for the Gemini LLM.
+type GeminiConfig struct {
+	APIKey string `yaml:"api_key"`
+	Model  string `yaml:"model"`
 }
 
 type EmbeddingConfig struct {
@@ -98,6 +111,13 @@ func LoadConfig() (*Config, error) {
 	viper.BindEnv("embedding.openai.api_key", "APP_EMBEDDING_OPENAI_API_KEY")
 	viper.BindEnv("embedding.openai.model", "APP_EMBEDDING_OPENAI_MODEL")
 
+	// Gemini LLM environment variables
+	viper.BindEnv("gemini.api_key", "APP_GEMINI_API_KEY")
+	viper.BindEnv("gemini.model", "APP_GEMINI_MODEL")
+
+	// Batch process environment variables
+	viper.BindEnv("batch.num_questions_per_subcategory", "APP_BATCH_NUM_QUESTIONS_PER_SUBCATEGORY")
+
 	if err := viper.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
@@ -140,11 +160,28 @@ func LoadConfig() (*Config, error) {
 				Model:  viper.GetString("embedding.openai.model"),
 			},
 		},
+		Gemini: GeminiConfig{
+			APIKey: viper.GetString("gemini.api_key"),
+			Model:  viper.GetString("gemini.model"),
+		},
+		Batch: BatchConfig{
+			NumQuestionsPerSubCategory: viper.GetInt("batch.num_questions_per_subcategory"),
+		},
 	}
 
 	// Set default for SimilarityThreshold if not provided or zero
 	if !viper.IsSet("embedding.similarity_threshold") || config.Embedding.SimilarityThreshold == 0 {
 		config.Embedding.SimilarityThreshold = 0.95 // Default value
+	}
+
+	// Set default for Gemini model if not provided
+	if config.Gemini.Model == "" {
+		config.Gemini.Model = "gemini-pro" // Default model
+	}
+
+	// Set default for NumQuestionsPerSubCategory if not provided or zero
+	if config.Batch.NumQuestionsPerSubCategory == 0 {
+		config.Batch.NumQuestionsPerSubCategory = 3 // Default value
 	}
 
 	return config, nil

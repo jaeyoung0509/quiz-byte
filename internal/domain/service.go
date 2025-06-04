@@ -26,10 +26,12 @@ type QuizRepository interface {
 	GetRandomQuiz() (*Quiz, error)
 	GetRandomQuizBySubCategory(subCategory string) (*Quiz, error)
 	GetSimilarQuiz(quizID string) (*Quiz, error)
-	GetAllSubCategories() ([]string, error)
-	SaveAnswer(answer *Answer) error
+	GetAllSubCategories(ctx context.Context) ([]string, error)
+	SaveAnswer(answer *Answer) error // Assuming SaveAnswer might also need context later, but not in scope for this change
+	SaveQuiz(ctx context.Context, quiz *Quiz) error
 	GetQuizzesByCriteria(SubCategoryID string, limit int) ([]*Quiz, error)
 	GetSubCategoryIDByName(name string) (string, error)
+	GetQuizzesBySubCategory(ctx context.Context, subCategoryID string) ([]*Quiz, error)
 }
 
 // CategoryRepository defines the interface for category persistence

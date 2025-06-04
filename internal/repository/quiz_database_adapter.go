@@ -97,7 +97,7 @@ func (a *QuizDatabaseAdapter) GetQuizByID(id string) (*domain.Quiz, error) {
 }
 
 // SaveQuiz implements domain.QuizRepository
-func (a *QuizDatabaseAdapter) SaveQuiz(quiz *domain.Quiz) error {
+func (a *QuizDatabaseAdapter) SaveQuiz(ctx context.Context, quiz *domain.Quiz) error {
 	modelQuiz := toModelQuiz(quiz)
 	if modelQuiz == nil {
 		return fmt.Errorf("cannot save nil quiz")
@@ -113,7 +113,7 @@ func (a *QuizDatabaseAdapter) SaveQuiz(quiz *domain.Quiz) error {
 		:1, :2, :3, :4, :5, :6, :7, :8
 	)`
 
-	_, err := a.db.Exec(query,
+	_, err := a.db.ExecContext(ctx, query,
 		modelQuiz.ID,
 		modelQuiz.Question,
 		modelQuiz.ModelAnswers,
@@ -291,18 +291,18 @@ func (a *QuizDatabaseAdapter) GetSimilarQuiz(quizID string) (*domain.Quiz, error
 }
 
 // GetAllSubCategories implements domain.QuizRepository
-func (a *QuizDatabaseAdapter) GetAllSubCategories() ([]string, error) {
+func (a *QuizDatabaseAdapter) GetAllSubCategories(ctx context.Context) ([]string, error) {
 	var subCategoryIDs []string
 	query := `SELECT DISTINCT sub_category_id FROM quizzes WHERE sub_category_id IS NOT NULL AND deleted_at IS NULL ORDER BY sub_category_id ASC`
-	err := a.db.Select(&subCategoryIDs, query)
+	err := a.db.SelectContext(ctx, &subCategoryIDs, query)
 	if err != nil {
-		// Select itself returns an empty slice if no rows are found and the destination is a slice.
-		// So, ErrNoRows check is usually not needed here.
-		// The main concern is other types of errors.
+		// sqlx.SelectContext returns an empty slice if no rows are found.
+		// Explicit sql.ErrNoRows check is not strictly necessary here for that case.
 		return nil, fmt.Errorf("failed to query sub categories: %w", err)
 	}
+	// Ensure non-nil empty slice for no results, though SelectContext should handle this.
 	if subCategoryIDs == nil {
-		return []string{}, nil // Ensure non-nil empty slice for no results.
+		return []string{}, nil
 	}
 	return subCategoryIDs, nil
 }
@@ -444,6 +444,55 @@ func (a *QuizDatabaseAdapter) GetSubCategoryIDByName(name string) (string, error
 	}
 
 	return subCategoryID, nil
+}
+
+// GetQuizzesBySubCategory implements domain.QuizRepository
+func (a *QuizDatabaseAdapter) GetQuizzesBySubCategory(ctx context.Context, subCategoryID string) ([]*domain.Quiz, error) {
+	var modelQuizzes []*models.Quiz
+	query := `SELECT
+		id "id",
+		question "question",
+		model_answers "model_answers",
+		keywords "keywords",
+		difficulty "difficulty",
+		sub_category_id "sub_category_id",
+		created_at "created_at",
+		updated_at "updated_at",
+		deleted_at "deleted_at"
+	FROM quizzes
+	WHERE sub_category_id = :1
+	AND deleted_at IS NULL
+	ORDER BY created_at DESC` // Or any other order you prefer
+
+	// Using SelectContext for context propagation
+	err := a.db.SelectContext(ctx, &modelQuizzes, query, subCategoryID)
+	if err != nil {
+		// sqlx.Select already returns an empty slice if no rows are found,
+		// so explicit sql.ErrNoRows check might not be strictly necessary
+		// unless you want to return a specific error or log it.
+		// For this requirement, returning an empty slice and nil error is desired.
+		if err == sql.ErrNoRows {
+			return []*domain.Quiz{}, nil
+		}
+		return nil, fmt.Errorf("failed to get quizzes by sub_category_id %s: %w", subCategoryID, err)
+	}
+
+	if len(modelQuizzes) == 0 {
+		return []*domain.Quiz{}, nil
+	}
+
+	domainQuizzes := make([]*domain.Quiz, 0, len(modelQuizzes))
+	for _, mq := range modelQuizzes {
+		dq, err := toDomainQuiz(mq)
+		if err != nil {
+			// Log the error, but decide if you want to skip this quiz or return an error
+			// For now, let's return the error, as a partial list might be misleading
+			return nil, fmt.Errorf("failed to convert model quiz (ID: %s) to domain quiz: %w", mq.ID, err)
+		}
+		domainQuizzes = append(domainQuizzes, dq)
+	}
+
+	return domainQuizzes, nil
 }
 
 // Helper functions for model conversion
