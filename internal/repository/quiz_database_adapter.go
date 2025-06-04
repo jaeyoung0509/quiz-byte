@@ -1,9 +1,11 @@
 package repository
 
 import (
+	"context" // Added for context propagation
 	"database/sql"
 	"fmt"
 	"quiz-byte/internal/domain"
+	"quiz-byte/internal/dto" // Added for dto.QuizRecommendationItem
 	"quiz-byte/internal/repository/models"
 	"quiz-byte/internal/util"
 	"strings"
@@ -546,4 +548,58 @@ func toModelAnswer(d *domain.Answer) *models.Answer {
 		// CreatedAt and UpdatedAt are set in the adapter before DB call,
 		// and are not part of the domain.Answer struct.
 	}
+}
+
+// GetUnattemptedQuizzesWithDetails fetches quizzes a user hasn't attempted, along with sub-category details.
+// Returns a slice of dto.QuizRecommendationItem.
+func (a *QuizDatabaseAdapter) GetUnattemptedQuizzesWithDetails(ctx context.Context, userID string, limit int, optionalSubCategoryID string) ([]dto.QuizRecommendationItem, error) {
+	if limit <= 0 {
+		limit = 10 // Default limit
+	}
+
+	var recommendations []dto.QuizRecommendationItem
+
+	params := map[string]interface{}{
+		"user_id": userID,
+		"limit":   limit,
+	}
+
+	query := `
+	SELECT
+		q.id AS quiz_id,
+		q.question AS quiz_question,
+		sc.name AS sub_category_name,
+		q.difficulty
+	FROM quizzes q
+	JOIN sub_categories sc ON q.sub_category_id = sc.id
+	LEFT JOIN user_quiz_attempts uqa ON q.id = uqa.quiz_id AND uqa.user_id = :user_id
+	WHERE q.deleted_at IS NULL AND uqa.id IS NULL`
+
+	if optionalSubCategoryID != "" {
+		query += " AND q.sub_category_id = :sub_category_id"
+		params["sub_category_id"] = optionalSubCategoryID
+	}
+
+	query += " ORDER BY DBMS_RANDOM.VALUE FETCH FIRST :limit ROWS ONLY"
+
+	rows, err := a.db.NamedQueryContext(ctx, query, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute query for unattempted quizzes: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var item dto.QuizRecommendationItem
+		if err := rows.StructScan(&item); err != nil {
+			return nil, fmt.Errorf("failed to scan unattempted quiz item: %w", err)
+		}
+		recommendations = append(recommendations, item)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error during rows iteration for unattempted quizzes: %w", err)
+	}
+    if recommendations == nil {
+        return []dto.QuizRecommendationItem{}, nil
+    }
+	return recommendations, nil
 }
