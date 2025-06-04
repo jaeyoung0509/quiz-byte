@@ -154,8 +154,12 @@ func main() {
 	cacheAdapter := adapter.NewRedisCacheAdapter(redisClient)
 	log.Info("RedisCacheAdapter initialized", zap.String("adapter_type", "RedisCacheAdapter")) // Optional: for confirmation
 
+	// Initialize AnswerCacheService
+	answerCacheService := service.NewAnswerCacheService(cacheAdapter, domainRepo, cfg)
+	log.Info("AnswerCacheService initialized")
+
 	// Initialize service
-	svc := service.NewQuizService(domainRepo, evaluator, cacheAdapter, cfg, embeddingService)
+	svc := service.NewQuizService(domainRepo, evaluator, cacheAdapter, cfg, embeddingService, answerCacheService)
 
 	// Initialize handler
 	handler := handler.NewQuizHandler(svc)
