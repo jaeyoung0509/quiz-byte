@@ -5,9 +5,9 @@ import (
 	"fmt" // Keep for basic logging/placeholder, zap will be main
 	"time" // For logging timestamps if not implicitly handled by zap
 
-	"github.com/surna/quiz_app/internal/config"
-	"github.com/surna/quiz_app/internal/domain"
-	"github.com/surna/quiz_app/internal/util" // For CosineSimilarity and NewULID
+	"quiz-byte/internal/config"
+	"quiz-byte/internal/domain"
+	"quiz-byte/internal/util" // For CosineSimilarity and NewULID
 	"go.uber.org/zap"
 )
 

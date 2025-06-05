@@ -2,13 +2,10 @@ package quizgen_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"strings"
 	"testing"
 
-	"github.com/surna/quiz_app/internal/adapter/quizgen" // Use the actual package name
-	"github.com/surna/quiz_app/internal/domain"
+	"quiz-byte/internal/adapter/quizgen" // Use the actual package name
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"

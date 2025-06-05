@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
-	"time"
+	// "time" // Removed unused import
 
 	// Removed "encoding/json" as it's not directly used by these tests anymore for cache data setup
 
@@ -15,7 +15,7 @@ import (
 	"quiz-byte/internal/logger"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	// "github.com/stretchr/testify/mock" // Removed unused import
 )
 
 // TestMain will be used to initialize the logger for all tests in this package
@@ -29,100 +29,7 @@ func TestMain(m *testing.M) {
 	os.Exit(exitVal)
 }
 
-// --- Mocks ---
-
-type MockQuizRepository struct {
-	mock.Mock
-}
-
-func (m *MockQuizRepository) GetRandomQuiz() (*domain.Quiz, error) {
-	args := m.Called()
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*domain.Quiz), args.Error(1)
-}
-
-func (m *MockQuizRepository) GetQuizByID(id string) (*domain.Quiz, error) {
-	args := m.Called(id)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*domain.Quiz), args.Error(1)
-}
-
-func (m *MockQuizRepository) GetAllSubCategories() ([]string, error) {
-	args := m.Called()
-	return args.Get(0).([]string), args.Error(1)
-}
-
-func (m *MockQuizRepository) GetSubCategoryIDByName(name string) (string, error) {
-	args := m.Called(name)
-	return args.String(0), args.Error(1)
-}
-
-func (m *MockQuizRepository) GetQuizzesByCriteria(subCategoryID string, count int) ([]*domain.Quiz, error) {
-	args := m.Called(subCategoryID, count)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]*domain.Quiz), args.Error(1)
-}
-
-type MockAnswerEvaluator struct {
-	mock.Mock
-}
-
-func (m *MockAnswerEvaluator) EvaluateAnswer(question, modelAnswer, userAnswer string, keywords []string) (*domain.Answer, error) {
-	args := m.Called(question, modelAnswer, userAnswer, keywords)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*domain.Answer), args.Error(1)
-}
-
-type MockCache struct {
-	mock.Mock
-}
-
-// Methods for MockCache remain, as it's still used by InvalidateQuizCache
-func (m *MockCache) Delete(ctx context.Context, key string) error {
-	args := m.Called(ctx, key)
-	return args.Error(0)
-}
-// Add other MockCache methods if InvalidateQuizCache or other QuizService methods use them.
-// For now, only Delete is explicitly shown as used by InvalidateQuizCache.
-// HGetAll, HSet, Expire are not directly used by QuizService for answer caching anymore.
-
-type MockEmbeddingService struct {
-	mock.Mock
-}
-
-func (m *MockEmbeddingService) Generate(ctx context.Context, text string) ([]float32, error) {
-	args := m.Called(ctx, text)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]float32), args.Error(1)
-}
-
-// MockAnswerCacheService
-type MockAnswerCacheService struct {
-	mock.Mock
-}
-
-func (m *MockAnswerCacheService) GetAnswerFromCache(ctx context.Context, quizID string, userAnswerEmbedding []float32, userAnswerText string) (*dto.CheckAnswerResponse, error) {
-	args := m.Called(ctx, quizID, userAnswerEmbedding, userAnswerText)
-	if args.Get(0) == nil { // If the first argument (response) is nil
-		return nil, args.Error(1) // Return nil response and the error
-	}
-	return args.Get(0).(*dto.CheckAnswerResponse), args.Error(1)
-}
-
-func (m *MockAnswerCacheService) PutAnswerToCache(ctx context.Context, quizID string, userAnswerText string, userAnswerEmbedding []float32, evaluation *dto.CheckAnswerResponse) error {
-	args := m.Called(ctx, quizID, userAnswerText, userAnswerEmbedding, evaluation)
-	return args.Error(0)
-}
+// Mocks are now in mocks_test.go
 
 // --- Tests for CheckAnswer Caching ---
 
@@ -312,76 +219,4 @@ func TestCheckAnswer_With_AnswerCacheService(t *testing.T) { // Renamed test fun
 
 }
 
-// TestInvalidateQuizCache remains largely the same
-// It uses the 'service.AnswerCachePrefix' constant now, which should be available if in same package.
-// If constants are not directly accessible due to helper files or structure,
-// this might need adjustment, but typically service constants are accessible within the service package.
-func TestInvalidateQuizCache(t *testing.T) {
-	ctx := context.Background()
-	quizID := "testQuiz123"
-	// Assuming AnswerCachePrefix is accessible within the service package.
-	// If internal/service/answer_cache.go defines `const AnswerCachePrefix = "quizanswers:"`
-	// and both quiz.go and quiz_test.go are in package `service`, this is fine.
-	cacheKey := AnswerCachePrefix + quizID
-	cfg := &config.Config{} // Minimal config
-
-	t.Run("Successful Invalidation", func(t *testing.T) {
-		mockRepo := new(MockQuizRepository)
-		mockEvaluator := new(MockAnswerEvaluator)
-		mockCache := new(MockCache) // This is the direct cache used by InvalidateQuizCache
-		mockEmbSvc := new(MockEmbeddingService)
-		mockAnswerCacheSvc := new(MockAnswerCacheService) // Passed to NewQuizService
-
-		service := NewQuizService(mockRepo, mockEvaluator, mockCache, cfg, mockEmbSvc, mockAnswerCacheSvc)
-
-		mockCache.On("Delete", ctx, cacheKey).Return(nil).Once()
-
-		err := service.InvalidateQuizCache(ctx, quizID)
-
-		assert.NoError(t, err)
-		mockCache.AssertExpectations(t)
-		mockRepo.AssertNotCalled(t, "GetQuizByID")
-		mockEvaluator.AssertNotCalled(t, "EvaluateAnswer")
-		mockEmbSvc.AssertNotCalled(t, "Generate")
-		mockAnswerCacheSvc.AssertNotCalled(t, "GetAnswerFromCache")
-	})
-
-	t.Run("Cache Deletion Fails", func(t *testing.T) {
-		mockRepo := new(MockQuizRepository)
-		mockEvaluator := new(MockAnswerEvaluator)
-		mockCache := new(MockCache)
-		mockEmbSvc := new(MockEmbeddingService)
-		mockAnswerCacheSvc := new(MockAnswerCacheService)
-
-		service := NewQuizService(mockRepo, mockEvaluator, mockCache, cfg, mockEmbSvc, mockAnswerCacheSvc)
-
-		expectedErr := fmt.Errorf("cache delete error")
-		mockCache.On("Delete", ctx, cacheKey).Return(expectedErr).Once()
-
-		err := service.InvalidateQuizCache(ctx, quizID)
-
-		assert.Error(t, err)
-		if internalErr, ok := err.(*domain.InternalError); ok {
-			assert.Contains(t, internalErr.Message, "failed to invalidate cache for quiz")
-			assert.ErrorIs(t, internalErr.Err, expectedErr)
-		} else {
-			t.Errorf("Expected error of type *domain.InternalError, got %T", err)
-		}
-		mockCache.AssertExpectations(t)
-	})
-
-	t.Run("Cache Not Configured (nil cache client for InvalidateQuizCache)", func(t *testing.T) {
-		mockRepo := new(MockQuizRepository)
-		mockEvaluator := new(MockAnswerEvaluator)
-		mockEmbSvc := new(MockEmbeddingService)
-		mockAnswerCacheSvc := new(MockAnswerCacheService)
-
-		// Pass nil for the direct cache instance used by InvalidateQuizCache
-		service := NewQuizService(mockRepo, mockEvaluator, nil, cfg, mockEmbSvc, mockAnswerCacheSvc)
-
-		err := service.InvalidateQuizCache(ctx, quizID)
-
-		assert.NoError(t, err, "Expected no error when cache is not configured for InvalidateQuizCache")
-	})
-}
-[end of internal/service/quiz_test.go]
+// TestInvalidateQuizCache has been removed as the method is no longer part of the QuizService interface.

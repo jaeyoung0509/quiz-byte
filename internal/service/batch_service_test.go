@@ -1,144 +1,17 @@
 package service
 
 import (
-	"context"
+	"context" // Keep: used by test functions
 	"errors"
 	"testing"
 
-	"github.com/surna/quiz_app/internal/config"
-	"github.com/surna/quiz_app/internal/domain"
-	"github.com/surna/quiz_app/internal/util" // For actual CosineSimilarity
+	"quiz-byte/internal/config"
+	"quiz-byte/internal/domain"
+	// "quiz-byte/internal/util" // For actual CosineSimilarity - util.CosineSimilarity is not directly called in test
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
 )
-
-// --- Mock QuizRepository ---
-type MockQuizRepository struct {
-	mock.Mock
-}
-
-func (m *MockQuizRepository) GetAllSubCategories(ctx context.Context) ([]string, error) {
-	args := m.Called(ctx)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]string), args.Error(1)
-}
-
-func (m *MockQuizRepository) GetQuizzesBySubCategory(ctx context.Context, subCategoryID string) ([]*domain.Quiz, error) {
-	args := m.Called(ctx, subCategoryID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]*domain.Quiz), args.Error(1)
-}
-
-func (m *MockQuizRepository) SaveQuiz(ctx context.Context, quiz *domain.Quiz) error {
-	args := m.Called(ctx, quiz)
-	return args.Error(0)
-}
-
-// Add other QuizRepository methods if they become used by the service in the future
-// For now, these are the ones directly used by GenerateNewQuizzesAndSave:
-// GetQuizByID(id string) (*Quiz, error)
-// GetRandomQuiz() (*Quiz, error)
-// GetRandomQuizBySubCategory(subCategory string) (*Quiz, error)
-// GetSimilarQuiz(quizID string) (*Quiz, error)
-// SaveAnswer(answer *Answer) error
-// GetQuizzesByCriteria(SubCategoryID string, limit int) ([]*Quiz, error)
-// GetSubCategoryIDByName(name string) (string, error)
-func (m *MockQuizRepository) GetQuizByID(id string) (*domain.Quiz, error) {
-	args := m.Called(id)
-	return args.Get(0).(*domain.Quiz), args.Error(1)
-}
-func (m *MockQuizRepository) GetRandomQuiz() (*domain.Quiz, error) {
-	args := m.Called()
-	return args.Get(0).(*domain.Quiz), args.Error(1)
-}
-func (m *MockQuizRepository) GetRandomQuizBySubCategory(subCategory string) (*domain.Quiz, error) {
-	args := m.Called(subCategory)
-	return args.Get(0).(*domain.Quiz), args.Error(1)
-}
-func (m *MockQuizRepository) GetSimilarQuiz(quizID string) (*domain.Quiz, error) {
-	args := m.Called(quizID)
-	return args.Get(0).(*domain.Quiz), args.Error(1)
-}
-func (m *MockQuizRepository) SaveAnswer(answer *domain.Answer) error {
-	args := m.Called(answer)
-	return args.Error(0)
-}
-func (m *MockQuizRepository) GetQuizzesByCriteria(SubCategoryID string, limit int) ([]*domain.Quiz, error) {
-	args := m.Called(SubCategoryID, limit)
-	return args.Get(0).([]*domain.Quiz), args.Error(1)
-}
-func (m *MockQuizRepository) GetSubCategoryIDByName(name string) (string, error) {
-	args := m.Called(name)
-	return args.String(0), args.Error(1)
-}
-
-
-// --- Mock CategoryRepository ---
-type MockCategoryRepository struct {
-	mock.Mock
-}
-// Implement methods from domain.CategoryRepository if used by batchService.
-// For GenerateNewQuizzesAndSave, it's not directly used, so methods can be minimal or omitted for now.
-func (m *MockCategoryRepository) GetAllCategories() ([]*domain.Category, error) {
-    args := m.Called()
-    if args.Get(0) == nil {
-        return nil, args.Error(1)
-    }
-    return args.Get(0).([]*domain.Category), args.Error(1)
-}
-func (m *MockCategoryRepository) GetSubCategories(categoryID string) ([]*domain.SubCategory, error) {
-    args := m.Called(categoryID)
-     if args.Get(0) == nil {
-        return nil, args.Error(1)
-    }
-    return args.Get(0).([]*domain.SubCategory), args.Error(1)
-}
-func (m *MockCategoryRepository) SaveCategory(category *domain.Category) error {
-    args := m.Called(category)
-    return args.Error(0)
-}
-func (m *MockCategoryRepository) SaveSubCategory(subCategory *domain.SubCategory) error {
-    args := m.Called(subCategory)
-    return args.Error(0)
-}
-
-
-// --- Mock EmbeddingService ---
-type MockEmbeddingService struct {
-	mock.Mock
-}
-
-func (m *MockEmbeddingService) Generate(ctx context.Context, text string) ([]float32, error) {
-	args := m.Called(ctx, text)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]float32), args.Error(1)
-}
-
-// --- Mock QuizGenerationService ---
-type MockQuizGenerationService struct {
-	mock.Mock
-}
-
-func (m *MockQuizGenerationService) GenerateQuizCandidates(
-	ctx context.Context,
-	subCategoryName string,
-	existingKeywords []string,
-	numQuestions int,
-) ([]*domain.NewQuizData, error) {
-	args := m.Called(ctx, subCategoryName, existingKeywords, numQuestions)
-	if args.Get(0) == nil { // Handle nil case for slice if error is returned
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]*domain.NewQuizData), args.Error(1)
-}
-
 
 // --- Test Suite ---
 func TestGenerateNewQuizzesAndSave_Success_NewUniqueQuizzes(t *testing.T) {
@@ -168,7 +41,7 @@ func TestGenerateNewQuizzesAndSave_Success_NewUniqueQuizzes(t *testing.T) {
 		Keywords:    []string{"k1", "k2"},
 		Difficulty:  "easy",
 	}
-	mockQuizGenSvc.On("GenerateQuizCandidates", ctx, subCategoryID1, []string{}, 1).Return([]*domain.NewQuizData{generatedQuiz1}, nil).Once() // Updated mock call
+	mockQuizGenSvc.On("GenerateQuizCandidates", ctx, subCategoryID1, mock.MatchedBy(func(arg []string) bool { return arg == nil }), 1).Return([]*domain.NewQuizData{generatedQuiz1}, nil).Once()
 
 	embeddingForGeneratedQ1 := []float32{0.1, 0.2, 0.3}
 	mockEmbeddingService.On("Generate", ctx, generatedQuiz1.Question).Return(embeddingForGeneratedQ1, nil).Once()
@@ -343,7 +216,7 @@ func TestGenerateNewQuizzesAndSave_Error_LLMClientFails(t *testing.T) { // Name 
 
     mockQuizRepo.On("GetAllSubCategories", ctx).Return([]string{subCategoryID1}, nil).Once()
     mockQuizRepo.On("GetQuizzesBySubCategory", ctx, subCategoryID1).Return([]*domain.Quiz{}, nil).Once()
-    mockQuizGenSvc.On("GenerateQuizCandidates", ctx, subCategoryID1, []string{}, 1).Return(nil, expectedError).Once() // Updated mock call
+	mockQuizGenSvc.On("GenerateQuizCandidates", ctx, subCategoryID1, mock.MatchedBy(func(arg []string) bool { return arg == nil }), 1).Return(nil, expectedError).Once()
 
     // Service logs and continues
     err := batchSvc.GenerateNewQuizzesAndSave(ctx)
@@ -375,7 +248,7 @@ func TestGenerateNewQuizzesAndSave_Error_EmbeddingServiceFailsOnNewQuiz(t *testi
 
     mockQuizRepo.On("GetAllSubCategories", ctx).Return([]string{subCategoryID1}, nil).Once()
     mockQuizRepo.On("GetQuizzesBySubCategory", ctx, subCategoryID1).Return([]*domain.Quiz{}, nil).Once()
-    mockQuizGenSvc.On("GenerateQuizCandidates", ctx, subCategoryID1, []string{}, 1).Return([]*domain.NewQuizData{generatedQuiz1}, nil).Once() // Updated mock call
+	mockQuizGenSvc.On("GenerateQuizCandidates", ctx, subCategoryID1, mock.MatchedBy(func(arg []string) bool { return arg == nil }), 1).Return([]*domain.NewQuizData{generatedQuiz1}, nil).Once()
     mockEmbeddingService.On("Generate", ctx, generatedQuiz1.Question).Return(nil, expectedError).Once()
 
     // Service logs and continues
@@ -410,7 +283,7 @@ func TestGenerateNewQuizzesAndSave_Error_SaveQuizFails(t *testing.T) {
 
     mockQuizRepo.On("GetAllSubCategories", ctx).Return([]string{subCategoryID1}, nil).Once()
     mockQuizRepo.On("GetQuizzesBySubCategory", ctx, subCategoryID1).Return([]*domain.Quiz{}, nil).Once()
-    mockQuizGenSvc.On("GenerateQuizCandidates", ctx, subCategoryID1, []string{}, 1).Return([]*domain.NewQuizData{generatedQuiz1}, nil).Once() // Updated mock call
+    mockQuizGenSvc.On("GenerateQuizCandidates", ctx, subCategoryID1, mock.MatchedBy(func(arg []string) bool { return arg == nil }), 1).Return([]*domain.NewQuizData{generatedQuiz1}, nil).Once()
     mockEmbeddingService.On("Generate", ctx, generatedQuiz1.Question).Return(embeddingForGeneratedQ1, nil).Once()
     mockQuizRepo.On("SaveQuiz", ctx, mock.MatchedBy(func(quiz *domain.Quiz) bool {
         return quiz.Question == generatedQuiz1.Question

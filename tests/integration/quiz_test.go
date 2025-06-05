@@ -129,7 +129,8 @@ func TestMain(m *testing.M) {
 	clearRedisCache(redisClient)
 	redisAdapter := adapter.NewRedisCacheAdapter(redisClient)
 
-	quizService := service.NewQuizService(quizDomainRepo, evaluator, redisAdapter, cfg.OpenAIAPIKey)
+	// cfg is the 4th argument. EmbeddingService and AnswerCacheService are new and set to nil for now.
+	quizService := service.NewQuizService(quizDomainRepo, evaluator, redisAdapter, cfg, nil, nil)
 	quizHandler := handler.NewQuizHandler(quizService)
 
 	app = fiber.New(fiber.Config{ // Remove ErrorHandler from here
@@ -602,7 +603,7 @@ func TestCheckAnswer_Caching(t *testing.T) {
 
 	logInstance.Info("Using quiz for caching tests", zap.String("quizID", testQuizID), zap.String("question", testQuizQuestion))
 
-	cacheKey := service.QuizAnswerCachePrefix + testQuizID
+	cacheKey := service.AnswerCachePrefix + testQuizID // Corrected constant name
 
 	t.Run("CacheMissFirstAnswer", func(t *testing.T) {
 		clearRedisCacheKey(redisClient, cacheKey)
