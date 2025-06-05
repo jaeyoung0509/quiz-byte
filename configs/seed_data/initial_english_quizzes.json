@@ -1,0 +1,66 @@
+[
+  {
+    "category_name": "Fundamentals of Computer Science",
+    "category_description": "Basic concepts and theories in computer science.",
+    "sub_categories": [
+      {
+        "sub_category_name": "Data Structures",
+        "sub_category_description": "Covers fundamental data structures.",
+        "quizzes": [
+          {
+            "question": "What is a linked list and what is one advantage it has over an array?",
+            "model_answers": [
+              "A linked list is a linear data structure where elements are not stored at contiguous memory locations but are linked using pointers. An advantage over an array is dynamic size, as it can grow or shrink during runtime without needing to reallocate the entire structure.",
+              "It's a sequence of nodes, each containing data and a reference (or link) to the next node. Unlike arrays, linked lists allow for efficient insertion or deletion of elements from any part of the list without reorganizing all other elements."
+            ],
+            "keywords": ["linked list", "data structure", "dynamic size", "pointers", "nodes", "insertion", "deletion"],
+            "difficulty": "easy"
+          },
+          {
+            "question": "Explain the concept of Big O notation and why it is important in algorithm analysis.",
+            "model_answers": [
+              "Big O notation is a mathematical notation that describes the limiting behavior of a function when the argument tends towards a particular value or infinity. In computer science, it's used to classify algorithms according to how their run time or space requirements grow as the input size grows. It's important because it helps in comparing the efficiency of different algorithms and choosing the most suitable one for a given problem, especially for large datasets."
+            ],
+            "keywords": ["big o notation", "algorithm analysis", "time complexity", "space complexity", "asymptotic analysis", "efficiency"],
+            "difficulty": "medium"
+          }
+        ]
+      },
+      {
+        "sub_category_name": "Basic Algorithms",
+        "sub_category_description": "Fundamental algorithms and problem-solving techniques.",
+        "quizzes": [
+          {
+            "question": "Describe the binary search algorithm. What is its time complexity and a key prerequisite for its use?",
+            "model_answers": [
+              "Binary search is an efficient algorithm for finding an item from a sorted list of items. It works by repeatedly dividing in half the portion of the list that could contain the item, until you've narrowed down the possible locations to just one. Its time complexity is O(log n). A key prerequisite is that the list must be sorted."
+            ],
+            "keywords": ["binary search", "algorithm", "sorted list", "divide and conquer", "logarithmic time complexity", "O(log n)"],
+            "difficulty": "easy"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "category_name": "Software Development Principles",
+    "category_description": "Core principles and practices in software development.",
+    "sub_categories": [
+      {
+        "sub_category_name": "Version Control with Git",
+        "sub_category_description": "Understanding and using Git for version control.",
+        "quizzes": [
+          {
+            "question": "What is a 'merge conflict' in Git and how can it typically be resolved?",
+            "model_answers": [
+              "A merge conflict in Git occurs when Git is unable to automatically resolve differences in code between two commits being merged. This usually happens when the same lines of code are changed in different branches or when one branch deletes a file that another branch has modified. To resolve it, you typically need to manually edit the conflicted files to select the desired changes, then mark the conflict as resolved (e.g., using 'git add' on the affected files), and finally complete the merge.",
+              "It's when changes from different branches affect the same part of a file, and Git can't figure out which change to accept. You have to manually open the file, look for the conflict markers (<<<<<<<, =======, >>>>>>>), decide what the code should look like, remove the markers, and then commit the resolved file."
+            ],
+            "keywords": ["git", "merge conflict", "version control", "branches", "resolve conflict", "manual edit"],
+            "difficulty": "medium"
+          }
+        ]
+      }
+    ]
+  }
+]
