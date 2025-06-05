@@ -161,6 +161,9 @@ func main() {
 	authHandler := handler.NewAuthHandler(authService, cfg)
 	userHandler := handler.NewUserHandler(userService)
 
+	// Initialize validation middleware
+	validationMiddleware := middleware.NewValidationMiddleware()
+
 	// Create Fiber app (remains the same)
 	app := fiber.New(fiber.Config{
 		ReadTimeout:  20 * time.Second,
@@ -197,8 +200,8 @@ func main() {
 
 	// Quiz and Category routes
 	apiGroup.Get("/categories", quizHandler.GetAllSubCategories) // Categories can remain public
-	apiGroup.Get("/quiz", middleware.Protected(authService), quizHandler.GetRandomQuiz)
-	apiGroup.Get("/quizzes", middleware.Protected(authService), quizHandler.GetBulkQuizzes)
+	apiGroup.Get("/quiz", middleware.Protected(authService), validationMiddleware.ValidateSubCategory(), quizHandler.GetRandomQuiz)
+	apiGroup.Get("/quizzes", middleware.Protected(authService), validationMiddleware.ValidateBulkQuizzesParams(), quizHandler.GetBulkQuizzes)
 	apiGroup.Post("/quiz/check", middleware.Protected(authService), quizHandler.CheckAnswer)
 
 	// Start server (remains the same)

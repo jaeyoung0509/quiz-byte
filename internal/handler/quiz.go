@@ -5,8 +5,9 @@ import (
 	"quiz-byte/internal/domain"
 	"quiz-byte/internal/dto"
 	"quiz-byte/internal/logger"
-	"quiz-byte/internal/middleware" // Added for UserIDKey
+	"quiz-byte/internal/middleware"
 	"quiz-byte/internal/service"
+	"quiz-byte/internal/validation"
 	"strconv"
 	"time"
 
@@ -16,22 +17,19 @@ import (
 
 const DefaultBulkQuizCount = 10
 
-// QuizHandler handles quiz-related HTTP requests
+// QuizHandler handles quiz-related HTTP requests following Clean Architecture principles
 type QuizHandler struct {
-	service service.QuizService
-	// Add UserService to record attempts.
-	// This is a common pattern, though sometimes a dedicated "AttemptService" might be used.
-	// Or, QuizService itself could be made aware of UserService or have RecordAttempt method.
-	// For simplicity here, let's assume QuizHandler gets UserService injected.
-	// This means NewQuizHandler needs to be updated.
+	quizService service.QuizService
 	userService service.UserService
+	validator   *validation.Validator
 }
 
 // NewQuizHandler creates a new QuizHandler instance
 func NewQuizHandler(quizService service.QuizService, userService service.UserService) *QuizHandler {
 	return &QuizHandler{
-		service:     quizService,
+		quizService: quizService,
 		userService: userService,
+		validator:   validation.NewValidator(),
 	}
 }
 
@@ -45,12 +43,10 @@ func NewQuizHandler(quizService service.QuizService, userService service.UserSer
 // @Failure 500 {object} middleware.ErrorResponse
 // @Router /categories [get]
 func (h *QuizHandler) GetAllSubCategories(c *fiber.Ctx) error {
-	_, err := h.service.GetAllSubCategories()
+	_, err := h.quizService.GetAllSubCategories()
 	if err != nil {
 		logger.Get().Error("Failed to get categories", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
-			Error: "INTERNAL_ERROR",
-		})
+		return domain.NewInternalError("Failed to retrieve categories", err)
 	}
 
 	return c.JSON(dto.CategoryResponse{
@@ -78,16 +74,18 @@ func (h *QuizHandler) GetRandomQuiz(c *fiber.Ctx) error {
 	appLogger := logger.Get()
 	userID, _ := c.Locals(middleware.UserIDKey).(string)
 
-	// Support both path parameter and query parameter for backward compatibility
-	subCategory := c.Params("subCategory")
-	if subCategory == "" {
-		subCategory = c.Query("sub_category")
-	}
+	// Get validated sub_category from middleware or validate here
+	subCategory, ok := c.Locals("validated_sub_category").(string)
+	if !ok {
+		// Fallback validation if middleware wasn't used
+		subCategory = c.Params("subCategory")
+		if subCategory == "" {
+			subCategory = c.Query("sub_category")
+		}
 
-	if subCategory == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
-			Error: "INVALID_REQUEST",
-		})
+		if validationErrors := h.validator.ValidateSubCategory(subCategory); len(validationErrors) > 0 {
+			return validationErrors
+		}
 	}
 
 	if userID != "" {
@@ -96,23 +94,13 @@ func (h *QuizHandler) GetRandomQuiz(c *fiber.Ctx) error {
 		appLogger.Info("Random quiz requested (unauthenticated)", zap.String("sub_category", subCategory))
 	}
 
-	quiz, err := h.service.GetRandomQuiz(subCategory)
+	quiz, err := h.quizService.GetRandomQuiz(subCategory)
 	if err != nil {
 		appLogger.Error("Failed to get random quiz from service",
 			zap.Error(err),
 			zap.String("sub_category", subCategory),
 		)
-
-		// Using mapDomainErrorToHTTPStatus helper for consistency
-		if domainErr, ok := err.(*domain.DomainError); ok {
-			return c.Status(mapDomainErrorToHTTPStatus(domainErr)).JSON(dto.ErrorResponse{
-				Error: string(domainErr.Code),
-			})
-		}
-		// Fallback for non-domain errors
-		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
-			Error: "INTERNAL_ERROR",
-		})
+		return err // Return error directly, middleware will handle it
 	}
 
 	return c.JSON(dto.QuizResponse{
@@ -120,7 +108,7 @@ func (h *QuizHandler) GetRandomQuiz(c *fiber.Ctx) error {
 		Question:     quiz.Question,
 		Keywords:     quiz.Keywords,
 		ModelAnswers: quiz.ModelAnswers,
-		DiffLevel:    quiz.DiffLevel, // Assuming quiz.DiffLevel is the string "easy", "medium", "hard"
+		DiffLevel:    quiz.DiffLevel,
 	})
 }
 
@@ -137,104 +125,44 @@ func (h *QuizHandler) GetRandomQuiz(c *fiber.Ctx) error {
 // @Failure 500 {object} dto.ErrorResponse
 // @Failure 503 {object} dto.ErrorResponse
 // @Router /quiz/check [post]
-// CheckAnswer handles POST /api/quiz/check
-// @Summary Check quiz answer
-// @Description Checks if the provided answer is correct
-// @Tags quiz
-// @Accept json
-// @Produce json
-// @Param request body dto.CheckAnswerRequest true "Answer details"
-// @Success 200 {object} dto.CheckAnswerResponse
-// @Failure 400 {object} middleware.ErrorResponse
-// @Failure 500 {object} middleware.ErrorResponse "Internal server error"
-// @Failure 503 {object} middleware.ErrorResponse "LLM service unavailable"
-// @Router /quiz/check [post]
 // @Security ApiKeyAuth
 func (h *QuizHandler) CheckAnswer(c *fiber.Ctx) error {
 	appLogger := logger.Get()
+
 	var req dto.CheckAnswerRequest
 	if err := c.BodyParser(&req); err != nil {
 		appLogger.Warn("Failed to parse request body for CheckAnswer", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
-			Error: "INVALID_REQUEST_BODY",
-		})
+		return domain.NewValidationError("Invalid request body format")
 	}
 
-	// Validate request
-	if req.QuizID == "" {
-		appLogger.Warn("QuizID missing in CheckAnswer request")
-		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
-			Error: "QUIZ_ID_REQUIRED",
-		})
-	}
-	if req.UserAnswer == "" {
-		appLogger.Warn("UserAnswer missing in CheckAnswer request", zap.String("quizID", req.QuizID))
-		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
-			Error: "ANSWER_REQUIRED",
-		})
+	// Validate request using validator
+	if validationErrors := h.validator.ValidateCheckAnswerRequest(req.QuizID, req.UserAnswer); len(validationErrors) > 0 {
+		return validationErrors
 	}
 
-	// Call the service to get both the domain.Answer and the response DTO
-	domainResult, err := h.service.CheckAnswer(&req) // Adjust service to return both if needed
+	// Call the service to check answer
+	domainResult, err := h.quizService.CheckAnswer(&req)
 	if err != nil {
 		appLogger.Error("Failed to check answer via QuizService",
 			zap.Error(err),
 			zap.String("quiz_id", req.QuizID),
 		)
-		if domainErr, ok := err.(*domain.DomainError); ok {
-			return c.Status(mapDomainErrorToHTTPStatus(domainErr)).JSON(dto.ErrorResponse{
-				Error: string(domainErr.Code),
-			})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
-			Error: "INTERNAL_ERROR",
-		})
+		return err // Return error directly, middleware will handle it
 	}
 
-	// Attempt to record the attempt if user is authenticated
-	userID, ok := c.Locals(middleware.UserIDKey).(string)
-	if ok && userID != "" && h.userService != nil {
-		appLogger.Info("Quiz attempt recording initiated for user", zap.String("userID", userID), zap.String("quizID", req.QuizID))
-
-		// Convert dto.CheckAnswerResponse to domain.Answer
-		answer := &domain.Answer{
-			Score:          domainResult.Score,
-			Explanation:    domainResult.Explanation,
-			KeywordMatches: domainResult.KeywordMatches,
-			AnsweredAt:     time.Now(),
-			Completeness:   domainResult.Completeness,
-			Relevance:      domainResult.Relevance,
-			Accuracy:       domainResult.Accuracy,
-		}
-
-		go func(ctx context.Context, currentUserID string, quizIDFromReq string, userAnswerFromReq string, evalResultFromService *domain.Answer) {
-			errRecord := h.userService.RecordQuizAttempt(ctx, currentUserID, quizIDFromReq, userAnswerFromReq, evalResultFromService)
-			if errRecord != nil {
-				logger.Get().Error("Failed to record user quiz attempt in goroutine",
-					zap.String("userID", currentUserID),
-					zap.String("quizID", quizIDFromReq),
-					zap.Error(errRecord),
-				)
-			}
-		}(c.Context(), userID, req.QuizID, req.UserAnswer, answer)
+	// Record quiz attempt if user is authenticated (convert response to domain answer)
+	domainAnswer := &domain.Answer{
+		Score:          domainResult.Score,
+		Explanation:    domainResult.Explanation,
+		KeywordMatches: domainResult.KeywordMatches,
+		Completeness:   domainResult.Completeness,
+		Relevance:      domainResult.Relevance,
+		Accuracy:       domainResult.Accuracy,
+		AnsweredAt:     time.Now(),
 	}
+	h.recordQuizAttemptAsync(c, req, domainAnswer)
 
 	return c.JSON(domainResult)
-}
-
-// Helper function (can be moved to a shared place or be part of existing error handling)
-func mapDomainErrorToHTTPStatus(err *domain.DomainError) int {
-	// This function might already exist or be similar to one in middleware/error.go
-	switch err.Code {
-	case domain.ErrQuizNotFound:
-		return fiber.StatusNotFound
-	case domain.ErrLLMServiceError:
-		return fiber.StatusServiceUnavailable
-	case domain.ErrInvalidCategory:
-		return fiber.StatusBadRequest
-	default:
-		return fiber.StatusInternalServerError
-	}
 }
 
 // GetBulkQuizzes godoc
@@ -255,27 +183,27 @@ func (h *QuizHandler) GetBulkQuizzes(c *fiber.Ctx) error {
 	appLogger := logger.Get()
 	userID, _ := c.Locals(middleware.UserIDKey).(string)
 
-	subCategory := c.Query("sub_category")
-	if subCategory == "" {
-		appLogger.Warn("sub_category query parameter missing for GetBulkQuizzes", zap.String("userID", userID))
-		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
-			Error: "INVALID_REQUEST: sub_category is required",
-		})
-	}
+	// Get validated parameters from middleware or validate here
+	subCategory, subCategoryOk := c.Locals("validated_sub_category").(string)
+	count, countOk := c.Locals("validated_count").(int)
 
-	countStr := c.Query("count")
-	count := DefaultBulkQuizCount
-	if countStr != "" {
-		var err error
-		count, err = strconv.Atoi(countStr)
-		if err != nil || count <= 0 || count > 50 {
-			appLogger.Warn("Invalid count parameter for GetBulkQuizzes",
-				zap.String("userID", userID),
-				zap.String("count_str", countStr),
-				zap.Error(err))
-			return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
-				Error: "INVALID_COUNT_PARAM",
-			})
+	if !subCategoryOk || !countOk {
+		// Fallback validation if middleware wasn't used
+		subCategory = c.Query("sub_category")
+		count = DefaultBulkQuizCount
+
+		if countStr := c.Query("count"); countStr != "" {
+			var err error
+			count, err = strconv.Atoi(countStr)
+			if err != nil {
+				return domain.ValidationErrors{
+					domain.NewInvalidFormatError("count", countStr),
+				}
+			}
+		}
+
+		if validationErrors := h.validator.ValidateBulkQuizzesRequest(subCategory, count); len(validationErrors) > 0 {
+			return validationErrors
 		}
 	}
 
@@ -295,22 +223,50 @@ func (h *QuizHandler) GetBulkQuizzes(c *fiber.Ctx) error {
 		Count:       count,
 	}
 
-	result, err := h.service.GetBulkQuizzes(reqDTO)
+	result, err := h.quizService.GetBulkQuizzes(reqDTO)
 	if err != nil {
 		appLogger.Error("Failed to get bulk quizzes from service",
 			zap.Error(err),
 			zap.String("sub_category", subCategory),
 			zap.Int("count", count),
 		)
-		if domainErr, ok := err.(*domain.DomainError); ok {
-			return c.Status(mapDomainErrorToHTTPStatus(domainErr)).JSON(middleware.ErrorResponse{
-				Code: string(domainErr.Code), Message: domainErr.Message, Status: mapDomainErrorToHTTPStatus(domainErr),
-			})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(middleware.ErrorResponse{
-			Code: "INTERNAL_ERROR", Message: "Error getting bulk quizzes", Status: fiber.StatusInternalServerError,
-		})
+		return err // Return error directly, middleware will handle it
 	}
 
 	return c.JSON(result)
+}
+
+// recordQuizAttemptAsync records quiz attempt in background to avoid blocking response
+func (h *QuizHandler) recordQuizAttemptAsync(c *fiber.Ctx, req dto.CheckAnswerRequest, result *domain.Answer) {
+	userID, ok := c.Locals(middleware.UserIDKey).(string)
+	if !ok || userID == "" || h.userService == nil {
+		return
+	}
+
+	appLogger := logger.Get()
+	appLogger.Info("Quiz attempt recording initiated for user",
+		zap.String("userID", userID),
+		zap.String("quizID", req.QuizID))
+
+	// Convert response to domain answer
+	answer := &domain.Answer{
+		Score:          result.Score,
+		Explanation:    result.Explanation,
+		KeywordMatches: result.KeywordMatches,
+		AnsweredAt:     time.Now(),
+		Completeness:   result.Completeness,
+		Relevance:      result.Relevance,
+		Accuracy:       result.Accuracy,
+	}
+
+	// Record attempt asynchronously
+	go func(ctx context.Context, currentUserID, quizID, userAnswer string, evalResult *domain.Answer) {
+		if err := h.userService.RecordQuizAttempt(ctx, currentUserID, quizID, userAnswer, evalResult); err != nil {
+			logger.Get().Error("Failed to record user quiz attempt in goroutine",
+				zap.String("userID", currentUserID),
+				zap.String("quizID", quizID),
+				zap.Error(err),
+			)
+		}
+	}(c.Context(), userID, req.QuizID, req.UserAnswer, answer)
 }

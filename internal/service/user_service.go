@@ -60,7 +60,7 @@ func (s *userServiceImpl) GetUserProfile(ctx context.Context, userID string) (*d
 		// The repository's GetUserByID might return (nil, nil) for not found,
 		// or a specific error type that can be checked with errors.Is().
 		// Assuming the repository returns (nil, nil) for not found as per common practice in this project.
-		if user == nil && err == nil { // This condition implies not found from repo's (nil,nil)
+		if user == nil && err != nil { // This condition implies not found from repo's (nil,nil)
 			return nil, ErrUserProfileNotFound
 		}
 		// If err is not nil, it's some other repository error.

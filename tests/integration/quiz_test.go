@@ -520,7 +520,7 @@ func TestGetBulkQuizzes(t *testing.T) {
 		err = json.Unmarshal(bodyBytes, &errorResponse)
 		require.NoError(t, err, "Failed to decode error response. Body: %s", string(bodyBytes))
 
-		expectedErrorCode := string(domain.ErrInvalidCategory)
+		expectedErrorCode := domain.ErrInvalidCategory.Error()
 
 		assert.Equal(t, expectedErrorCode, errorResponse.Code, "Error code mismatch. Body: %s", string(bodyBytes))
 		assert.Equal(t, http.StatusBadRequest, errorResponse.Status, "Error status in body mismatch. Body: %s", string(bodyBytes))

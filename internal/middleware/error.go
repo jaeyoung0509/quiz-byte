@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"errors"
 	"net/http"
 	"quiz-byte/internal/domain"
 	"quiz-byte/internal/logger"
@@ -9,83 +10,107 @@ import (
 	"go.uber.org/zap"
 )
 
-// ErrorResponse represents the error response structure
+// ErrorResponse represents the standard error response structure
 type ErrorResponse struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-	Status  int    `json:"status"`
+	Code    string                 `json:"code"`
+	Message string                 `json:"message"`
+	Status  int                    `json:"status"`
+	Details map[string]interface{} `json:"details,omitempty"`
 }
 
-// mapErrorToHTTPStatus maps domain errors to HTTP status codes
-func mapErrorToHTTPStatus(err *domain.DomainError) int {
+// ValidationErrorResponse represents validation error response
+type ValidationErrorResponse struct {
+	Code    string                   `json:"code"`
+	Message string                   `json:"message"`
+	Status  int                      `json:"status"`
+	Errors  []domain.ValidationError `json:"errors"`
+}
+
+// ErrorHandler is a centralized error handling middleware
+func ErrorHandler() fiber.ErrorHandler {
+	return func(c *fiber.Ctx, err error) error {
+		logger := logger.Get()
+
+		// Handle validation errors
+		if validationErrs, ok := err.(domain.ValidationErrors); ok {
+			logger.Warn("Validation errors occurred",
+				zap.String("path", c.Path()),
+				zap.Int("error_count", len(validationErrs)),
+			)
+			return c.Status(http.StatusBadRequest).JSON(ValidationErrorResponse{
+				Code:    string(domain.CodeValidation),
+				Message: "Request validation failed",
+				Status:  http.StatusBadRequest,
+				Errors:  validationErrs,
+			})
+		}
+
+		// Handle domain errors
+		var domainErr *domain.DomainError
+		if errors.As(err, &domainErr) {
+			statusCode := mapDomainErrorToHTTPStatus(domainErr)
+
+			logger.Error("Domain error occurred",
+				zap.String("code", string(domainErr.Code)),
+				zap.String("message", domainErr.Message),
+				zap.Int("status", statusCode),
+				zap.Error(domainErr.Cause),
+			)
+
+			response := ErrorResponse{
+				Code:    string(domainErr.Code),
+				Message: domainErr.Message,
+				Status:  statusCode,
+			}
+
+			if domainErr.Context != nil && len(domainErr.Context) > 0 {
+				response.Details = domainErr.Context
+			}
+
+			return c.Status(statusCode).JSON(response)
+		}
+
+		// Handle fiber errors
+		var fiberErr *fiber.Error
+		if errors.As(err, &fiberErr) {
+			logger.Warn("Fiber error occurred",
+				zap.Int("code", fiberErr.Code),
+				zap.String("message", fiberErr.Message),
+			)
+			return c.Status(fiberErr.Code).JSON(ErrorResponse{
+				Code:    "HTTP_ERROR",
+				Message: fiberErr.Message,
+				Status:  fiberErr.Code,
+			})
+		}
+
+		// Handle unknown errors
+		logger.Error("Unknown error occurred",
+			zap.String("path", c.Path()),
+			zap.Error(err),
+		)
+
+		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{
+			Code:    string(domain.CodeInternal),
+			Message: "Internal server error",
+			Status:  http.StatusInternalServerError,
+		})
+	}
+}
+
+// mapDomainErrorToHTTPStatus maps domain errors to HTTP status codes
+func mapDomainErrorToHTTPStatus(err *domain.DomainError) int {
 	switch err.Code {
-	case domain.ErrNotFound, domain.ErrQuizNotFound:
+	case domain.CodeNotFound, domain.CodeQuizNotFound:
 		return http.StatusNotFound
-	case domain.ErrInvalidInput, domain.ErrInvalidAnswer, domain.ErrInvalidCategory:
+	case domain.CodeInvalidInput, domain.CodeInvalidAnswer, domain.CodeInvalidCategory,
+		domain.CodeValidation, domain.CodeMissingField, domain.CodeInvalidFormat, domain.CodeOutOfRange:
 		return http.StatusBadRequest
-	case domain.ErrUnauthorized:
+	case domain.CodeUnauthorized:
 		return http.StatusUnauthorized
-	case domain.ErrLLMServiceError:
+	case domain.CodeLLMServiceError:
 		return http.StatusServiceUnavailable
 	default:
 		return http.StatusInternalServerError
-	}
-}
-
-// ErrorHandler is a middleware that handles errors and returns appropriate HTTP responses
-func ErrorHandler() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		// Recover from panic
-		defer func() {
-			if err := recover(); err != nil {
-				l := logger.Get()
-				l.Error("Panic recovered",
-					zap.Any("error", err),
-					zap.String("path", c.Path()))
-
-				appErr := domain.NewInternalError("Internal server error", nil)
-				respondWithError(c, appErr)
-			}
-		}()
-
-		// Process request
-		err := c.Next()
-		if err != nil {
-			respondWithError(c, err)
-		}
-
-		return nil
-	}
-}
-
-// respondWithError sends an error response to the client
-func respondWithError(c *fiber.Ctx, err error) {
-	l := logger.Get()
-
-	var appErr *domain.DomainError
-	if e, ok := err.(*domain.DomainError); ok {
-		appErr = e
-	} else if e, ok := err.(*fiber.Error); ok {
-		// Convert Fiber errors to AppError
-		appErr = domain.NewInternalError(e.Message, nil)
-	} else {
-		appErr = domain.NewInternalError("Internal server error", err)
-	}
-
-	status := mapErrorToHTTPStatus(appErr)
-	response := ErrorResponse{
-		Code:    string(appErr.Code),
-		Message: appErr.Message,
-		Status:  status,
-	}
-
-	if err := c.Status(status).JSON(response); err != nil {
-		l.Error("Failed to encode error response",
-			zap.Error(err))
-		c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"code":    "INTERNAL_ERROR",
-			"message": "Failed to encode error response",
-			"status":  fiber.StatusInternalServerError,
-		})
 	}
 }

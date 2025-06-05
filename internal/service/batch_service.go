@@ -2,12 +2,13 @@ package service
 
 import (
 	"context"
-	"fmt" // Keep for basic logging/placeholder, zap will be main
+	"fmt"  // Keep for basic logging/placeholder, zap will be main
 	"time" // For logging timestamps if not implicitly handled by zap
 
 	"quiz-byte/internal/config"
 	"quiz-byte/internal/domain"
 	"quiz-byte/internal/util" // For CosineSimilarity and NewULID
+
 	"go.uber.org/zap"
 )
 
@@ -44,7 +45,7 @@ func NewBatchService(
 func (s *batchService) GenerateNewQuizzesAndSave(ctx context.Context) error {
 	s.logger.Info("Starting batch quiz generation process", zap.Time("start_time", time.Now()))
 
-	existingEmbeddingsCache := make(map[string][]float32)
+	var existingEmbeddingsCache map[string][]float32
 
 	subCategoryIDs, err := s.quizRepo.GetAllSubCategories(ctx)
 	if err != nil {
@@ -158,13 +159,12 @@ func (s *batchService) GenerateNewQuizzesAndSave(ctx context.Context) error {
 				}
 
 				if len(newQuizEmbedding) == 0 || len(existingQuizEmbedding) == 0 {
-				    s.logger.Warn("One or both embeddings are empty, skipping similarity check.",
-				        zap.String("new_quiz_question", generatedQuiz.Question), // Corrected field
-				        zap.String("existing_quiz_id", existingQuiz.ID),
-				    )
-				    continue
+					s.logger.Warn("One or both embeddings are empty, skipping similarity check.",
+						zap.String("new_quiz_question", generatedQuiz.Question), // Corrected field
+						zap.String("existing_quiz_id", existingQuiz.ID),
+					)
+					continue
 				}
-
 
 				similarity, err := util.CosineSimilarity(newQuizEmbedding, existingQuizEmbedding)
 				if err != nil {

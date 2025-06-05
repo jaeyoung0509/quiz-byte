@@ -6,28 +6,6 @@ import (
 	"time"
 )
 
-// ValidationError represents a validation error
-type ValidationError struct {
-	message string
-}
-
-func (e *ValidationError) Error() string {
-	return e.message
-}
-
-func NewValidationError(message string) error {
-	return &ValidationError{message: message}
-}
-
-// NotFoundError represents a not found error
-type NotFoundError struct {
-	message string
-}
-
-func (e *NotFoundError) Error() string {
-	return e.message
-}
-
 // Category represents a quiz category
 type Category struct {
 	ID            string
