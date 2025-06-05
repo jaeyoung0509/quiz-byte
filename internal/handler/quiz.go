@@ -7,6 +7,7 @@ import (
 	"quiz-byte/internal/logger"
 	"quiz-byte/internal/middleware"
 	"quiz-byte/internal/service"
+	"quiz-byte/internal/util" // Added for NewULID
 	"quiz-byte/internal/validation"
 	"strconv"
 	"time"
@@ -19,17 +20,23 @@ const DefaultBulkQuizCount = 10
 
 // QuizHandler handles quiz-related HTTP requests following Clean Architecture principles
 type QuizHandler struct {
-	quizService service.QuizService
-	userService service.UserService
-	validator   *validation.Validator
+	quizService               service.QuizService
+	userService               service.UserService
+	anonymousResultCacheService service.AnonymousResultCacheService // Added
+	validator                 *validation.Validator
 }
 
 // NewQuizHandler creates a new QuizHandler instance
-func NewQuizHandler(quizService service.QuizService, userService service.UserService) *QuizHandler {
+func NewQuizHandler(
+	quizService service.QuizService,
+	userService service.UserService,
+	anonymousResultCacheService service.AnonymousResultCacheService, // Added
+) *QuizHandler {
 	return &QuizHandler{
-		quizService: quizService,
-		userService: userService,
-		validator:   validation.NewValidator(),
+		quizService:               quizService,
+		userService:               userService,
+		anonymousResultCacheService: anonymousResultCacheService, // Added
+		validator:                 validation.NewValidator(),
 	}
 }
 
@@ -150,17 +157,47 @@ func (h *QuizHandler) CheckAnswer(c *fiber.Ctx) error {
 		return err // Return error directly, middleware will handle it
 	}
 
-	// Record quiz attempt if user is authenticated (convert response to domain answer)
-	domainAnswer := &domain.Answer{
-		Score:          domainResult.Score,
-		Explanation:    domainResult.Explanation,
-		KeywordMatches: domainResult.KeywordMatches,
-		Completeness:   domainResult.Completeness,
-		Relevance:      domainResult.Relevance,
-		Accuracy:       domainResult.Accuracy,
-		AnsweredAt:     time.Now(),
+	userID, userIsAuthenticated := c.Locals(middleware.UserIDKey).(string)
+	if userIsAuthenticated && userID != "" {
+		// Authenticated user: Record quiz attempt
+		domainAnswerForRecord := &domain.Answer{
+			Score:          domainResult.Score,
+			Explanation:    domainResult.Explanation,
+			KeywordMatches: domainResult.KeywordMatches,
+			Completeness:   domainResult.Completeness,
+			Relevance:      domainResult.Relevance,
+			Accuracy:       domainResult.Accuracy,
+			AnsweredAt:     time.Now(),
+		}
+		h.recordQuizAttemptAsync(c, req, domainAnswerForRecord)
+	} else {
+		// Anonymous user: Cache the result
+		if h.anonymousResultCacheService != nil {
+			requestIDForCache := util.NewULID() // Generate a unique ID for caching this specific result
+
+			errCache := h.anonymousResultCacheService.Put(c.Context(), requestIDForCache, domainResult)
+			if errCache != nil {
+				appLogger.Error("Failed to cache anonymous user quiz result",
+					zap.Error(errCache),
+					zap.String("quizID", req.QuizID),
+					zap.String("requestIDForCache", requestIDForCache),
+				)
+				// Do not fail the request, just log the caching error.
+			} else {
+				appLogger.Info("Anonymous user quiz result cached",
+					zap.String("requestIDForCache", requestIDForCache),
+					zap.String("quizID", req.QuizID),
+				)
+			}
+		} else {
+			appLogger.Warn("AnonymousResultCacheService is nil. Cannot cache anonymous user quiz result.", zap.String("quizID", req.QuizID))
+		}
+		// For anonymous users, we already logged that the attempt won't be recorded in the previous subtask.
+		// If specific logging about *not* recording is still desired here, it can be added.
+		// The existing log from previous subtask:
+		// appLogger.Info("CheckAnswer processing for anonymous user. Quiz attempt will not be recorded.", zap.String("quizID", req.QuizID))
+		// This new logic focuses on caching.
 	}
-	h.recordQuizAttemptAsync(c, req, domainAnswer)
 
 	return c.JSON(domainResult)
 }

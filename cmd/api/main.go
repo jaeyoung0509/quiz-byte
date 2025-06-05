@@ -175,8 +175,13 @@ func main() {
 	userService := service.NewUserService(userRepository, userQuizAttemptRepository, quizRepository) // Remove cfg
 	appLogger.Info("UserService initialized")
 
+	// Initialize AnonymousResultCacheService
+	anonymousResultCacheTTL := 5 * time.Minute // As specified in the subtask
+	anonymousResultCacheSvc := service.NewAnonymousResultCacheService(cacheAdapter, anonymousResultCacheTTL)
+	appLogger.Info("AnonymousResultCacheService initialized", zap.Duration("ttl", anonymousResultCacheTTL))
+
 	// Initialize handlers
-	quizHandler := handler.NewQuizHandler(quizService, userService)
+	quizHandler := handler.NewQuizHandler(quizService, userService, anonymousResultCacheSvc) // Added anonymousResultCacheSvc
 	authHandler := handler.NewAuthHandler(authService) // Remove cfg
 	userHandler := handler.NewUserHandler(userService)
 
@@ -219,9 +224,10 @@ func main() {
 
 	// Quiz and Category routes
 	apiGroup.Get("/categories", quizHandler.GetAllSubCategories) // Categories can remain public
-	apiGroup.Get("/quiz", middleware.Protected(authService), validationMiddleware.ValidateSubCategory(), quizHandler.GetRandomQuiz)
-	apiGroup.Get("/quizzes", middleware.Protected(authService), validationMiddleware.ValidateBulkQuizzesParams(), quizHandler.GetBulkQuizzes)
-	apiGroup.Post("/quiz/check", middleware.Protected(authService), quizHandler.CheckAnswer)
+	// Apply OptionalAuth to routes that can be accessed by both authenticated and anonymous users
+	apiGroup.Get("/quiz", middleware.OptionalAuth(authService), validationMiddleware.ValidateSubCategory(), quizHandler.GetRandomQuiz)
+	apiGroup.Get("/quizzes", middleware.OptionalAuth(authService), validationMiddleware.ValidateBulkQuizzesParams(), quizHandler.GetBulkQuizzes)
+	apiGroup.Post("/quiz/check", middleware.OptionalAuth(authService), quizHandler.CheckAnswer) // Apply OptionalAuth here
 
 	// Start server (remains the same)
 	go func() {
