@@ -3,8 +3,8 @@ package middleware
 import (
 	"quiz-byte/internal/service" // For AuthService
 	"strings"
-	// "quiz-byte/internal/logger" // Uncomment if logging is added here
-	// "go.uber.org/zap" // Uncomment if logging is added here
+	"quiz-byte/internal/logger" // Uncomment if logging is added here
+	"go.uber.org/zap"           // Uncomment if logging is added here
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -66,6 +66,50 @@ func Protected(authService service.AuthService) fiber.Handler {
 		}
 
 		c.Locals(UserIDKey, claims.UserID)
+
+		return c.Next()
+	}
+}
+
+// OptionalAuth is a middleware function that optionally authenticates a user.
+// If a valid access token is provided, it sets the userID in the context.
+// Otherwise, it proceeds without setting the userID, allowing for anonymous access.
+func OptionalAuth(authService service.AuthService) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		authHeader := c.Get(AuthorizationHeader)
+
+		// If no Authorization header, proceed as anonymous
+		if authHeader == "" {
+			return c.Next()
+		}
+
+		// Check if the Authorization header uses the Bearer schema
+		if !strings.HasPrefix(authHeader, BearerSchema) {
+			logger.Get().Debug("OptionalAuth: Authorization scheme is not Bearer, proceeding as anonymous.", zap.String("header", authHeader))
+			return c.Next()
+		}
+
+		tokenString := strings.TrimPrefix(authHeader, BearerSchema)
+		if tokenString == "" {
+			logger.Get().Debug("OptionalAuth: Token is empty after trimming Bearer prefix, proceeding as anonymous.")
+			return c.Next()
+		}
+
+		claims, err := authService.ValidateJWT(c.Context(), tokenString)
+		if err != nil {
+			logger.Get().Debug("OptionalAuth: JWT validation failed, proceeding as anonymous.", zap.Error(err), zap.String("token", tokenString))
+			return c.Next()
+		}
+
+		// Ensure it's an access token
+		if claims.TokenType != "access" { // "access" is the constant used in auth_service
+			logger.Get().Debug("OptionalAuth: Invalid token type, expected access token, proceeding as anonymous.", zap.String("tokenType", claims.TokenType))
+			return c.Next()
+		}
+
+		// If all checks pass, set UserID in locals
+		c.Locals(UserIDKey, claims.UserID)
+		logger.Get().Debug("OptionalAuth: User authenticated.", zap.String("userID", claims.UserID))
 
 		return c.Next()
 	}
