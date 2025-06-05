@@ -9,6 +9,12 @@ import (
 	"github.com/spf13/viper"
 )
 
+// AuthConfig holds all authentication related configurations.
+type AuthConfig struct {
+	JWT         JWTConfig         `yaml:"jwt"`
+	GoogleOAuth GoogleOAuthConfig `yaml:"google_oauth"`
+}
+
 // GoogleOAuthConfig holds configuration for Google OAuth.
 type GoogleOAuthConfig struct {
 	ClientID     string `yaml:"client_id"`
@@ -23,17 +29,28 @@ type JWTConfig struct {
 	RefreshTokenTTL time.Duration `yaml:"refresh_token_ttl"`
 }
 
+// LLMProvidersConfig holds configurations for LLM providers.
+type LLMProvidersConfig struct {
+	OllamaServerURL string       `yaml:"ollama_server_url"`
+	Gemini          GeminiConfig `yaml:"gemini"`
+}
+
+// LoggerConfig holds configuration for the logger.
+type LoggerConfig struct {
+	Level string `yaml:"level" env:"LOGGER_LEVEL" envDefault:"info"`
+	Env   string `yaml:"env" env:"LOGGER_ENV" envDefault:"development"`
+}
+
 type Config struct {
-	DB          DBConfig
-	Server      ServerConfig
-	LLMServer   string
-	Redis       RedisConfig
-	Embedding   EmbeddingConfig
-	Gemini      GeminiConfig
-	Batch       BatchConfig // New field for Batch operations
-	GoogleOAuth GoogleOAuthConfig
-	JWT         JWTConfig
-	CacheTTLs   CacheTTLConfig // Added CacheTTLs
+	DB           DBConfig
+	Server       ServerConfig
+	Redis        RedisConfig
+	Embedding    EmbeddingConfig
+	Batch        BatchConfig // New field for Batch operations
+	Auth         AuthConfig  `yaml:"auth"`
+	LLMProviders LLMProvidersConfig `yaml:"llm_providers"`
+	Logger       LoggerConfig `yaml:"logger"`
+	CacheTTLs    CacheTTLConfig // Added CacheTTLs
 }
 
 // CacheTTLConfig holds configuration for cache TTLs.
@@ -90,9 +107,9 @@ type DBConfig struct {
 }
 
 type ServerConfig struct {
-	Port         int
-	ReadTimeout  time.Duration
-	WriteTimeout time.Duration
+	Port         int           `yaml:"port"`
+	ReadTimeout  time.Duration `yaml:"read_timeout"`
+	WriteTimeout time.Duration `yaml:"write_timeout"`
 }
 
 func LoadConfig() (*Config, error) {
@@ -122,9 +139,17 @@ func LoadConfig() (*Config, error) {
 
 	// Server environment variables
 	viper.BindEnv("server.port", "APP_SERVER_PORT")
+	viper.BindEnv("server.read_timeout", "APP_SERVER_READ_TIMEOUT")
+	viper.BindEnv("server.write_timeout", "APP_SERVER_WRITE_TIMEOUT")
 
-	// LLM Server environment variables
-	viper.BindEnv("llm.server", "APP_LLM_SERVER")
+	// Logger environment variables
+	viper.BindEnv("logger.level", "APP_LOGGER_LEVEL")
+	viper.BindEnv("logger.env", "APP_LOGGER_ENV")
+
+	// LLM Providers environment variables
+	viper.BindEnv("llm_providers.ollama_server_url", "APP_LLM_PROVIDERS_OLLAMA_SERVER_URL")
+	viper.BindEnv("llm_providers.gemini.api_key", "APP_LLM_PROVIDERS_GEMINI_API_KEY")
+	viper.BindEnv("llm_providers.gemini.model", "APP_LLM_PROVIDERS_GEMINI_MODEL")
 
 	// Redis environment variables
 	viper.BindEnv("redis.address", "APP_REDIS_ADDRESS")
@@ -139,22 +164,16 @@ func LoadConfig() (*Config, error) {
 	viper.BindEnv("embedding.openai.api_key", "APP_EMBEDDING_OPENAI_API_KEY")
 	viper.BindEnv("embedding.openai.model", "APP_EMBEDDING_OPENAI_MODEL")
 
-	// Gemini LLM environment variables
-	viper.BindEnv("gemini.api_key", "APP_GEMINI_API_KEY")
-	viper.BindEnv("gemini.model", "APP_GEMINI_MODEL")
-
 	// Batch process environment variables
 	viper.BindEnv("batch.num_questions_per_subcategory", "APP_BATCH_NUM_QUESTIONS_PER_SUBCATEGORY")
 
-	// Google OAuth environment variables
-	viper.BindEnv("googleoauth.client_id", "APP_GOOGLE_CLIENT_ID")
-	viper.BindEnv("googleoauth.client_secret", "APP_GOOGLE_CLIENT_SECRET")
-	viper.BindEnv("googleoauth.redirect_url", "APP_GOOGLE_REDIRECT_URL")
-
-	// JWT environment variables
-	viper.BindEnv("jwt.secret_key", "APP_JWT_SECRET_KEY")
-	viper.BindEnv("jwt.access_token_ttl", "APP_JWT_ACCESS_TOKEN_TTL")   // Expecting value in seconds
-	viper.BindEnv("jwt.refresh_token_ttl", "APP_JWT_REFRESH_TOKEN_TTL") // Expecting value in seconds
+	// Auth environment variables
+	viper.BindEnv("auth.google_oauth.client_id", "APP_AUTH_GOOGLE_OAUTH_CLIENT_ID")
+	viper.BindEnv("auth.google_oauth.client_secret", "APP_AUTH_GOOGLE_OAUTH_CLIENT_SECRET")
+	viper.BindEnv("auth.google_oauth.redirect_url", "APP_AUTH_GOOGLE_OAUTH_REDIRECT_URL")
+	viper.BindEnv("auth.jwt.secret_key", "APP_AUTH_JWT_SECRET_KEY")
+	viper.BindEnv("auth.jwt.access_token_ttl", "APP_AUTH_JWT_ACCESS_TOKEN_TTL")   // Expecting value in seconds
+	viper.BindEnv("auth.jwt.refresh_token_ttl", "APP_AUTH_JWT_REFRESH_TOKEN_TTL") // Expecting value in seconds
 
 	// Cache TTLs environment variables
 	viper.BindEnv("cachettls.llm_response", "APP_CACHE_TTL_LLM_RESPONSE")
@@ -185,10 +204,9 @@ func LoadConfig() (*Config, error) {
 		},
 		Server: ServerConfig{
 			Port:         viper.GetInt("server.port"),
-			ReadTimeout:  viper.GetDuration("server.read_timeout") * time.Second,
-			WriteTimeout: viper.GetDuration("server.write_timeout") * time.Second,
+			ReadTimeout:  viper.GetDuration("server.read_timeout"),
+			WriteTimeout: viper.GetDuration("server.write_timeout"),
 		},
-		LLMServer: viper.GetString("llm.server"),
 		Redis: RedisConfig{
 			Address:  viper.GetString("redis.address"),
 			Password: viper.GetString("redis.password"),
@@ -206,22 +224,31 @@ func LoadConfig() (*Config, error) {
 				Model:  viper.GetString("embedding.openai.model"),
 			},
 		},
-		Gemini: GeminiConfig{
-			APIKey: viper.GetString("gemini.api_key"),
-			Model:  viper.GetString("gemini.model"),
-		},
 		Batch: BatchConfig{
 			NumQuestionsPerSubCategory: viper.GetInt("batch.num_questions_per_subcategory"),
 		},
-		GoogleOAuth: GoogleOAuthConfig{
-			ClientID:     viper.GetString("googleoauth.client_id"),
-			ClientSecret: viper.GetString("googleoauth.client_secret"),
-			RedirectURL:  viper.GetString("googleoauth.redirect_url"),
+		Auth: AuthConfig{
+			GoogleOAuth: GoogleOAuthConfig{
+				ClientID:     viper.GetString("auth.google_oauth.client_id"),
+				ClientSecret: viper.GetString("auth.google_oauth.client_secret"),
+				RedirectURL:  viper.GetString("auth.google_oauth.redirect_url"),
+			},
+			JWT: JWTConfig{
+				SecretKey:       viper.GetString("auth.jwt.secret_key"),
+				AccessTokenTTL:  viper.GetDuration("auth.jwt.access_token_ttl"),
+				RefreshTokenTTL: viper.GetDuration("auth.jwt.refresh_token_ttl"),
+			},
 		},
-		JWT: JWTConfig{
-			SecretKey:       viper.GetString("jwt.secret_key"),
-			AccessTokenTTL:  viper.GetDuration("jwt.access_token_ttl") * time.Second,
-			RefreshTokenTTL: viper.GetDuration("jwt.refresh_token_ttl") * time.Second,
+		LLMProviders: LLMProvidersConfig{
+			OllamaServerURL: viper.GetString("llm_providers.ollama_server_url"),
+			Gemini: GeminiConfig{
+				APIKey: viper.GetString("llm_providers.gemini.api_key"),
+				Model:  viper.GetString("llm_providers.gemini.model"),
+			},
+		},
+		Logger: LoggerConfig{
+			Level: viper.GetString("logger.level"),
+			Env:   viper.GetString("logger.env"),
 		},
 		CacheTTLs: CacheTTLConfig{
 			LLMResponse:      viper.GetString("cachettls.llm_response"),
@@ -238,9 +265,14 @@ func LoadConfig() (*Config, error) {
 		config.Embedding.SimilarityThreshold = 0.95 // Default value
 	}
 
-	// Set default for Gemini model if not provided
-	if config.Gemini.Model == "" {
-		config.Gemini.Model = "gemini-pro" // Default model
+	// Set default for LLMProviders.Gemini.Model if not provided
+	if config.LLMProviders.Gemini.Model == "" {
+		config.LLMProviders.Gemini.Model = "gemini-pro" // Default model
+	}
+
+	// Set default for LLMProviders.OllamaServerURL if not provided
+	if config.LLMProviders.OllamaServerURL == "" {
+		config.LLMProviders.OllamaServerURL = "http://localhost:11434" // Default value
 	}
 
 	// Set default for NumQuestionsPerSubCategory if not provided or zero
@@ -248,14 +280,30 @@ func LoadConfig() (*Config, error) {
 		config.Batch.NumQuestionsPerSubCategory = 3 // Default value
 	}
 
-	// Set default for JWT AccessTokenTTL if not provided or zero
-	if config.JWT.AccessTokenTTL == 0 {
-		config.JWT.AccessTokenTTL = 15 * time.Minute // Default to 15 minutes
+	// Set default for Auth.JWT.AccessTokenTTL if not provided or zero
+	if config.Auth.JWT.AccessTokenTTL == 0 {
+		config.Auth.JWT.AccessTokenTTL = 15 * time.Minute // Default to 15 minutes
 	}
 
-	// Set default for JWT RefreshTokenTTL if not provided or zero
-	if config.JWT.RefreshTokenTTL == 0 {
-		config.JWT.RefreshTokenTTL = 7 * 24 * time.Hour // Default to 7 days
+	// Set default for Auth.JWT.RefreshTokenTTL if not provided or zero
+	if config.Auth.JWT.RefreshTokenTTL == 0 {
+		config.Auth.JWT.RefreshTokenTTL = 7 * 24 * time.Hour // Default to 7 days
+	}
+
+	// Set defaults for Server timeouts if not provided or zero
+	if config.Server.ReadTimeout == 0 {
+		config.Server.ReadTimeout = 30 * time.Second
+	}
+	if config.Server.WriteTimeout == 0 {
+		config.Server.WriteTimeout = 30 * time.Second
+	}
+
+	// Set defaults for Logger if not provided
+	if config.Logger.Level == "" {
+		config.Logger.Level = "info"
+	}
+	if config.Logger.Env == "" {
+		config.Logger.Env = "development"
 	}
 
 	// Set defaults for CacheTTLs if not provided or empty strings

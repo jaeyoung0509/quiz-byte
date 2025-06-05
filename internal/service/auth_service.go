@@ -54,18 +54,18 @@ type AuthService interface {
 type authServiceImpl struct {
 	userRepo      domain.UserRepository // Changed to domain.UserRepository
 	oauth2Config  *oauth2.Config
-	appConfig     *config.Config
+	authCfg       config.AuthConfig // Changed from appConfig
 	encryptionKey []byte
 }
 
 // NewAuthService creates a new instance of AuthService.
-func NewAuthService(userRepo domain.UserRepository, appConfig *config.Config) (AuthService, error) { // Changed param type
-	if len(appConfig.JWT.SecretKey) == 0 {
+func NewAuthService(userRepo domain.UserRepository, authCfg config.AuthConfig) (AuthService, error) { // Changed param type
+	if len(authCfg.JWT.SecretKey) == 0 {
 		return nil, errors.New("encryption key for auth service is not configured (use JWT.SecretKey or a dedicated one)")
 	}
 	var encKey []byte
-	if len(appConfig.JWT.SecretKey) >= 32 {
-		encKey = []byte(appConfig.JWT.SecretKey[:32])
+	if len(authCfg.JWT.SecretKey) >= 32 {
+		encKey = []byte(authCfg.JWT.SecretKey[:32])
 	} else {
 		return nil, errors.New("encryption key must be at least 32 bytes long")
 	}
@@ -73,13 +73,13 @@ func NewAuthService(userRepo domain.UserRepository, appConfig *config.Config) (A
 	return &authServiceImpl{
 		userRepo: userRepo,
 		oauth2Config: &oauth2.Config{
-			ClientID:     appConfig.GoogleOAuth.ClientID,
-			ClientSecret: appConfig.GoogleOAuth.ClientSecret,
-			RedirectURL:  appConfig.GoogleOAuth.RedirectURL,
+			ClientID:     authCfg.GoogleOAuth.ClientID,
+			ClientSecret: authCfg.GoogleOAuth.ClientSecret,
+			RedirectURL:  authCfg.GoogleOAuth.RedirectURL,
 			Scopes:       []string{"https_://www.googleapis.com/auth/userinfo.email", "https_://www.googleapis.com/auth/userinfo.profile"},
 			Endpoint:     google.Endpoint,
 		},
-		appConfig:     appConfig,
+		authCfg:       authCfg,
 		encryptionKey: encKey,
 	}, nil
 }
@@ -162,11 +162,11 @@ func (s *authServiceImpl) HandleGoogleCallback(ctx context.Context, code string,
 		appLogger.Info("User logged in via Google OAuth", zap.String("userID", domainUser.ID), zap.String("email", domainUser.Email))
 	}
 
-	accessToken, err := s.CreateJWT(ctx, domainUser, s.appConfig.JWT.AccessTokenTTL, tokenTypeAccess)
+	accessToken, err := s.CreateJWT(ctx, domainUser, s.authCfg.JWT.AccessTokenTTL, tokenTypeAccess)
 	if err != nil {
 		return "", "", nil, fmt.Errorf("failed to create access token: %w", err)
 	}
-	refreshToken, err := s.CreateJWT(ctx, domainUser, s.appConfig.JWT.RefreshTokenTTL, tokenTypeRefresh)
+	refreshToken, err := s.CreateJWT(ctx, domainUser, s.authCfg.JWT.RefreshTokenTTL, tokenTypeRefresh)
 	if err != nil {
 		return "", "", nil, fmt.Errorf("failed to create refresh token: %w", err)
 	}
@@ -194,7 +194,7 @@ func (s *authServiceImpl) CreateJWT(ctx context.Context, user *domain.User, ttl 
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(s.appConfig.JWT.SecretKey))
+	return token.SignedString([]byte(s.authCfg.JWT.SecretKey))
 }
 
 func min(a, b int) int {
@@ -210,7 +210,7 @@ func (s *authServiceImpl) ValidateJWT(ctx context.Context, tokenString string) (
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return []byte(s.appConfig.JWT.SecretKey), nil
+		return []byte(s.authCfg.JWT.SecretKey), nil
 	})
 
 	if err != nil {
@@ -256,11 +256,11 @@ func (s *authServiceImpl) RefreshToken(ctx context.Context, refreshTokenString s
 		return "", "", fmt.Errorf("error fetching user for refresh token: %w", err)
 	}
 
-	newAccessToken, err := s.CreateJWT(ctx, domainUser, s.appConfig.JWT.AccessTokenTTL, tokenTypeAccess)
+	newAccessToken, err := s.CreateJWT(ctx, domainUser, s.authCfg.JWT.AccessTokenTTL, tokenTypeAccess)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create new access token: %w", err)
 	}
-	newRefreshToken, err := s.CreateJWT(ctx, domainUser, s.appConfig.JWT.RefreshTokenTTL, tokenTypeRefresh)
+	newRefreshToken, err := s.CreateJWT(ctx, domainUser, s.authCfg.JWT.RefreshTokenTTL, tokenTypeRefresh)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create new refresh token: %w", err)
 	}

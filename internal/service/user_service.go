@@ -32,7 +32,7 @@ type userServiceImpl struct {
 	userRepo    domain.UserRepository           // Changed
 	attemptRepo domain.UserQuizAttemptRepository // Changed
 	quizRepo    domain.QuizRepository
-	appConfig   *config.Config
+	// appConfig   *config.Config // Removed
 }
 
 // NewUserService creates a new instance of UserService.
@@ -40,13 +40,13 @@ func NewUserService(
 	userRepo domain.UserRepository,           // Changed
 	attemptRepo domain.UserQuizAttemptRepository, // Changed
 	quizRepo domain.QuizRepository,
-	appConfig *config.Config,
+	// appConfig *config.Config, // Removed
 ) UserService {
 	return &userServiceImpl{
 		userRepo:    userRepo,
 		attemptRepo: attemptRepo,
 		quizRepo:    quizRepo,
-		appConfig:   appConfig,
+		// appConfig:   appConfig, // Removed
 	}
 }
 

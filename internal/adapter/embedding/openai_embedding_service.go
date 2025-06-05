@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"quiz-byte/internal/cache"
-	"quiz-byte/internal/config"
+	// "quiz-byte/internal/config" // No longer needed here
 	"quiz-byte/internal/domain"
 
 	"github.com/tmc/langchaingo/embeddings"
@@ -24,15 +24,15 @@ import (
 // OpenAIEmbeddingService implements the domain.EmbeddingService interface using OpenAI.
 // hashString is now expected to be in another file in this package (e.g., ollama_embedding_service.go or a new util.go)
 type OpenAIEmbeddingService struct {
-	embedder embeddings.Embedder
-	cache    domain.Cache
-	config   *config.Config
-	sfGroup  singleflight.Group // Added for singleflight
+	embedder          embeddings.Embedder
+	cache             domain.Cache
+	embeddingCacheTTL time.Duration      // Added
+	sfGroup           singleflight.Group // Added for singleflight
 	// logger   *zap.Logger // Can be added if logging is formally introduced
 }
 
 // NewOpenAIEmbeddingService creates a new OpenAIEmbeddingService.
-func NewOpenAIEmbeddingService(apiKey, modelName string, cache domain.Cache, config *config.Config /*, logger *zap.Logger*/) (*OpenAIEmbeddingService, error) {
+func NewOpenAIEmbeddingService(apiKey, modelName string, cache domain.Cache, embeddingCacheTTL time.Duration /*, logger *zap.Logger*/) (*OpenAIEmbeddingService, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("openai API key cannot be empty")
 	}
@@ -42,8 +42,8 @@ func NewOpenAIEmbeddingService(apiKey, modelName string, cache domain.Cache, con
 	if cache == nil {
 		return nil, fmt.Errorf("cache instance cannot be nil for OpenAIEmbeddingService")
 	}
-	if config == nil {
-		return nil, fmt.Errorf("config instance cannot be nil for OpenAIEmbeddingService")
+	if embeddingCacheTTL <= 0 {
+		return nil, fmt.Errorf("embeddingCacheTTL must be positive for OpenAIEmbeddingService")
 	}
 	// if logger == nil {
 	// 	return nil, fmt.Errorf("logger instance cannot be nil")
@@ -63,9 +63,9 @@ func NewOpenAIEmbeddingService(apiKey, modelName string, cache domain.Cache, con
 	}
 
 	return &OpenAIEmbeddingService{
-		embedder: embedder,
-		cache:    cache,
-		config:   config,
+		embedder:          embedder,
+		cache:             cache,
+		embeddingCacheTTL: embeddingCacheTTL,
 		// logger:   logger,
 	}, nil
 }
@@ -129,11 +129,7 @@ func (s *OpenAIEmbeddingService) Generate(ctx context.Context, text string) ([]f
 				return embeddingResult, nil // Return data even if caching fails
 			}
 
-			defaultEmbeddingTTL := 168 * time.Hour // 7 days
-			cacheTTL := defaultEmbeddingTTL
-			if s.config != nil && s.config.CacheTTLs.Embedding != "" {
-				cacheTTL = s.config.ParseTTLStringOrDefault(s.config.CacheTTLs.Embedding, defaultEmbeddingTTL)
-			}
+			cacheTTL := s.embeddingCacheTTL
 
 			if errCacheSet := s.cache.Set(ctx, cacheKey, buffer.String(), cacheTTL); errCacheSet != nil {
 				// s.logger.Error("Failed to set openai embedding to cache (singleflight)", zap.Error(errCacheSet), zap.String("cacheKey", cacheKey))

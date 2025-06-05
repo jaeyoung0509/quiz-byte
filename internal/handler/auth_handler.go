@@ -22,13 +22,13 @@ const (
 
 type AuthHandler struct {
 	authService service.AuthService
-	appConfig   *config.Config // For frontend URL, cookie settings
+	// appConfig   *config.Config // Removed
 }
 
-func NewAuthHandler(authService service.AuthService, appConfig *config.Config) *AuthHandler {
+func NewAuthHandler(authService service.AuthService /*, appConfig *config.Config */) *AuthHandler {
 	return &AuthHandler{
 		authService: authService,
-		appConfig:   appConfig,
+		// appConfig:   appConfig, // Removed
 	}
 }
 
