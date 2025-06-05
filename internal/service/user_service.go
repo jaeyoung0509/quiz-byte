@@ -125,7 +125,7 @@ func (s *userServiceImpl) GetUserQuizAttempts(ctx context.Context, userID string
 
 	attemptItems := make([]dto.UserQuizAttemptItem, len(domainAttempts))
 	for i, attempt := range domainAttempts { // attempt is domain.UserQuizAttempt
-		quiz, errQuiz := s.quizRepo.GetQuizByID(attempt.QuizID)
+		quiz, errQuiz := s.quizRepo.GetQuizByID(ctx, attempt.QuizID) // Added ctx
 		if errQuiz != nil || quiz == nil {
 			if quiz == nil && errQuiz == nil {
 				return nil, fmt.Errorf("%w: quiz_id %s for attempt_id %s (quiz not found)", ErrQuizDetailNotFound, attempt.QuizID, attempt.ID)
@@ -193,7 +193,7 @@ func (s *userServiceImpl) GetUserIncorrectAnswers(ctx context.Context, userID st
 
 	incorrectAnswerItems := make([]dto.UserIncorrectAnswerItem, len(domainAttempts))
 	for i, attempt := range domainAttempts { // attempt is domain.UserQuizAttempt
-		quiz, errQuiz := s.quizRepo.GetQuizByID(attempt.QuizID)
+		quiz, errQuiz := s.quizRepo.GetQuizByID(ctx, attempt.QuizID) // Added ctx
 		if errQuiz != nil || quiz == nil {
 			if quiz == nil && errQuiz == nil {
 				return nil, fmt.Errorf("%w: quiz_id %s for attempt_id %s (quiz not found)", ErrQuizDetailNotFound, attempt.QuizID, attempt.ID)

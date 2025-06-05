@@ -141,7 +141,7 @@ func (s *answerCacheServiceImpl) GetAnswerFromCache(ctx context.Context, quizID 
 				zap.String("cachedUserAnswer", cachedEntry.UserAnswer))
 
 			if s.repo != nil {
-				quizForModelAnswer, errRepo := s.repo.GetQuizByID(quizID)
+				quizForModelAnswer, errRepo := s.repo.GetQuizByID(ctx, quizID) // Added ctx
 				if errRepo != nil {
 					logger.Get().Error("AnswerCacheService: Failed to get quiz by ID for updating model answer in cache hit",
 						zap.Error(errRepo),

@@ -122,7 +122,8 @@ func NewQuizService(
 
 // GetRandomQuiz implements QuizService
 func (s *quizService) GetRandomQuiz(subCategory string) (*dto.QuizResponse, error) {
-	quiz, err := s.repo.GetRandomQuiz()
+	ctx := context.Background() // Added context
+	quiz, err := s.repo.GetRandomQuiz(ctx)
 	if err != nil {
 		return nil, domain.NewInternalError("Failed to get random quiz", err)
 	}
@@ -187,7 +188,7 @@ func (s *quizService) CheckAnswer(req *dto.CheckAnswerRequest) (*dto.CheckAnswer
 	res, sfErr, _ := s.sfGroup.Do(sfKey, func() (interface{}, error) {
 		logger.Get().Debug("Calling singleflight Do func for CheckAnswer", zap.String("sfKey", sfKey))
 
-		quiz, err := s.repo.GetQuizByID(req.QuizID)
+		quiz, err := s.repo.GetQuizByID(ctx, req.QuizID) // Added ctx
 		if err != nil {
 			return nil, domain.NewInternalError("Failed to get quiz", err)
 		}
@@ -314,7 +315,7 @@ func (s *quizService) GetAllSubCategories() ([]string, error) {
 	// Cache Miss or error during cache read: Use singleflight
 	res, sfErr, _ := s.sfGroup.Do(cacheKey, func() (interface{}, error) {
 		logger.Get().Debug("Calling singleflight Do func for GetAllSubCategories", zap.String("cacheKey", cacheKey))
-		categories, err := s.repo.GetAllSubCategories(ctx)
+		categories, err := s.repo.GetAllSubCategories(ctx) // ctx is already available in this scope
 		if err != nil {
 			return nil, domain.NewInternalError("Failed to get subcategories", err)
 		}
@@ -360,7 +361,7 @@ func (s *quizService) GetBulkQuizzes(req *dto.BulkQuizzesRequest) (*dto.BulkQuiz
 	}
 
 	// Get subcategory ID using case-insensitive comparison
-	subCategoryID, err := s.repo.GetSubCategoryIDByName(req.SubCategory)
+	subCategoryID, err := s.repo.GetSubCategoryIDByName(ctx, req.SubCategory) // Added ctx
 	if err != nil {
 		return nil, domain.NewInternalError("Failed to get subcategory ID", err)
 	}
@@ -397,7 +398,7 @@ func (s *quizService) GetBulkQuizzes(req *dto.BulkQuizzesRequest) (*dto.BulkQuiz
 	// Cache Miss or error: Use singleflight
 	res, sfErr, _ := s.sfGroup.Do(cacheKey, func() (interface{}, error) {
 		logger.Get().Debug("Calling singleflight Do func for GetBulkQuizzes", zap.String("cacheKey", cacheKey))
-		domainQuizzes, err := s.repo.GetQuizzesByCriteria(subCategoryID, req.Count)
+		domainQuizzes, err := s.repo.GetQuizzesByCriteria(ctx, subCategoryID, req.Count) // Added ctx
 		if err != nil {
 			return nil, domain.NewInternalError("Failed to get bulk quizzes from repository", err)
 		}

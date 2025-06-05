@@ -27,34 +27,37 @@ type QuizService interface {
 
 // QuizRepository defines the interface for quiz persistence
 type QuizRepository interface {
-	GetQuizByID(id string) (*Quiz, error)
-	GetRandomQuiz() (*Quiz, error)
-	GetRandomQuizBySubCategory(subCategory string) (*Quiz, error)
-	GetSimilarQuiz(quizID string) (*Quiz, error)
+	GetQuizByID(ctx context.Context, id string) (*Quiz, error)
+	GetRandomQuiz(ctx context.Context) (*Quiz, error)
+	GetRandomQuizBySubCategory(ctx context.Context, subCategory string) (*Quiz, error)
+	GetSimilarQuiz(ctx context.Context, quizID string) (*Quiz, error)
 	GetAllSubCategories(ctx context.Context) ([]string, error)
-	SaveAnswer(answer *Answer) error // Assuming SaveAnswer might also need context later, but not in scope for this change
+	SaveAnswer(ctx context.Context, answer *Answer) error
 	SaveQuiz(ctx context.Context, quiz *Quiz) error
-	GetQuizzesByCriteria(SubCategoryID string, limit int) ([]*Quiz, error)
-	GetSubCategoryIDByName(name string) (string, error)
+	GetQuizzesByCriteria(ctx context.Context, SubCategoryID string, limit int) ([]*Quiz, error)
+	GetSubCategoryIDByName(ctx context.Context, name string) (string, error)
 	GetQuizzesBySubCategory(ctx context.Context, subCategoryID string) ([]*Quiz, error)
 	// Methods from internal/domain/quiz.go
-	UpdateQuiz(quiz *Quiz) error
-	SaveQuizEvaluation(evaluation *QuizEvaluation) error
-	GetQuizEvaluation(quizID string) (*QuizEvaluation, error)
+	UpdateQuiz(ctx context.Context, quiz *Quiz) error
+	SaveQuizEvaluation(ctx context.Context, evaluation *QuizEvaluation) error
+	GetQuizEvaluation(ctx context.Context, quizID string) (*QuizEvaluation, error)
 	GetUnattemptedQuizzesWithDetails(ctx context.Context, userID string, limit int, optionalSubCategoryID string) ([]dto.QuizRecommendationItem, error)
 }
 
 // CategoryRepository defines the interface for category persistence
 type CategoryRepository interface {
 	// GetAllCategories returns all categories
-	GetAllCategories() ([]*Category, error)
+	GetAllCategories(ctx context.Context) ([]*Category, error)
 
 	// GetSubCategories returns all subcategories for a given category
-	GetSubCategories(categoryID string) ([]*SubCategory, error)
+	GetSubCategories(ctx context.Context, categoryID string) ([]*SubCategory, error)
 
 	// SaveCategory persists a new category
-	SaveCategory(category *Category) error
+	SaveCategory(ctx context.Context, category *Category) error
 
 	// SaveSubCategory persists a new subcategory
-	SaveSubCategory(subCategory *SubCategory) error
+	SaveSubCategory(ctx context.Context, subCategory *SubCategory) error
+
+	GetByName(ctx context.Context, name string) (*Category, error)
+	GetByNameAndCategoryID(ctx context.Context, name string, categoryID string) (*SubCategory, error)
 }
