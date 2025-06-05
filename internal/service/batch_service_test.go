@@ -159,7 +159,16 @@ func TestGenerateNewQuizzesAndSave_Error_GetAllSubCategoriesFails(t *testing.T) 
 	err := batchSvc.GenerateNewQuizzesAndSave(ctx)
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), expectedError.Error())
+	var domainErr *domain.DomainError
+	assert.True(t, errors.As(err, &domainErr), "Error should be a domain.DomainError")
+	if domainErr != nil {
+		// Batch service wraps it as: fmt.Errorf("failed to fetch subcategory IDs: %w", err)
+		// This isn't directly a domain.InternalError from NewInternalError, but a raw wrapped one.
+		// For this test, we'll check if the original error is present.
+		// A more robust approach would be for the service to return a domain.InternalError here.
+		assert.ErrorContains(t, err, "failed to fetch subcategory IDs")
+		assert.True(t, errors.Is(err, expectedError), "Original error should be discoverable")
+	}
 	mockQuizRepo.AssertExpectations(t)
 	// Ensure other downstream calls were not made
 	mockQuizGenSvc.AssertNotCalled(t, "GenerateQuizCandidates", mock.Anything, mock.Anything, mock.Anything, mock.Anything) // Updated mock

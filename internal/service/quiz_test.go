@@ -55,7 +55,10 @@ func TestCheckAnswer_With_AnswerCacheService(t *testing.T) { // Renamed test fun
 		mockAnswerCacheSvc := new(MockAnswerCacheService)
 		// mockCache is still needed for NewQuizService, but not directly for these cache operations
 		mockDirectCache := new(MockCache)
-		cfg := baseCfg
+		// cfg := baseCfg // cfg is used for TTLs, get them directly
+
+		categoryListTTL, _ := time.ParseDuration("1h") // Dummy TTLs for test
+		quizListTTL, _ := time.ParseDuration("1h")
 
 		userAnswerEmbedding := []float32{0.1, 0.2, 0.3}
 		mockEmbSvc.On("Generate", ctx, req.UserAnswer).Return(userAnswerEmbedding, nil).Once()
@@ -63,7 +66,7 @@ func TestCheckAnswer_With_AnswerCacheService(t *testing.T) { // Renamed test fun
 		expectedCachedResponse := &dto.CheckAnswerResponse{Score: 0.8, Explanation: "From AnswerCacheService"}
 		mockAnswerCacheSvc.On("GetAnswerFromCache", ctx, req.QuizID, userAnswerEmbedding, req.UserAnswer).Return(expectedCachedResponse, nil).Once()
 
-		service := NewQuizService(mockRepo, mockEvaluator, mockDirectCache, &cfg, mockEmbSvc, mockAnswerCacheSvc)
+		service := NewQuizService(mockRepo, mockEvaluator, mockDirectCache, mockEmbSvc, mockAnswerCacheSvc, categoryListTTL, quizListTTL)
 		response, err := service.CheckAnswer(&req)
 
 		assert.NoError(t, err)
@@ -85,7 +88,10 @@ func TestCheckAnswer_With_AnswerCacheService(t *testing.T) { // Renamed test fun
 		mockEmbSvc := new(MockEmbeddingService)
 		mockAnswerCacheSvc := new(MockAnswerCacheService)
 		mockDirectCache := new(MockCache)
-		cfg := baseCfg
+		// cfg := baseCfg
+
+		categoryListTTL, _ := time.ParseDuration("1h")
+		quizListTTL, _ := time.ParseDuration("1h")
 
 		userAnswerEmbedding := []float32{0.1, 0.2, 0.3}
 		mockEmbSvc.On("Generate", ctx, req.UserAnswer).Return(userAnswerEmbedding, nil).Once()
@@ -94,7 +100,7 @@ func TestCheckAnswer_With_AnswerCacheService(t *testing.T) { // Renamed test fun
 		mockAnswerCacheSvc.On("GetAnswerFromCache", ctx, req.QuizID, userAnswerEmbedding, req.UserAnswer).Return(nil, nil).Once()
 
 		quizForEval := &domain.Quiz{ID: req.QuizID, Question: "Q1", ModelAnswers: []string{"Model Ans"}, Keywords: []string{"k1"}}
-		mockRepo.On("GetQuizByID", req.QuizID).Return(quizForEval, nil).Once()
+		mockRepo.On("GetQuizByID", ctx, req.QuizID).Return(quizForEval, nil).Once() // Added ctx
 
 		llmEvalResult := &domain.Answer{Score: 0.77, Explanation: "Fresh LLM explanation"}
 		mockEvaluator.On("EvaluateAnswer", quizForEval.Question, quizForEval.ModelAnswers[0], req.UserAnswer, quizForEval.Keywords).Return(llmEvalResult, nil).Once()
@@ -111,7 +117,7 @@ func TestCheckAnswer_With_AnswerCacheService(t *testing.T) { // Renamed test fun
 		}
 		mockAnswerCacheSvc.On("PutAnswerToCache", ctx, req.QuizID, req.UserAnswer, userAnswerEmbedding, expectedResponseToCache).Return(nil).Once()
 
-		service := NewQuizService(mockRepo, mockEvaluator, mockDirectCache, &cfg, mockEmbSvc, mockAnswerCacheSvc)
+		service := NewQuizService(mockRepo, mockEvaluator, mockDirectCache, mockEmbSvc, mockAnswerCacheSvc, categoryListTTL, quizListTTL)
 		response, err := service.CheckAnswer(&req)
 
 		assert.NoError(t, err)
@@ -132,17 +138,20 @@ func TestCheckAnswer_With_AnswerCacheService(t *testing.T) { // Renamed test fun
 		mockEmbSvc := new(MockEmbeddingService)
 		mockAnswerCacheSvc := new(MockAnswerCacheService)
 		mockDirectCache := new(MockCache)
-		cfg := baseCfg
+		// cfg := baseCfg
+
+		categoryListTTL, _ := time.ParseDuration("1h")
+		quizListTTL, _ := time.ParseDuration("1h")
 
 		mockEmbSvc.On("Generate", ctx, req.UserAnswer).Return(nil, fmt.Errorf("embedding generation failed")).Once()
 
 		quizForEval := &domain.Quiz{ID: req.QuizID, Question: "Q_embed_fail", ModelAnswers: []string{"Model_embed_fail"}, Keywords: []string{"k_ef"}}
-		mockRepo.On("GetQuizByID", req.QuizID).Return(quizForEval, nil).Once()
+		mockRepo.On("GetQuizByID", ctx, req.QuizID).Return(quizForEval, nil).Once() // Added ctx
 
 		llmEvalResult := &domain.Answer{Score: 0.65, Explanation: "LLM fallback due to embedding fail"}
 		mockEvaluator.On("EvaluateAnswer", quizForEval.Question, quizForEval.ModelAnswers[0], req.UserAnswer, quizForEval.Keywords).Return(llmEvalResult, nil).Once()
 
-		service := NewQuizService(mockRepo, mockEvaluator, mockDirectCache, &cfg, mockEmbSvc, mockAnswerCacheSvc)
+		service := NewQuizService(mockRepo, mockEvaluator, mockDirectCache, mockEmbSvc, mockAnswerCacheSvc, categoryListTTL, quizListTTL)
 		response, err := service.CheckAnswer(&req)
 
 		assert.NoError(t, err)
@@ -164,18 +173,21 @@ func TestCheckAnswer_With_AnswerCacheService(t *testing.T) { // Renamed test fun
 		mockEmbSvc := new(MockEmbeddingService)
 		// mockAnswerCacheSvc is not created, nil is passed
 		mockDirectCache := new(MockCache)
-		cfg := baseCfg
+		// cfg := baseCfg
+
+		categoryListTTL, _ := time.ParseDuration("1h")
+		quizListTTL, _ := time.ParseDuration("1h")
 
 		userAnswerEmbedding := []float32{0.1, 0.2, 0.3}
 		mockEmbSvc.On("Generate", ctx, req.UserAnswer).Return(userAnswerEmbedding, nil).Once()
 
 		quizForEval := &domain.Quiz{ID: req.QuizID, Question: "Q_nil_ans_cache", ModelAnswers: []string{"Model_nil_ans_cache"}, Keywords: []string{"k_nac"}}
-		mockRepo.On("GetQuizByID", req.QuizID).Return(quizForEval, nil).Once()
+		mockRepo.On("GetQuizByID", ctx, req.QuizID).Return(quizForEval, nil).Once() // Added ctx
 
 		llmEvalResult := &domain.Answer{Score: 0.60, Explanation: "LLM fallback, nil AnswerCacheService"}
 		mockEvaluator.On("EvaluateAnswer", quizForEval.Question, quizForEval.ModelAnswers[0], req.UserAnswer, quizForEval.Keywords).Return(llmEvalResult, nil).Once()
 
-		service := NewQuizService(mockRepo, mockEvaluator, mockDirectCache, &cfg, mockEmbSvc, nil) // Pass nil for AnswerCacheService
+		service := NewQuizService(mockRepo, mockEvaluator, mockDirectCache, mockEmbSvc, nil, categoryListTTL, quizListTTL) // Pass nil for AnswerCacheService, added TTLs
 		response, err := service.CheckAnswer(&req)
 
 		assert.NoError(t, err)
@@ -194,13 +206,16 @@ func TestCheckAnswer_With_AnswerCacheService(t *testing.T) { // Renamed test fun
 		mockEvaluator := new(MockAnswerEvaluator)
 		mockAnswerCacheSvc := new(MockAnswerCacheService) // mock AnswerCacheService
 		mockDirectCache := new(MockCache)
-		cfg := baseCfg
+		// cfg := baseCfg
+
+		categoryListTTL, _ := time.ParseDuration("1h")
+		quizListTTL, _ := time.ParseDuration("1h")
 
 		// EmbeddingService is nil
-		service := NewQuizService(mockRepo, mockEvaluator, mockDirectCache, &cfg, nil, mockAnswerCacheSvc)
+		service := NewQuizService(mockRepo, mockEvaluator, mockDirectCache, nil, mockAnswerCacheSvc, categoryListTTL, quizListTTL) // Pass nil for EmbeddingService
 
 		quizForEval := &domain.Quiz{ID: req.QuizID, Question: "Q_nil_embed_svc", ModelAnswers: []string{"Model_nil_embed_svc"}, Keywords: []string{"k_nes"}}
-		mockRepo.On("GetQuizByID", req.QuizID).Return(quizForEval, nil).Once()
+		mockRepo.On("GetQuizByID", ctx, req.QuizID).Return(quizForEval, nil).Once() // Added ctx
 
 		llmEvalResult := &domain.Answer{Score: 0.55, Explanation: "LLM fallback, nil EmbeddingService"}
 		mockEvaluator.On("EvaluateAnswer", quizForEval.Question, quizForEval.ModelAnswers[0], req.UserAnswer, quizForEval.Keywords).Return(llmEvalResult, nil).Once()
@@ -215,6 +230,86 @@ func TestCheckAnswer_With_AnswerCacheService(t *testing.T) { // Renamed test fun
 		mockAnswerCacheSvc.AssertNotCalled(t, "PutAnswerToCache")
 		mockRepo.AssertExpectations(t)
 		mockEvaluator.AssertExpectations(t)
+	})
+
+	t.Run("GetQuizByID Fails during LLM Fallback", func(t *testing.T) {
+		req := *baseReq
+
+		mockRepo := new(MockQuizRepository)
+		mockEvaluator := new(MockAnswerEvaluator)
+		mockEmbSvc := new(MockEmbeddingService)
+		mockAnswerCacheSvc := new(MockAnswerCacheService)
+		mockDirectCache := new(MockCache)
+
+		categoryListTTL, _ := time.ParseDuration("1h")
+		quizListTTL, _ := time.ParseDuration("1h")
+
+		userAnswerEmbedding := []float32{0.1, 0.2, 0.3}
+		mockEmbSvc.On("Generate", ctx, req.UserAnswer).Return(userAnswerEmbedding, nil).Once()
+		mockAnswerCacheSvc.On("GetAnswerFromCache", ctx, req.QuizID, userAnswerEmbedding, req.UserAnswer).Return(nil, nil).Once() // Cache miss
+
+		expectedRepoError := fmt.Errorf("database is down")
+		mockRepo.On("GetQuizByID", ctx, req.QuizID).Return(nil, expectedRepoError).Once()
+
+		service := NewQuizService(mockRepo, mockEvaluator, mockDirectCache, mockEmbSvc, mockAnswerCacheSvc, categoryListTTL, quizListTTL)
+		_, err := service.CheckAnswer(&req)
+
+		assert.Error(t, err)
+		var domainErr *domain.DomainError
+		assert.True(t, errors.As(err, &domainErr), "Error should be a domain.DomainError")
+		if domainErr != nil {
+			assert.Equal(t, domain.CodeInternal, domainErr.Code)
+			// The service wraps the repo error: domain.NewInternalError("Failed to get quiz", err)
+			// So, domainErr.Cause should be the error returned by NewInternalError, which itself wraps expectedRepoError.
+			assert.ErrorContains(t, domainErr, "Failed to get quiz") // Check service's message
+			// To check the root cause if multiply wrapped:
+			// unwrapTwice := errors.Unwrap(domainErr.Cause)
+			// assert.ErrorIs(t, unwrapTwice, expectedRepoError)
+			// For now, checking if the domainErr.Cause contains the repo error message is simpler if wrapping is direct.
+			// If NewInternalError creates a new error with fmt.Errorf("%w: %v", ErrInternal, cause),
+			// then domainErr.Cause would be that new error. errors.Is should still find expectedRepoError.
+			assert.True(t, errors.Is(err, expectedRepoError), "Original repo error should be discoverable")
+		}
+
+		mockEmbSvc.AssertExpectations(t)
+		mockAnswerCacheSvc.AssertExpectations(t)
+		mockRepo.AssertExpectations(t)
+		mockEvaluator.AssertNotCalled(t, "EvaluateAnswer")
+	})
+
+	t.Run("GetQuizByID Returns NotFound during LLM Fallback", func(t *testing.T) {
+		req := *baseReq
+
+		mockRepo := new(MockQuizRepository)
+		mockEvaluator := new(MockAnswerEvaluator)
+		mockEmbSvc := new(MockEmbeddingService)
+		mockAnswerCacheSvc := new(MockAnswerCacheService)
+		mockDirectCache := new(MockCache)
+
+		categoryListTTL, _ := time.ParseDuration("1h")
+		quizListTTL, _ := time.ParseDuration("1h")
+
+		userAnswerEmbedding := []float32{0.1, 0.2, 0.3}
+		mockEmbSvc.On("Generate", ctx, req.UserAnswer).Return(userAnswerEmbedding, nil).Once()
+		mockAnswerCacheSvc.On("GetAnswerFromCache", ctx, req.QuizID, userAnswerEmbedding, req.UserAnswer).Return(nil, nil).Once() // Cache miss
+
+		// Simulate GetQuizByID finding no quiz (repo returns nil, nil for ErrNoRows)
+		mockRepo.On("GetQuizByID", ctx, req.QuizID).Return(nil, nil).Once()
+
+		service := NewQuizService(mockRepo, mockEvaluator, mockDirectCache, mockEmbSvc, mockAnswerCacheSvc, categoryListTTL, quizListTTL)
+		_, err := service.CheckAnswer(&req)
+
+		assert.Error(t, err)
+		var domainErr *domain.DomainError
+		assert.True(t, errors.As(err, &domainErr), "Error should be a domain.DomainError")
+		if domainErr != nil {
+			assert.Equal(t, domain.CodeQuizNotFound, domainErr.Code)
+		}
+
+		mockEmbSvc.AssertExpectations(t)
+		mockAnswerCacheSvc.AssertExpectations(t)
+		mockRepo.AssertExpectations(t)
+		mockEvaluator.AssertNotCalled(t, "EvaluateAnswer")
 	})
 
 }
@@ -241,7 +336,10 @@ func TestGetAllSubCategories_Caching(t *testing.T) {
 		mockEmbSvc := new(MockEmbeddingService)
 		mockAnswerCacheSvc := new(MockAnswerCacheService)
 
-		service := NewQuizService(mockRepo, mockEvaluator, mockCache, cfg, mockEmbSvc, mockAnswerCacheSvc)
+		categoryListTTL, _ := time.ParseDuration(testCategoryListTTLString)
+		quizListTTL, _ := time.ParseDuration("1h") // Dummy for this test
+
+		service := NewQuizService(mockRepo, mockEvaluator, mockCache, mockEmbSvc, mockAnswerCacheSvc, categoryListTTL, quizListTTL)
 
 		// Cache Miss
 		mockCache.On("Get", ctx, cacheKey).Return("", domain.ErrCacheMiss).Once()
@@ -270,7 +368,10 @@ func TestGetAllSubCategories_Caching(t *testing.T) {
 		mockEmbSvc := new(MockEmbeddingService)
 		mockAnswerCacheSvc := new(MockAnswerCacheService)
 
-		service := NewQuizService(mockRepo, mockEvaluator, mockCache, cfg, mockEmbSvc, mockAnswerCacheSvc)
+		categoryListTTL, _ := time.ParseDuration(testCategoryListTTLString)
+		quizListTTL, _ := time.ParseDuration("1h")
+
+		service := NewQuizService(mockRepo, mockEvaluator, mockCache, mockEmbSvc, mockAnswerCacheSvc, categoryListTTL, quizListTTL)
 
 		// Gob encode expected categories for cache hit
 		var expectedBuffer bytes.Buffer
@@ -377,11 +478,15 @@ func TestGetBulkQuizzes_Caching(t *testing.T) {
 		mockEmbSvc := new(MockEmbeddingService)
 		mockAnswerCacheSvc := new(MockAnswerCacheService)
 
-		service := NewQuizService(mockRepo, mockEvaluator, mockCache, cfg, mockEmbSvc, mockAnswerCacheSvc)
+		categoryListTTL, _ := time.ParseDuration("1h") // Dummy
+		quizListTTL, _ := time.ParseDuration(testQuizListTTLString)
 
-		mockRepo.On("GetSubCategoryIDByName", subCategoryName).Return(subCategoryID, nil).Once()
+
+		service := NewQuizService(mockRepo, mockEvaluator, mockCache, mockEmbSvc, mockAnswerCacheSvc, categoryListTTL, quizListTTL)
+
+		mockRepo.On("GetSubCategoryIDByName", ctx, subCategoryName).Return(subCategoryID, nil).Once() // Added ctx
 		mockCache.On("Get", ctx, cacheKey).Return("", domain.ErrCacheMiss).Once()
-		mockRepo.On("GetQuizzesByCriteria", subCategoryID, reqCount).Return(domainQuizzes, nil).Once()
+		mockRepo.On("GetQuizzesByCriteria", ctx, subCategoryID, reqCount).Return(domainQuizzes, nil).Once() // Added ctx
 
 		var expectedBuffer bytes.Buffer
 		enc := gob.NewEncoder(&expectedBuffer)
@@ -406,7 +511,10 @@ func TestGetBulkQuizzes_Caching(t *testing.T) {
 		mockEmbSvc := new(MockEmbeddingService)
 		mockAnswerCacheSvc := new(MockAnswerCacheService)
 
-		service := NewQuizService(mockRepo, mockEvaluator, mockCache, cfg, mockEmbSvc, mockAnswerCacheSvc)
+		categoryListTTL, _ := time.ParseDuration("1h")
+		quizListTTL, _ := time.ParseDuration(testQuizListTTLString)
+
+		service := NewQuizService(mockRepo, mockEvaluator, mockCache, mockEmbSvc, mockAnswerCacheSvc, categoryListTTL, quizListTTL)
 
 		var expectedBuffer bytes.Buffer
 		enc := gob.NewEncoder(&expectedBuffer)

@@ -33,6 +33,25 @@ type UserProfileResponse struct {
 	ProfilePictureURL string `json:"profile_picture_url,omitempty"`
 }
 
+// TokenResponse represents the response containing access and refresh tokens.
+// @Description Response body for authentication tokens
+type TokenResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+}
+
+// RefreshTokenRequest represents the request body for refreshing a token.
+// @Description Request body for refreshing JWT tokens
+type RefreshTokenRequest struct {
+	RefreshToken string `json:"refresh_token" validate:"required"`
+}
+
+// MessageResponse represents a generic message response.
+// @Description Generic message response
+type MessageResponse struct {
+	Message string `json:"message"`
+}
+
 // --- Pagination and Filtering DTOs ---
 
 // Pagination defines parameters for paginated requests.

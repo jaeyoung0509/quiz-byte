@@ -16,24 +16,26 @@ import (
 
 // ManualMockCache for domain.Cache interface
 type ManualMockCache struct {
-	GetFunc    func(ctx context.Context, key string) ([]byte, error)
-	SetFunc    func(ctx context.Context, key string, value interface{}, ttl time.Duration) error
+	GetFunc    func(ctx context.Context, key string) (string, error) // Changed []byte to string
+	SetFunc    func(ctx context.Context, key string, value string, ttl time.Duration) error // Changed value interface{} to string
 	DeleteFunc func(ctx context.Context, key string) error
 	// Add other methods if AnonymousResultCacheService uses them
+	HGetFunc    func(ctx context.Context, key, field string) (string, error)
+	HSetFunc    func(ctx context.Context, key string, field string, value string) error
+	HGetAllFunc func(ctx context.Context, key string) (map[string]string, error)
+	ExpireFunc  func(ctx context.Context, key string, expiration time.Duration) error
+	PingFunc    func(ctx context.Context) error
 }
 
-func (m *ManualMockCache) Get(ctx context.Context, key string) ([]byte, error) {
+func (m *ManualMockCache) Get(ctx context.Context, key string) (string, error) { // Changed []byte to string
 	if m.GetFunc != nil {
 		return m.GetFunc(ctx, key)
 	}
-	return nil, errors.New("GetFunc not set")
+	return "", errors.New("GetFunc not set")
 }
 
-func (m *ManualMockCache) Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+func (m *ManualMockCache) Set(ctx context.Context, key string, value string, ttl time.Duration) error { // Changed value interface{} to string
 	if m.SetFunc != nil {
-		// The service serializes to []byte before calling cache.Set
-		// So, the mock should expect []byte if it's strict about type.
-		// For this test, we'll assume the service passes []byte.
 		return m.SetFunc(ctx, key, value, ttl)
 	}
 	return errors.New("SetFunc not set")
@@ -50,8 +52,36 @@ func (m *ManualMockCache) GetKeysByPrefix(ctx context.Context, prefix string) ([
 	panic("not implemented in mock")
 }
 
-func (m *ManualMockCache) DeleteByPrefix(ctx context.Context, prefix string) error {
-	panic("not implemented in mock")
+// Adding other domain.Cache methods to satisfy the interface
+func (m *ManualMockCache) HGet(ctx context.Context, key, field string) (string, error) {
+	if m.HGetFunc != nil {
+		return m.HGetFunc(ctx, key, field)
+	}
+	return "", errors.New("HGetFunc not set")
+}
+func (m *ManualMockCache) HSet(ctx context.Context, key string, field string, value string) error {
+	if m.HSetFunc != nil {
+		return m.HSetFunc(ctx, key, field, value)
+	}
+	return errors.New("HSetFunc not set")
+}
+func (m *ManualMockCache) HGetAll(ctx context.Context, key string) (map[string]string, error) {
+	if m.HGetAllFunc != nil {
+		return m.HGetAllFunc(ctx, key)
+	}
+	return nil, errors.New("HGetAllFunc not set")
+}
+func (m *ManualMockCache) Expire(ctx context.Context, key string, expiration time.Duration) error {
+	if m.ExpireFunc != nil {
+		return m.ExpireFunc(ctx, key, expiration)
+	}
+	return errors.New("ExpireFunc not set")
+}
+func (m *ManualMockCache) Ping(ctx context.Context) error {
+	if m.PingFunc != nil {
+		return m.PingFunc(ctx)
+	}
+	return errors.New("PingFunc not set")
 }
 
 
@@ -65,11 +95,12 @@ func TestAnonymousResultCacheServiceImpl_Put(t *testing.T) {
 	result := &dto.CheckAnswerResponse{Score: 0.8, Explanation: "Good job!"}
 
 	expectedKey := "anonymous_result:" + requestID
-	expectedData, _ := json.Marshal(result)
+	expectedJSONData, _ := json.Marshal(result) // This is []byte
+	expectedStringData := string(expectedJSONData) // Convert to string for mock
 
-	mockCache.SetFunc = func(ctx context.Context, key string, value interface{}, duration time.Duration) error {
+	mockCache.SetFunc = func(ctx context.Context, key string, value string, duration time.Duration) error {
 		assert.Equal(t, expectedKey, key)
-		assert.Equal(t, expectedData, value.([]byte)) // Service should pass []byte
+		assert.Equal(t, expectedStringData, value) // Mock expects string
 		assert.Equal(t, ttl, duration)
 		return nil
 	}
@@ -89,10 +120,11 @@ func TestAnonymousResultCacheServiceImpl_Get(t *testing.T) {
 	expectedKey := "anonymous_result:" + requestID
 
 	t.Run("Cache Hit", func(t *testing.T) {
-		jsonData, _ := json.Marshal(expectedResult)
-		mockCache.GetFunc = func(ctx context.Context, key string) ([]byte, error) {
+		jsonDataBytes, _ := json.Marshal(expectedResult)
+		jsonStringData := string(jsonDataBytes) // Convert to string for mock
+		mockCache.GetFunc = func(ctx context.Context, key string) (string, error) { // Mock returns string
 			assert.Equal(t, expectedKey, key)
-			return jsonData, nil
+			return jsonStringData, nil
 		}
 
 		result, err := cacheService.Get(ctx, requestID)
@@ -101,9 +133,9 @@ func TestAnonymousResultCacheServiceImpl_Get(t *testing.T) {
 	})
 
 	t.Run("Cache Miss", func(t *testing.T) {
-		mockCache.GetFunc = func(ctx context.Context, key string) ([]byte, error) {
+		mockCache.GetFunc = func(ctx context.Context, key string) (string, error) { // Mock returns string
 			assert.Equal(t, expectedKey, key)
-			return nil, domain.ErrCacheMiss // Use the specific error from your domain package
+			return "", domain.ErrCacheMiss // Use the specific error from your domain package
 		}
 
 		result, err := cacheService.Get(ctx, requestID)
@@ -112,9 +144,9 @@ func TestAnonymousResultCacheServiceImpl_Get(t *testing.T) {
 	})
 
 	t.Run("Cache Miss (nil data, nil error - less common but possible)", func(t *testing.T) {
-		mockCache.GetFunc = func(ctx context.Context, key string) ([]byte, error) {
+		mockCache.GetFunc = func(ctx context.Context, key string) (string, error) { // Mock returns string
 			assert.Equal(t, expectedKey, key)
-			return nil, nil // Simulate a cache returning nil data and nil error for a miss
+			return "", nil // Simulate a cache returning nil data and nil error for a miss
 		}
 
 		result, err := cacheService.Get(ctx, requestID)
@@ -126,22 +158,28 @@ func TestAnonymousResultCacheServiceImpl_Get(t *testing.T) {
 
 	t.Run("Cache Error", func(t *testing.T) {
 		expectedErr := errors.New("some cache system error")
-		mockCache.GetFunc = func(ctx context.Context, key string) ([]byte, error) {
+		mockCache.GetFunc = func(ctx context.Context, key string) (string, error) { // Mock returns string
 			assert.Equal(t, expectedKey, key)
-			return nil, expectedErr
+			return "", expectedErr
 		}
 
 		result, err := cacheService.Get(ctx, requestID)
 		assert.Nil(t, result)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), expectedErr.Error())
+		// The service should wrap this into a domain.InternalError
+		var domainErr *domain.DomainError
+		assert.True(t, errors.As(err, &domainErr), "Error should be a domain.DomainError")
+		if domainErr != nil {
+			assert.Equal(t, domain.CodeInternal, domainErr.Code)
+			assert.ErrorIs(t, err, expectedErr) // Check original error is wrapped
+		}
 	})
 
 	t.Run("Deserialization Error", func(t *testing.T) {
-		malformedJsonData := []byte("{score:0.5, explanation:'bad json'") // missing quotes
-		mockCache.GetFunc = func(ctx context.Context, key string) ([]byte, error) {
+		malformedJsonString := "{score:0.5, explanation:'bad json'" // missing quotes
+		mockCache.GetFunc = func(ctx context.Context, key string) (string, error) { // Mock returns string
 			assert.Equal(t, expectedKey, key)
-			return malformedJsonData, nil
+			return malformedJsonString, nil
 		}
 
 		result, err := cacheService.Get(ctx, requestID)

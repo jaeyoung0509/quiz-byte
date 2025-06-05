@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context" // Added context
 	"regexp"
 	"testing"
 	"time"
@@ -16,7 +17,7 @@ import (
 
 // setupCategoryTestDB creates a new sqlx.DB instance and sqlmock for category repository testing.
 // Note: This is identical to setupTestDB in quiz_test.go. Consider moving to a shared test helper package if more repos are added.
-func setupCategoryTestDB(t *testing.T) (*sqlx.DB, sqlmock.Sqlmock) {
+func setupCategoryTestDB(t *testing.T) (*sqlx.DB, sqlmock.Sqlmock) { //nolint:thelper // This is a helper, but testify doesn't require *testing.T as first arg for helpers.
 	mockDB, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	if err != nil {
 		t.Fatalf("Failed to create sqlmock: %v", err)
@@ -43,7 +44,8 @@ func TestGetAllCategories(t *testing.T) {
 	query := `SELECT id, name, description, created_at, updated_at, deleted_at FROM categories WHERE deleted_at IS NULL`
 	mock.ExpectQuery(regexp.QuoteMeta(query)).WillReturnRows(rows)
 
-	result, err := repo.GetAllCategories()
+	result, err := repo.GetAllCategories(context.Background())
+	// result, err := repo.GetAllCategories(context.Background()) // Removed duplicate line
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -64,7 +66,7 @@ func TestGetAllCategories_Empty(t *testing.T) {
 	query := `SELECT id, name, description, created_at, updated_at, deleted_at FROM categories WHERE deleted_at IS NULL`
 	mock.ExpectQuery(regexp.QuoteMeta(query)).WillReturnRows(rows)
 
-	result, err := repo.GetAllCategories()
+	result, err := repo.GetAllCategories(context.Background())
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -88,11 +90,10 @@ func TestGetSubCategories(t *testing.T) {
 		rows.AddRow(subCat.ID, subCat.CategoryID, subCat.Name, subCat.Description, subCat.CreatedAt, subCat.UpdatedAt, nil)
 	}
 
-	// The query in GetSubCategories uses $1 for positional arg.
-	query := `SELECT id, category_id, name, description, created_at, updated_at, deleted_at FROM sub_categories WHERE category_id = $1 AND deleted_at IS NULL`
+	query := `SELECT id, category_id, name, description, created_at, updated_at, deleted_at FROM sub_categories WHERE category_id = :1 AND deleted_at IS NULL` // Changed $1 to :1 to match adapter
 	mock.ExpectQuery(regexp.QuoteMeta(query)).WithArgs(categoryID).WillReturnRows(rows)
 
-	result, err := repo.GetSubCategories(categoryID)
+	result, err := repo.GetSubCategories(context.Background(), categoryID)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -112,17 +113,16 @@ func TestGetSubCategories_Empty(t *testing.T) {
 
 	rows := sqlmock.NewRows([]string{"id", "category_id", "name", "description", "created_at", "updated_at", "deleted_at"})
 
-	query := `SELECT id, category_id, name, description, created_at, updated_at, deleted_at FROM sub_categories WHERE category_id = $1 AND deleted_at IS NULL`
+	query := `SELECT id, category_id, name, description, created_at, updated_at, deleted_at FROM sub_categories WHERE category_id = :1 AND deleted_at IS NULL` // Changed $1 to :1 to match adapter
 	mock.ExpectQuery(regexp.QuoteMeta(query)).WithArgs(categoryID).WillReturnRows(rows)
 
-	result, err := repo.GetSubCategories(categoryID)
+	result, err := repo.GetSubCategories(context.Background(), categoryID)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Len(t, result, 0)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
-
 
 func TestSaveCategory(t *testing.T) {
 	db, mock := setupCategoryTestDB(t)
@@ -134,12 +134,16 @@ func TestSaveCategory(t *testing.T) {
 	}
 
 	// sqlx likely converts named parameters to positional ones (?) before execution.
-	query := `INSERT INTO categories (id, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`
-	mock.ExpectExec(regexp.QuoteMeta(query)).
+	// For sqlmock, the query string in ExpectExec should match what the driver receives.
+	// If using named exec (:name), sqlx prepares a query with placeholders the driver understands (e.g., $1, $2 or ?).
+	// It's often safer to use QueryMatcherEqual or ensure the regex is flexible.
+	// Here, we assume the rebind results in a query sqlmock can match with regex for these placeholders.
+	// The actual query sent to Oracle might be slightly different if named args are passed differently by the driver.
+	mock.ExpectExec(`INSERT INTO categories \(id, name, description, created_at, updated_at\) VALUES \((?P<id>.*), (?P<name>.*), (?P<description>.*), (?P<created_at>.*), (?P<updated_at>.*)\)`).
 		WithArgs(sqlmock.AnyArg(), domainCategory.Name, domainCategory.Description, sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	err := repo.SaveCategory(domainCategory)
+	err := repo.SaveCategory(context.Background(), domainCategory)
 
 	assert.NoError(t, err)
 	assert.NotEmpty(t, domainCategory.ID)
@@ -158,9 +162,7 @@ func TestSaveSubCategory(t *testing.T) {
 		Description: "Test SubDescription",
 	}
 
-	// sqlx likely converts named parameters to positional ones (?) before execution.
-	query := `INSERT INTO sub_categories (id, category_id, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
-	mock.ExpectExec(regexp.QuoteMeta(query)).
+	mock.ExpectExec(`INSERT INTO sub_categories \(id, category_id, name, description, created_at, updated_at\) VALUES \((?P<id>.*), (?P<category_id>.*), (?P<name>.*), (?P<description>.*), (?P<created_at>.*), (?P<updated_at>.*)\)`).
 		WithArgs(
 			sqlmock.AnyArg(), // id
 			domainSubCategory.CategoryID,
@@ -170,11 +172,99 @@ func TestSaveSubCategory(t *testing.T) {
 			sqlmock.AnyArg(), // updated_at
 		).WillReturnResult(sqlmock.NewResult(0, 1))
 
-	err := repo.SaveSubCategory(domainSubCategory)
+	err := repo.SaveSubCategory(context.Background(), domainSubCategory)
 
 	assert.NoError(t, err)
 	assert.NotEmpty(t, domainSubCategory.ID)
 	assert.NotZero(t, domainSubCategory.CreatedAt)
 	assert.NotZero(t, domainSubCategory.UpdatedAt)
 	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestConvertToDomainCategory(t *testing.T) {
+	now := time.Now()
+	model := &models.Category{
+		ID:          "cat1",
+		Name:        "Category 1",
+		Description: "Description 1",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	domainCat := convertToDomainCategory(model)
+	assert.NotNil(t, domainCat)
+	assert.Equal(t, model.ID, domainCat.ID)
+	assert.Equal(t, model.Name, domainCat.Name)
+	assert.Equal(t, model.Description, domainCat.Description)
+	assert.True(t, model.CreatedAt.Equal(domainCat.CreatedAt)) // Use Equal for time
+	assert.True(t, model.UpdatedAt.Equal(domainCat.UpdatedAt)) // Use Equal for time
+
+	// Test nil input
+	assert.Nil(t, convertToDomainCategory(nil), "Converting nil model should return nil domain category")
+}
+
+func TestConvertToModelCategory(t *testing.T) {
+	now := time.Now()
+	domainCat := &domain.Category{
+		ID:          "cat1",
+		Name:        "Category 1",
+		Description: "Description 1",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	model := convertToModelCategory(domainCat)
+	assert.NotNil(t, model)
+	assert.Equal(t, domainCat.ID, model.ID)
+	assert.Equal(t, domainCat.Name, model.Name)
+	assert.Equal(t, domainCat.Description, model.Description)
+	assert.True(t, domainCat.CreatedAt.Equal(model.CreatedAt))
+	assert.True(t, domainCat.UpdatedAt.Equal(model.UpdatedAt))
+
+	// Test nil input
+	assert.Nil(t, convertToModelCategory(nil), "Converting nil domain category should return nil model")
+}
+
+func TestConvertToDomainSubCategory(t *testing.T) {
+	now := time.Now()
+	model := &models.SubCategory{
+		ID:          "subcat1",
+		CategoryID:  "cat1",
+		Name:        "SubCategory 1",
+		Description: "SubDescription 1",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	domainSubCat := convertToDomainSubCategory(model)
+	assert.NotNil(t, domainSubCat)
+	assert.Equal(t, model.ID, domainSubCat.ID)
+	assert.Equal(t, model.CategoryID, domainSubCat.CategoryID)
+	assert.Equal(t, model.Name, domainSubCat.Name)
+	assert.Equal(t, model.Description, domainSubCat.Description)
+	assert.True(t, model.CreatedAt.Equal(domainSubCat.CreatedAt))
+	assert.True(t, model.UpdatedAt.Equal(domainSubCat.UpdatedAt))
+
+	// Test nil input
+	assert.Nil(t, convertToDomainSubCategory(nil), "Converting nil model subcategory should return nil domain subcategory")
+}
+
+func TestConvertToModelSubCategory(t *testing.T) {
+	now := time.Now()
+	domainSubCat := &domain.SubCategory{
+		ID:          "subcat1",
+		CategoryID:  "cat1",
+		Name:        "SubCategory 1",
+		Description: "SubDescription 1",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	model := convertToModelSubCategory(domainSubCat)
+	assert.NotNil(t, model)
+	assert.Equal(t, domainSubCat.ID, model.ID)
+	assert.Equal(t, domainSubCat.CategoryID, model.CategoryID)
+	assert.Equal(t, domainSubCat.Name, model.Name)
+	assert.Equal(t, domainSubCat.Description, model.Description)
+	assert.True(t, domainSubCat.CreatedAt.Equal(model.CreatedAt))
+	assert.True(t, domainSubCat.UpdatedAt.Equal(model.UpdatedAt))
+
+	// Test nil input
+	assert.Nil(t, convertToModelSubCategory(nil), "Converting nil domain subcategory should return nil model")
 }

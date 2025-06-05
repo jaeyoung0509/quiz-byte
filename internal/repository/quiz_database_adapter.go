@@ -304,6 +304,27 @@ func (a *QuizDatabaseAdapter) SaveQuizEvaluation(ctx context.Context, evaluation
 
 // GetQuizEvaluation implements domain.QuizRepository
 func (a *QuizDatabaseAdapter) GetQuizEvaluation(ctx context.Context, quizID string) (*domain.QuizEvaluation, error) {
+	var modelEval models.QuizEvaluation
+	query := `SELECT
+		id, quiz_id, minimum_keywords, required_topics, score_ranges,
+		sample_answers, rubric_details, created_at, updated_at, deleted_at, score_evaluations
+	FROM quiz_evaluations
+	WHERE quiz_id = :1 AND deleted_at IS NULL`
+
+	// Using NamedArg for Oracle compatibility if needed, otherwise :quiz_id or $1 depending on driver
+	// For sqlx, often the struct field names are used with :quiz_id if the arg is a struct,
+	// or positional like :1, :2 if args are passed directly.
+	// As quizID is a simple string, using :1 (positional) is appropriate here.
+	err := a.db.GetContext(ctx, &modelEval, query, quizID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // Not found
+		}
+		return nil, fmt.Errorf("failed to get quiz evaluation for quiz ID %s: %w", quizID, err)
+	}
+	return toDomainQuizEvaluation(&modelEval)
+}
+
 // GetRandomQuizBySubCategory implements domain.QuizRepository
 func (a *QuizDatabaseAdapter) GetRandomQuizBySubCategory(ctx context.Context, subCategoryID string) (*domain.Quiz, error) {
 	var modelQuiz models.Quiz

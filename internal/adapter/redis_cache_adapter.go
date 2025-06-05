@@ -27,24 +27,33 @@ func (r *RedisCacheAdapter) Get(ctx context.Context, key string) (string, error)
 		if err == redis.Nil {
 			return "", domain.ErrCacheMiss
 		}
-		return "", err
+		return "", fmt.Errorf("redis Get failed for key %s: %w", key, err)
 	}
 	return val, nil
 }
 
 // Set adds an item to the Redis cache.
 func (r *RedisCacheAdapter) Set(ctx context.Context, key string, value string, expiration time.Duration) error {
-	return r.client.Set(ctx, key, value, expiration).Err()
+	if err := r.client.Set(ctx, key, value, expiration).Err(); err != nil {
+		return fmt.Errorf("redis Set failed for key %s: %w", key, err)
+	}
+	return nil
 }
 
 // Delete removes an item from the Redis cache.
 func (r *RedisCacheAdapter) Delete(ctx context.Context, key string) error {
-	return r.client.Del(ctx, key).Err()
+	if err := r.client.Del(ctx, key).Err(); err != nil {
+		return fmt.Errorf("redis Del failed for key %s: %w", key, err)
+	}
+	return nil
 }
 
 // Ping checks the health of the Redis server.
 func (r *RedisCacheAdapter) Ping(ctx context.Context) error {
-	return r.client.Ping(ctx).Err()
+	if err := r.client.Ping(ctx).Err(); err != nil {
+		return fmt.Errorf("redis Ping failed: %w", err)
+	}
+	return nil
 }
 
 // HGet implements Cache.HGet
@@ -54,7 +63,7 @@ func (r *RedisCacheAdapter) HGet(ctx context.Context, key, field string) (string
 		if err == redis.Nil {
 			return "", domain.ErrCacheMiss
 		}
-		return "", err
+		return "", fmt.Errorf("redis HGet failed for key %s, field %s: %w", key, field, err)
 	}
 	return val, nil
 }
@@ -66,17 +75,23 @@ func (r *RedisCacheAdapter) HGetAll(ctx context.Context, key string) (map[string
 		if err == redis.Nil {
 			return nil, domain.ErrCacheMiss
 		}
-		return nil, err
+		return nil, fmt.Errorf("redis HGetAll failed for key %s: %w", key, err)
 	}
 	return val, nil
 }
 
 // HSet implements Cache.HSet
 func (r *RedisCacheAdapter) HSet(ctx context.Context, key string, field string, value string) error {
-	return r.client.HSet(ctx, key, field, value).Err()
+	if err := r.client.HSet(ctx, key, field, value).Err(); err != nil {
+		return fmt.Errorf("redis HSet failed for key %s, field %s: %w", key, field, err)
+	}
+	return nil
 }
 
 // Expire implements Cache.Expire
 func (r *RedisCacheAdapter) Expire(ctx context.Context, key string, expiration time.Duration) error {
-	return r.client.Expire(ctx, key, expiration).Err()
+	if err := r.client.Expire(ctx, key, expiration).Err(); err != nil {
+		return fmt.Errorf("redis Expire failed for key %s: %w", key, err)
+	}
+	return nil
 }
