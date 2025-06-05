@@ -66,10 +66,6 @@ func (s *userServiceImpl) GetUserProfile(ctx context.Context, userID string) (*d
 		// If err is not nil, it's some other repository error.
 		return nil, fmt.Errorf("failed to get user by id from repository: %w", err)
 	}
-	// Additional check for user == nil even if err == nil, just in case.
-	if user == nil {
-		return nil, ErrUserProfileNotFound
-	}
 
 	return &dto.UserProfileResponse{
 		ID:                user.ID,

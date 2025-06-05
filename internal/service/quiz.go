@@ -3,22 +3,24 @@ package service
 import (
 	"context"
 	// "encoding/json" // Removed unused import
-	"quiz-byte/internal/domain"
 	"quiz-byte/internal/cache"  // Added import for cache key generation
 	"quiz-byte/internal/config" // Added import
+	"quiz-byte/internal/domain"
 	"quiz-byte/internal/dto"
 	"quiz-byte/internal/logger"
+
 	// "quiz-byte/internal/util" // No longer directly used for CosineSimilarity here
+	"bytes"         // Added for gob
 	"crypto/sha256" // For CheckAnswer singleflight key
+	"encoding/gob"  // Added for gob
 	"encoding/hex"  // For CheckAnswer singleflight key
 	"fmt"           // Added for singleflight error formatting
 	"strings"
-	"bytes"         // Added for gob
-	"encoding/gob"  // Added for gob
+
 	// "encoding/json" // No longer needed directly for cache data
-	"io"            // For io.EOF with gob
-	"strconv"       // Added for caching GetBulkQuizzes
-	"time"          // Added for caching TTL
+	"io"      // For io.EOF with gob
+	"strconv" // Added for caching GetBulkQuizzes
+	"time"    // Added for caching TTL
 
 	"go.uber.org/zap"
 	"golang.org/x/sync/singleflight" // Added for singleflight
@@ -177,7 +179,7 @@ func (s *quizService) CheckAnswer(req *dto.CheckAnswerRequest) (*dto.CheckAnswer
 		}
 
 		// 3. Cache Write Logic (delegated to AnswerCacheService, happens within singleflight)
-		if s.answerCache != nil && errEmbed == nil && len(userAnswerEmbedding) > 0 && response != nil {
+		if s.answerCache != nil && errEmbed == nil && len(userAnswerEmbedding) > 0 {
 			errCachePut := s.answerCache.PutAnswerToCache(ctx, req.QuizID, req.UserAnswer, userAnswerEmbedding, response)
 			if errCachePut != nil {
 				logger.Get().Error("QuizService: Error putting answer to AnswerCacheService (singleflight)",

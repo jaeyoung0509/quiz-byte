@@ -48,7 +48,7 @@ func TestGetQuizByID(t *testing.T) {
 	}
 
 	rows := sqlmock.NewRows([]string{"id", "question", "model_answers", "keywords", "difficulty", "sub_category_id", "created_at", "updated_at", "deleted_at"}).
-		AddRow(expectedModelQuiz.ID, expectedModelQuiz.Question, expectedModelQuiz.ModelAnswers, expectedModelQuiz.Keywords, expectedModelQuiz.Difficulty, expectedModelQuiz.SubCategoryID, expectedModelQuiz.CreatedAt, expectedModelQuiz.UpdatedAt, nil)
+		AddRow(expectedModelQuiz.ID, expectedModelQuiz.Question, expectedModelQuiz.ModelAnswers, expectedModelQuiz.Keywords, expectedModelQuiz.Difficulty, expectedModelQuiz.SubCategoryID, expectedModelQuiz.CreatedAt, expectedModelQuiz.UpdatedAt, expectedModelQuiz.DeletedAt)
 
 	// sqlx translates :named parameters to ? for many drivers before preparing.
 	// For sqlmock, we need to match the query style used by the driver, which might be '?' after sqlx rebinding.
@@ -137,10 +137,11 @@ func TestGetRandomQuizBySubCategory(t *testing.T) {
 		SubCategoryID: testSubCatID,
 		CreatedAt:     now,
 		UpdatedAt:     now,
+		DeletedAt:     nil,
 	}
 
 	rows := sqlmock.NewRows([]string{"id", "question", "model_answers", "keywords", "difficulty", "sub_category_id", "created_at", "updated_at", "deleted_at"}).
-		AddRow(expectedModelQuiz.ID, expectedModelQuiz.Question, expectedModelQuiz.ModelAnswers, expectedModelQuiz.Keywords, expectedModelQuiz.Difficulty, expectedModelQuiz.SubCategoryID, expectedModelQuiz.CreatedAt, expectedModelQuiz.UpdatedAt, nil)
+		AddRow(expectedModelQuiz.ID, expectedModelQuiz.Question, expectedModelQuiz.ModelAnswers, expectedModelQuiz.Keywords, expectedModelQuiz.Difficulty, expectedModelQuiz.SubCategoryID, expectedModelQuiz.CreatedAt, expectedModelQuiz.UpdatedAt, expectedModelQuiz.DeletedAt)
 
 	// sqlx translates :named parameters to ? for many drivers before preparing.
 	originalSQL := `SELECT id "id", question "question", model_answers "model_answers", keywords "keywords", difficulty "difficulty", sub_category_id "sub_category_id", created_at "created_at", updated_at "updated_at", deleted_at "deleted_at" FROM quizzes WHERE sub_category_id = :1 AND deleted_at IS NULL ORDER BY DBMS_RANDOM.VALUE FETCH FIRST 1 ROWS ONLY`
@@ -172,10 +173,11 @@ func TestGetRandomQuiz(t *testing.T) {
 		SubCategoryID: util.NewULID(),
 		CreatedAt:     now,
 		UpdatedAt:     now,
+		DeletedAt:     nil,
 	}
 
 	rows := sqlmock.NewRows([]string{"id", "question", "model_answers", "keywords", "difficulty", "sub_category_id", "created_at", "updated_at", "deleted_at"}).
-		AddRow(expectedModelQuiz.ID, expectedModelQuiz.Question, expectedModelQuiz.ModelAnswers, expectedModelQuiz.Keywords, expectedModelQuiz.Difficulty, expectedModelQuiz.SubCategoryID, expectedModelQuiz.CreatedAt, expectedModelQuiz.UpdatedAt, nil)
+		AddRow(expectedModelQuiz.ID, expectedModelQuiz.Question, expectedModelQuiz.ModelAnswers, expectedModelQuiz.Keywords, expectedModelQuiz.Difficulty, expectedModelQuiz.SubCategoryID, expectedModelQuiz.CreatedAt, expectedModelQuiz.UpdatedAt, expectedModelQuiz.DeletedAt)
 
 	originalSQL := `SELECT
 		id "id",
@@ -310,9 +312,10 @@ func TestGetSimilarQuiz(t *testing.T) {
 		SubCategoryID: subCatID,
 		CreatedAt:     now,
 		UpdatedAt:     now,
+		DeletedAt:     nil,
 	}
 	rowsSimilar := sqlmock.NewRows([]string{"id", "question", "model_answers", "keywords", "difficulty", "sub_category_id", "created_at", "updated_at", "deleted_at"}).
-		AddRow(expectedSimilarModelQuiz.ID, expectedSimilarModelQuiz.Question, expectedSimilarModelQuiz.ModelAnswers, expectedSimilarModelQuiz.Keywords, expectedSimilarModelQuiz.Difficulty, expectedSimilarModelQuiz.SubCategoryID, expectedSimilarModelQuiz.CreatedAt, expectedSimilarModelQuiz.UpdatedAt, nil)
+		AddRow(expectedSimilarModelQuiz.ID, expectedSimilarModelQuiz.Question, expectedSimilarModelQuiz.ModelAnswers, expectedSimilarModelQuiz.Keywords, expectedSimilarModelQuiz.Difficulty, expectedSimilarModelQuiz.SubCategoryID, expectedSimilarModelQuiz.CreatedAt, expectedSimilarModelQuiz.UpdatedAt, expectedSimilarModelQuiz.DeletedAt)
 
 	originalQuerySimilar := `SELECT
 		id "id",

@@ -7,6 +7,7 @@ import (
 
 	"quiz-byte/internal/config"
 	"quiz-byte/internal/domain"
+
 	// "quiz-byte/internal/util" // For actual CosineSimilarity - util.CosineSimilarity is not directly called in test
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -71,7 +72,7 @@ func TestGenerateNewQuizzesAndSave_Success_SomeSimilarQuizzes(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	cfg := &config.Config{
 		Embedding: config.EmbeddingConfig{SimilarityThreshold: 0.95}, // Higher threshold
-		Batch:     config.BatchConfig{NumQuestionsPerSubCategory: 2},     // Generate 2 questions
+		Batch:     config.BatchConfig{NumQuestionsPerSubCategory: 2}, // Generate 2 questions
 	}
 
 	batchSvc := NewBatchService(mockQuizRepo, mockCategoryRepo, mockEmbeddingService, mockQuizGenSvc, cfg, logger) // Updated argument
@@ -106,7 +107,7 @@ func TestGenerateNewQuizzesAndSave_Success_SomeSimilarQuizzes(t *testing.T) {
 
 	// Embeddings
 	embeddingExistingQ1 := []float32{0.1, 0.2, 0.3, 0.4, 0.5}
-	embeddingGeneratedUnique := []float32{0.5, 0.4, 0.3, 0.2, 0.1} // Different
+	embeddingGeneratedUnique := []float32{0.5, 0.4, 0.3, 0.2, 0.1}  // Different
 	embeddingGeneratedSimilar := []float32{0.1, 0.2, 0.3, 0.4, 0.5} // Same as existingQ1 for test
 
 	// Order of Generate calls can be tricky if not strictly sequential in code.
@@ -127,7 +128,6 @@ func TestGenerateNewQuizzesAndSave_Success_SomeSimilarQuizzes(t *testing.T) {
 	mockQuizRepo.On("SaveQuiz", ctx, mock.MatchedBy(func(quiz *domain.Quiz) bool {
 		return quiz.Question == generatedQuizUnique.Question
 	})).Return(nil).Once()
-
 
 	err := batchSvc.GenerateNewQuizzesAndSave(ctx)
 	assert.NoError(t, err)
@@ -167,135 +167,133 @@ func TestGenerateNewQuizzesAndSave_Error_GetAllSubCategoriesFails(t *testing.T) 
 }
 
 func TestGenerateNewQuizzesAndSave_Error_GetQuizzesBySubCategoryFails(t *testing.T) {
-    mockQuizRepo := new(MockQuizRepository)
-    mockCategoryRepo := new(MockCategoryRepository)
-    mockEmbeddingService := new(MockEmbeddingService)
-    mockQuizGenSvc := new(MockQuizGenerationService) // Renamed from mockLLMClient
+	mockQuizRepo := new(MockQuizRepository)
+	mockCategoryRepo := new(MockCategoryRepository)
+	mockEmbeddingService := new(MockEmbeddingService)
+	mockQuizGenSvc := new(MockQuizGenerationService) // Renamed from mockLLMClient
 
-    logger, _ := zap.NewDevelopment()
-    cfg := &config.Config{
-        Embedding: config.EmbeddingConfig{SimilarityThreshold: 0.9},
-        Batch:     config.BatchConfig{NumQuestionsPerSubCategory: 1},
-    }
-    batchSvc := NewBatchService(mockQuizRepo, mockCategoryRepo, mockEmbeddingService, mockQuizGenSvc, cfg, logger) // Updated argument
-    ctx := context.Background()
-    subCategoryID1 := "subCatErr"
-    expectedError := errors.New("db error on GetQuizzesBySubCategory")
+	logger, _ := zap.NewDevelopment()
+	cfg := &config.Config{
+		Embedding: config.EmbeddingConfig{SimilarityThreshold: 0.9},
+		Batch:     config.BatchConfig{NumQuestionsPerSubCategory: 1},
+	}
+	batchSvc := NewBatchService(mockQuizRepo, mockCategoryRepo, mockEmbeddingService, mockQuizGenSvc, cfg, logger) // Updated argument
+	ctx := context.Background()
+	subCategoryID1 := "subCatErr"
+	expectedError := errors.New("db error on GetQuizzesBySubCategory")
 
-    mockQuizRepo.On("GetAllSubCategories", ctx).Return([]string{subCategoryID1}, nil).Once()
-    mockQuizRepo.On("GetQuizzesBySubCategory", ctx, subCategoryID1).Return(nil, expectedError).Once()
+	mockQuizRepo.On("GetAllSubCategories", ctx).Return([]string{subCategoryID1}, nil).Once()
+	mockQuizRepo.On("GetQuizzesBySubCategory", ctx, subCategoryID1).Return(nil, expectedError).Once()
 
-    // The service currently logs this error and continues to the next subcategory (if any).
-    // If it were the only subcategory, the overall function would still return nil.
-    // To test this specific error causing a non-nil return, the service logic would need to change,
-    // or this test needs to reflect that it might still be a `nil` error overall for the batch.
-    // For now, let's assume the batch continues, so overall error is nil.
-    err := batchSvc.GenerateNewQuizzesAndSave(ctx)
-    assert.NoError(t, err) // Because the service continues on this specific error
+	// The service currently logs this error and continues to the next subcategory (if any).
+	// If it were the only subcategory, the overall function would still return nil.
+	// To test this specific error causing a non-nil return, the service logic would need to change,
+	// or this test needs to reflect that it might still be a `nil` error overall for the batch.
+	// For now, let's assume the batch continues, so overall error is nil.
+	err := batchSvc.GenerateNewQuizzesAndSave(ctx)
+	assert.NoError(t, err) // Because the service continues on this specific error
 
-    mockQuizRepo.AssertExpectations(t)
-    mockQuizGenSvc.AssertNotCalled(t, "GenerateQuizCandidates", mock.Anything, mock.Anything, mock.Anything, mock.Anything) // Updated mock
+	mockQuizRepo.AssertExpectations(t)
+	mockQuizGenSvc.AssertNotCalled(t, "GenerateQuizCandidates", mock.Anything, mock.Anything, mock.Anything, mock.Anything) // Updated mock
 }
 
-
 func TestGenerateNewQuizzesAndSave_Error_LLMClientFails(t *testing.T) { // Name will be updated to reflect QuizGenerationService
-    mockQuizRepo := new(MockQuizRepository)
-    mockCategoryRepo := new(MockCategoryRepository)
-    mockEmbeddingService := new(MockEmbeddingService)
-    mockQuizGenSvc := new(MockQuizGenerationService) // Renamed from mockLLMClient
+	mockQuizRepo := new(MockQuizRepository)
+	mockCategoryRepo := new(MockCategoryRepository)
+	mockEmbeddingService := new(MockEmbeddingService)
+	mockQuizGenSvc := new(MockQuizGenerationService) // Renamed from mockLLMClient
 
-    logger, _ := zap.NewDevelopment()
-    cfg := &config.Config{
-        Embedding: config.EmbeddingConfig{SimilarityThreshold: 0.9},
-        Batch:     config.BatchConfig{NumQuestionsPerSubCategory: 1},
-    }
-    batchSvc := NewBatchService(mockQuizRepo, mockCategoryRepo, mockEmbeddingService, mockQuizGenSvc, cfg, logger) // Updated argument
-    ctx := context.Background()
-    subCategoryID1 := "subCatLLMErr"
-    expectedError := errors.New("LLM failed")
+	logger, _ := zap.NewDevelopment()
+	cfg := &config.Config{
+		Embedding: config.EmbeddingConfig{SimilarityThreshold: 0.9},
+		Batch:     config.BatchConfig{NumQuestionsPerSubCategory: 1},
+	}
+	batchSvc := NewBatchService(mockQuizRepo, mockCategoryRepo, mockEmbeddingService, mockQuizGenSvc, cfg, logger) // Updated argument
+	ctx := context.Background()
+	subCategoryID1 := "subCatLLMErr"
+	expectedError := errors.New("LLM failed")
 
-    mockQuizRepo.On("GetAllSubCategories", ctx).Return([]string{subCategoryID1}, nil).Once()
-    mockQuizRepo.On("GetQuizzesBySubCategory", ctx, subCategoryID1).Return([]*domain.Quiz{}, nil).Once()
+	mockQuizRepo.On("GetAllSubCategories", ctx).Return([]string{subCategoryID1}, nil).Once()
+	mockQuizRepo.On("GetQuizzesBySubCategory", ctx, subCategoryID1).Return([]*domain.Quiz{}, nil).Once()
 	mockQuizGenSvc.On("GenerateQuizCandidates", ctx, subCategoryID1, mock.MatchedBy(func(arg []string) bool { return arg == nil }), 1).Return(nil, expectedError).Once()
 
-    // Service logs and continues
-    err := batchSvc.GenerateNewQuizzesAndSave(ctx)
-    assert.NoError(t, err) // Batch continues
+	// Service logs and continues
+	err := batchSvc.GenerateNewQuizzesAndSave(ctx)
+	assert.NoError(t, err) // Batch continues
 
-    mockQuizRepo.AssertExpectations(t)
-    mockQuizGenSvc.AssertExpectations(t) // Updated mock
-    mockEmbeddingService.AssertNotCalled(t, "Generate", mock.Anything, mock.Anything)
-    mockQuizRepo.AssertNotCalled(t, "SaveQuiz", mock.Anything, mock.Anything)
+	mockQuizRepo.AssertExpectations(t)
+	mockQuizGenSvc.AssertExpectations(t) // Updated mock
+	mockEmbeddingService.AssertNotCalled(t, "Generate", mock.Anything, mock.Anything)
+	mockQuizRepo.AssertNotCalled(t, "SaveQuiz", mock.Anything, mock.Anything)
 }
 
 func TestGenerateNewQuizzesAndSave_Error_EmbeddingServiceFailsOnNewQuiz(t *testing.T) {
-    mockQuizRepo := new(MockQuizRepository)
-    mockCategoryRepo := new(MockCategoryRepository)
-    mockEmbeddingService := new(MockEmbeddingService)
-    mockQuizGenSvc := new(MockQuizGenerationService) // Renamed from mockLLMClient
+	mockQuizRepo := new(MockQuizRepository)
+	mockCategoryRepo := new(MockCategoryRepository)
+	mockEmbeddingService := new(MockEmbeddingService)
+	mockQuizGenSvc := new(MockQuizGenerationService) // Renamed from mockLLMClient
 
-    logger, _ := zap.NewDevelopment()
-    cfg := &config.Config{
-        Embedding: config.EmbeddingConfig{SimilarityThreshold: 0.9},
-        Batch:     config.BatchConfig{NumQuestionsPerSubCategory: 1},
-    }
-    batchSvc := NewBatchService(mockQuizRepo, mockCategoryRepo, mockEmbeddingService, mockQuizGenSvc, cfg, logger) // Updated argument
-    ctx := context.Background()
-    subCategoryID1 := "subCatEmbedErr"
+	logger, _ := zap.NewDevelopment()
+	cfg := &config.Config{
+		Embedding: config.EmbeddingConfig{SimilarityThreshold: 0.9},
+		Batch:     config.BatchConfig{NumQuestionsPerSubCategory: 1},
+	}
+	batchSvc := NewBatchService(mockQuizRepo, mockCategoryRepo, mockEmbeddingService, mockQuizGenSvc, cfg, logger) // Updated argument
+	ctx := context.Background()
+	subCategoryID1 := "subCatEmbedErr"
 
-    generatedQuiz1 := &domain.NewQuizData{Question: "Q Embed Err", ModelAnswer: "A", Keywords: []string{"k"}, Difficulty: "easy"}
-    expectedError := errors.New("embedding failed")
+	generatedQuiz1 := &domain.NewQuizData{Question: "Q Embed Err", ModelAnswer: "A", Keywords: []string{"k"}, Difficulty: "easy"}
+	expectedError := errors.New("embedding failed")
 
-    mockQuizRepo.On("GetAllSubCategories", ctx).Return([]string{subCategoryID1}, nil).Once()
-    mockQuizRepo.On("GetQuizzesBySubCategory", ctx, subCategoryID1).Return([]*domain.Quiz{}, nil).Once()
+	mockQuizRepo.On("GetAllSubCategories", ctx).Return([]string{subCategoryID1}, nil).Once()
+	mockQuizRepo.On("GetQuizzesBySubCategory", ctx, subCategoryID1).Return([]*domain.Quiz{}, nil).Once()
 	mockQuizGenSvc.On("GenerateQuizCandidates", ctx, subCategoryID1, mock.MatchedBy(func(arg []string) bool { return arg == nil }), 1).Return([]*domain.NewQuizData{generatedQuiz1}, nil).Once()
-    mockEmbeddingService.On("Generate", ctx, generatedQuiz1.Question).Return(nil, expectedError).Once()
+	mockEmbeddingService.On("Generate", ctx, generatedQuiz1.Question).Return(nil, expectedError).Once()
 
-    // Service logs and continues
-    err := batchSvc.GenerateNewQuizzesAndSave(ctx)
-    assert.NoError(t, err) // Batch continues
+	// Service logs and continues
+	err := batchSvc.GenerateNewQuizzesAndSave(ctx)
+	assert.NoError(t, err) // Batch continues
 
-    mockQuizRepo.AssertExpectations(t)
-    mockQuizGenSvc.AssertExpectations(t) // Updated mock
-    mockEmbeddingService.AssertExpectations(t)
-    mockQuizRepo.AssertNotCalled(t, "SaveQuiz", mock.Anything, mock.Anything)
+	mockQuizRepo.AssertExpectations(t)
+	mockQuizGenSvc.AssertExpectations(t) // Updated mock
+	mockEmbeddingService.AssertExpectations(t)
+	mockQuizRepo.AssertNotCalled(t, "SaveQuiz", mock.Anything, mock.Anything)
 }
 
-
 func TestGenerateNewQuizzesAndSave_Error_SaveQuizFails(t *testing.T) {
-    mockQuizRepo := new(MockQuizRepository)
-    mockCategoryRepo := new(MockCategoryRepository)
-    mockEmbeddingService := new(MockEmbeddingService)
-    mockQuizGenSvc := new(MockQuizGenerationService) // Renamed from mockLLMClient
+	mockQuizRepo := new(MockQuizRepository)
+	mockCategoryRepo := new(MockCategoryRepository)
+	mockEmbeddingService := new(MockEmbeddingService)
+	mockQuizGenSvc := new(MockQuizGenerationService) // Renamed from mockLLMClient
 
-    logger, _ := zap.NewDevelopment()
-    cfg := &config.Config{
-        Embedding: config.EmbeddingConfig{SimilarityThreshold: 0.9},
-        Batch:     config.BatchConfig{NumQuestionsPerSubCategory: 1},
-    }
-    batchSvc := NewBatchService(mockQuizRepo, mockCategoryRepo, mockEmbeddingService, mockQuizGenSvc, cfg, logger) // Updated argument
-    ctx := context.Background()
-    subCategoryID1 := "subCatSaveErr"
+	logger, _ := zap.NewDevelopment()
+	cfg := &config.Config{
+		Embedding: config.EmbeddingConfig{SimilarityThreshold: 0.9},
+		Batch:     config.BatchConfig{NumQuestionsPerSubCategory: 1},
+	}
+	batchSvc := NewBatchService(mockQuizRepo, mockCategoryRepo, mockEmbeddingService, mockQuizGenSvc, cfg, logger) // Updated argument
+	ctx := context.Background()
+	subCategoryID1 := "subCatSaveErr"
 
-    generatedQuiz1 := &domain.NewQuizData{Question: "Q Save Err", ModelAnswer: "A", Keywords: []string{"k"}, Difficulty: "easy"}
-    embeddingForGeneratedQ1 := []float32{0.1, 0.2, 0.3}
-    expectedError := errors.New("save failed")
+	generatedQuiz1 := &domain.NewQuizData{Question: "Q Save Err", ModelAnswer: "A", Keywords: []string{"k"}, Difficulty: "easy"}
+	embeddingForGeneratedQ1 := []float32{0.1, 0.2, 0.3}
+	expectedError := errors.New("save failed")
 
-    mockQuizRepo.On("GetAllSubCategories", ctx).Return([]string{subCategoryID1}, nil).Once()
-    mockQuizRepo.On("GetQuizzesBySubCategory", ctx, subCategoryID1).Return([]*domain.Quiz{}, nil).Once()
-    mockQuizGenSvc.On("GenerateQuizCandidates", ctx, subCategoryID1, mock.MatchedBy(func(arg []string) bool { return arg == nil }), 1).Return([]*domain.NewQuizData{generatedQuiz1}, nil).Once()
-    mockEmbeddingService.On("Generate", ctx, generatedQuiz1.Question).Return(embeddingForGeneratedQ1, nil).Once()
-    mockQuizRepo.On("SaveQuiz", ctx, mock.MatchedBy(func(quiz *domain.Quiz) bool {
-        return quiz.Question == generatedQuiz1.Question
-    })).Return(expectedError).Once()
+	mockQuizRepo.On("GetAllSubCategories", ctx).Return([]string{subCategoryID1}, nil).Once()
+	mockQuizRepo.On("GetQuizzesBySubCategory", ctx, subCategoryID1).Return([]*domain.Quiz{}, nil).Once()
+	mockQuizGenSvc.On("GenerateQuizCandidates", ctx, subCategoryID1, mock.MatchedBy(func(arg []string) bool { return arg == nil }), 1).Return([]*domain.NewQuizData{generatedQuiz1}, nil).Once()
+	mockEmbeddingService.On("Generate", ctx, generatedQuiz1.Question).Return(embeddingForGeneratedQ1, nil).Once()
+	mockQuizRepo.On("SaveQuiz", ctx, mock.MatchedBy(func(quiz *domain.Quiz) bool {
+		return quiz.Question == generatedQuiz1.Question
+	})).Return(expectedError).Once()
 
-    // Service logs and continues
-    err := batchSvc.GenerateNewQuizzesAndSave(ctx)
-    assert.NoError(t, err) // Batch continues
+	// Service logs and continues
+	err := batchSvc.GenerateNewQuizzesAndSave(ctx)
+	assert.NoError(t, err) // Batch continues
 
-    mockQuizRepo.AssertExpectations(t)
-    mockQuizGenSvc.AssertExpectations(t) // Updated mock
-    mockEmbeddingService.AssertExpectations(t)
+	mockQuizRepo.AssertExpectations(t)
+	mockQuizGenSvc.AssertExpectations(t) // Updated mock
+	mockEmbeddingService.AssertExpectations(t)
 }
 
 // TODO: Add TestGenerateNewQuizzesAndSave_Error_EmbeddingServiceFailsOnExistingQuiz if caching is off or for first load
@@ -315,25 +313,6 @@ func TestGenerateNewQuizzesAndSave_Error_SaveQuizFails(t *testing.T) {
 // `subCategoryNameForLLM := subCategoryID`
 // This means the QuizGenerationService mock should expect subCategoryID as the subCategoryName argument.
 // The tests reflect this by using subCategoryID in `mockQuizGenSvc.On("GenerateQuizCandidates", ctx, subCategoryID1, ...)`
-
-// Helper for creating a basic config for tests
-func getTestConfig() *config.Config {
-	return &config.Config{
-		Embedding: config.EmbeddingConfig{
-			SimilarityThreshold: 0.9,
-		},
-		Batch: config.BatchConfig{
-			NumQuestionsPerSubCategory: 2,
-		},
-		// Add other necessary fields if your service starts using them
-	}
-}
-
-// Helper for creating a test logger
-func getTestLogger() *zap.Logger {
-	logger, _ := zap.NewDevelopment() // Or zap.NewNop() for less output
-	return logger
-}
 
 // Example of a more structured test table (can be used for some error cases or variations)
 /*

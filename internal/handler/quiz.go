@@ -215,29 +215,6 @@ func (h *QuizHandler) CheckAnswer(c *fiber.Ctx) error {
 		}(c.Context(), userID, req.QuizID, req.UserAnswer, answer)
 	}
 
-	if err != nil {
-		if domainErr, ok := err.(*domain.DomainError); ok {
-			switch domainErr.Code {
-			case domain.ErrQuizNotFound:
-				return c.Status(fiber.StatusNotFound).JSON(dto.ErrorResponse{
-					Error: string(domainErr.Code),
-				})
-			case domain.ErrLLMServiceError:
-				return c.Status(fiber.StatusServiceUnavailable).JSON(dto.ErrorResponse{
-					Error: string(domainErr.Code),
-				})
-			default:
-				return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
-					Error: string(domain.ErrInternal),
-				})
-			}
-		}
-		// Fallback for non-DomainError types
-		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
-			Error: string(domain.ErrInternal),
-		})
-	}
-
 	return c.JSON(domainResult)
 }
 
