@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 	// "testing" // Removed unused import
-	"time"    // Import time if any mock methods use it
+	"time" // Import time if any mock methods use it
 
 	"quiz-byte/internal/domain"
 	"quiz-byte/internal/dto" // Import dto if used by any mock method signatures
@@ -62,6 +62,27 @@ func (m *MockQuizRepository) GetRandomQuizBySubCategory(subCategory string) (*do
 	return args.Get(0).(*domain.Quiz), args.Error(1)
 }
 
+func (m *MockQuizRepository) GetQuizEvaluation(quizID string) (*domain.QuizEvaluation, error) {
+	args := m.Called(quizID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.QuizEvaluation), args.Error(1)
+}
+
+func (m *MockQuizRepository) SaveQuizEvaluation(evaluation *domain.QuizEvaluation) error {
+	args := m.Called(evaluation)
+	return args.Error(0)
+}
+
+func (m *MockQuizRepository) GetUnattemptedQuizzesWithDetails(ctx context.Context, userID string, limit int, subCategoryID string) ([]dto.QuizRecommendationItem, error) {
+	args := m.Called(ctx, userID, limit, subCategoryID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]dto.QuizRecommendationItem), args.Error(1)
+}
+
 func (m *MockQuizRepository) GetSimilarQuiz(quizID string) (*domain.Quiz, error) {
 	args := m.Called(quizID)
 	if args.Get(0) == nil {
@@ -86,6 +107,11 @@ func (m *MockQuizRepository) GetQuizzesByCriteria(SubCategoryID string, limit in
 func (m *MockQuizRepository) GetSubCategoryIDByName(name string) (string, error) {
 	args := m.Called(name)
 	return args.String(0), args.Error(1)
+}
+
+func (m *MockQuizRepository) UpdateQuiz(quiz *domain.Quiz) error {
+	args := m.Called(quiz)
+	return args.Error(0)
 }
 
 // --- MockCategoryRepository ---
@@ -201,23 +227,22 @@ func (m *MockCache) HGet(ctx context.Context, key, field string) (string, error)
 // Add them if a specific test needs them for this general MockCache.
 // For AnswerCacheService tests, MockAnswerCacheDomainCache has its own HGetAll, HSet, Expire.
 func (m *MockCache) HGetAll(ctx context.Context, key string) (map[string]string, error) {
-    args := m.Called(ctx, key)
-    if args.Get(0) == nil {
-        return nil, args.Error(1)
-    }
-    return args.Get(0).(map[string]string), args.Error(1)
+	args := m.Called(ctx, key)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(map[string]string), args.Error(1)
 }
 
 func (m *MockCache) HSet(ctx context.Context, key string, field string, value string) error {
-    args := m.Called(ctx, key, field, value)
-    return args.Error(0)
+	args := m.Called(ctx, key, field, value)
+	return args.Error(0)
 }
 
 func (m *MockCache) Expire(ctx context.Context, key string, expiration time.Duration) error {
-    args := m.Called(ctx, key, expiration)
-    return args.Error(0)
+	args := m.Called(ctx, key, expiration)
+	return args.Error(0)
 }
-
 
 // Ensure all required methods for interfaces are present in the mocks
 var _ domain.QuizRepository = (*MockQuizRepository)(nil)

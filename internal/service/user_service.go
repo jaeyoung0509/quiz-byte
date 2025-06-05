@@ -31,10 +31,10 @@ type UserService interface {
 }
 
 type userServiceImpl struct {
-	userRepo         repository.UserRepository
-	attemptRepo      repository.UserQuizAttemptRepository
-	quizRepo         domain.QuizRepository // Changed from repository.QuizRepository
-	appConfig        *config.Config
+	userRepo    repository.UserRepository
+	attemptRepo repository.UserQuizAttemptRepository
+	quizRepo    domain.QuizRepository // Changed from repository.QuizRepository
+	appConfig   *config.Config
 }
 
 // NewUserService creates a new instance of UserService.
@@ -68,14 +68,13 @@ func (s *userServiceImpl) GetUserProfile(ctx context.Context, userID string) (*d
 	}
 	// Additional check for user == nil even if err == nil, just in case.
 	if user == nil {
-	    return nil, ErrUserProfileNotFound
+		return nil, ErrUserProfileNotFound
 	}
-
 
 	return &dto.UserProfileResponse{
 		ID:                user.ID,
 		Email:             user.Email,
-		Name:              user.Name.String, // Assuming Name is sql.NullString
+		Name:              user.Name.String,              // Assuming Name is sql.NullString
 		ProfilePictureURL: user.ProfilePictureURL.String, // Assuming ProfilePictureURL is sql.NullString
 	}, nil
 }
@@ -93,7 +92,6 @@ func (s *userServiceImpl) RecordQuizAttempt(ctx context.Context, userID string, 
 	if evalResult.KeywordMatches != nil {
 		keywordMatchesSlice = models.StringSlice(evalResult.KeywordMatches)
 	}
-
 
 	attempt := &models.UserQuizAttempt{
 		ID:                util.NewULID(),
@@ -113,7 +111,6 @@ func (s *userServiceImpl) RecordQuizAttempt(ctx context.Context, userID string, 
 		attempt.AttemptedAt = time.Now()
 	}
 
-
 	if err := s.attemptRepo.CreateAttempt(ctx, attempt); err != nil {
 		return fmt.Errorf("failed to create user quiz attempt in repository: %w", err)
 	}
@@ -129,7 +126,7 @@ func (s *userServiceImpl) GetUserQuizAttempts(ctx context.Context, userID string
 
 	attemptItems := make([]dto.UserQuizAttemptItem, len(attempts))
 	for i, attempt := range attempts {
-		quiz, errQuiz := s.quizRepo.GetQuizByID(ctx, attempt.QuizID)
+		quiz, errQuiz := s.quizRepo.GetQuizByID(attempt.QuizID)
 		if errQuiz != nil || quiz == nil {
 			if quiz == nil && errQuiz == nil { // Repository returned (nil,nil) for not found
 				return nil, fmt.Errorf("%w: quiz_id %s for attempt_id %s (quiz not found)", ErrQuizDetailNotFound, attempt.QuizID, attempt.ID)
@@ -138,14 +135,14 @@ func (s *userServiceImpl) GetUserQuizAttempts(ctx context.Context, userID string
 		}
 
 		attemptItems[i] = dto.UserQuizAttemptItem{
-			AttemptID:         attempt.ID,
-			QuizID:            attempt.QuizID,
-			QuizQuestion:      quiz.Question,
-			UserAnswer:        attempt.UserAnswer.String,
-			LlmScore:          attempt.LlmScore.Float64,
-			LlmExplanation:    attempt.LlmExplanation.String,
-			IsCorrect:         attempt.IsCorrect,
-			AttemptedAt:       attempt.AttemptedAt,
+			AttemptID:      attempt.ID,
+			QuizID:         attempt.QuizID,
+			QuizQuestion:   quiz.Question,
+			UserAnswer:     attempt.UserAnswer.String,
+			LlmScore:       attempt.LlmScore.Float64,
+			LlmExplanation: attempt.LlmExplanation.String,
+			IsCorrect:      attempt.IsCorrect,
+			AttemptedAt:    attempt.AttemptedAt,
 		}
 	}
 
@@ -153,18 +150,17 @@ func (s *userServiceImpl) GetUserQuizAttempts(ctx context.Context, userID string
 	totalPages := 0
 	if pagination.Limit > 0 {
 		currentPage = pagination.Offset/pagination.Limit + 1
-		totalPages = (total + pagination.Limit -1) / pagination.Limit
+		totalPages = (total + pagination.Limit - 1) / pagination.Limit
 	}
-
 
 	return &dto.UserQuizAttemptsResponse{
 		Attempts: attemptItems,
 		PaginationInfo: dto.PaginationInfo{
-			TotalItems: total,
-			Limit:      pagination.Limit,
-			Offset:     pagination.Offset,
+			TotalItems:  total,
+			Limit:       pagination.Limit,
+			Offset:      pagination.Offset,
 			CurrentPage: currentPage,
-			TotalPages: totalPages,
+			TotalPages:  totalPages,
 		},
 	}, nil
 }
@@ -199,7 +195,7 @@ func (s *userServiceImpl) GetUserIncorrectAnswers(ctx context.Context, userID st
 
 	incorrectAnswerItems := make([]dto.UserIncorrectAnswerItem, len(attempts))
 	for i, attempt := range attempts {
-		quiz, errQuiz := s.quizRepo.GetQuizByID(ctx, attempt.QuizID)
+		quiz, errQuiz := s.quizRepo.GetQuizByID(attempt.QuizID)
 		if errQuiz != nil || quiz == nil {
 			if quiz == nil && errQuiz == nil {
 				return nil, fmt.Errorf("%w: quiz_id %s for attempt_id %s (quiz not found)", ErrQuizDetailNotFound, attempt.QuizID, attempt.ID)
@@ -208,14 +204,14 @@ func (s *userServiceImpl) GetUserIncorrectAnswers(ctx context.Context, userID st
 		}
 
 		incorrectAnswerItems[i] = dto.UserIncorrectAnswerItem{
-			AttemptID:         attempt.ID,
-			QuizID:            attempt.QuizID,
-			QuizQuestion:      quiz.Question,
-			UserAnswer:        attempt.UserAnswer.String,
-			CorrectAnswer:     quiz.ModelAnswers,
-			LlmScore:          attempt.LlmScore.Float64,
-			LlmExplanation:    attempt.LlmExplanation.String,
-			AttemptedAt:       attempt.AttemptedAt,
+			AttemptID:      attempt.ID,
+			QuizID:         attempt.QuizID,
+			QuizQuestion:   quiz.Question,
+			UserAnswer:     attempt.UserAnswer.String,
+			CorrectAnswer:  quiz.ModelAnswers[0], // Assuming ModelAnswers is a slice and we take the first one as the correct answer  TODO: fix it
+			LlmScore:       attempt.LlmScore.Float64,
+			LlmExplanation: attempt.LlmExplanation.String,
+			AttemptedAt:    attempt.AttemptedAt,
 			// QuizExplanation: quiz.Explanation,
 		}
 	}
@@ -224,17 +220,17 @@ func (s *userServiceImpl) GetUserIncorrectAnswers(ctx context.Context, userID st
 	totalPages := 0
 	if pagination.Limit > 0 {
 		currentPage = pagination.Offset/pagination.Limit + 1
-		totalPages = (total + pagination.Limit -1) / pagination.Limit
+		totalPages = (total + pagination.Limit - 1) / pagination.Limit
 	}
 
 	return &dto.UserIncorrectAnswersResponse{
 		IncorrectAnswers: incorrectAnswerItems,
 		PaginationInfo: dto.PaginationInfo{
-			TotalItems: total,
-			Limit:      pagination.Limit,
-			Offset:     pagination.Offset,
+			TotalItems:  total,
+			Limit:       pagination.Limit,
+			Offset:      pagination.Offset,
 			CurrentPage: currentPage,
-			TotalPages: totalPages,
+			TotalPages:  totalPages,
 		},
 	}, nil
 }

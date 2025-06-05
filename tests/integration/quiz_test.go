@@ -41,12 +41,18 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-var app *fiber.App
-var logInstance *zap.Logger
-var db *sqlx.DB
-var redisClient *redis.Client
+const AnswerCachePrefix = "answer_evals:"
 
-var subCategoryNameToIDMap map[string]string
+var (
+	app         *fiber.App
+	logInstance *zap.Logger
+	db          *sqlx.DB
+	redisClient *redis.Client
+
+	subCategoryNameToIDMap map[string]string
+
+	cacheKey string
+)
 
 type TempQuizData struct {
 	MainCategory string   `json:"main_category"`
@@ -106,7 +112,10 @@ func TestMain(m *testing.M) {
 		logInstance.Fatal("Failed to save quizzes", zap.Error(err))
 	}
 
+	// Create repositories and services
 	quizDomainRepo := repository.NewQuizDatabaseAdapter(db)
+	userRepo := repository.NewSQLXUserRepository(db)
+	attemptRepo := repository.NewSQLXUserQuizAttemptRepository(db)
 
 	ollamaHTTPClient := &http.Client{
 		Timeout: 20 * time.Second,
@@ -129,9 +138,10 @@ func TestMain(m *testing.M) {
 	clearRedisCache(redisClient)
 	redisAdapter := adapter.NewRedisCacheAdapter(redisClient)
 
-	// cfg is the 4th argument. EmbeddingService and AnswerCacheService are new and set to nil for now.
+	// Initialize services
 	quizService := service.NewQuizService(quizDomainRepo, evaluator, redisAdapter, cfg, nil, nil)
-	quizHandler := handler.NewQuizHandler(quizService)
+	userService := service.NewUserService(userRepo, attemptRepo, quizDomainRepo, cfg)
+	quizHandler := handler.NewQuizHandler(quizService, userService)
 
 	app = fiber.New(fiber.Config{ // Remove ErrorHandler from here
 		ReadTimeout:  cfg.Server.ReadTimeout,
@@ -603,7 +613,7 @@ func TestCheckAnswer_Caching(t *testing.T) {
 
 	logInstance.Info("Using quiz for caching tests", zap.String("quizID", testQuizID), zap.String("question", testQuizQuestion))
 
-	cacheKey := service.AnswerCachePrefix + testQuizID // Corrected constant name
+	cacheKey = service.AnswerCachePrefix + testQuizID // Corrected constant name
 
 	t.Run("CacheMissFirstAnswer", func(t *testing.T) {
 		clearRedisCacheKey(redisClient, cacheKey)

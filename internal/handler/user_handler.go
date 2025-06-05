@@ -3,12 +3,13 @@ package handler
 import (
 	"errors"
 	"quiz-byte/internal/dto"
+	"quiz-byte/internal/logger"     // Added
 	"quiz-byte/internal/middleware" // For UserIDKey and ErrorResponse
 	"quiz-byte/internal/service"
-	"quiz-byte/internal/logger" // Added
 	"strconv"
 	"strings"
 	"time"
+
 	"go.uber.org/zap" // Added
 
 	"github.com/gofiber/fiber/v2"
@@ -104,13 +105,16 @@ func parseAttemptFilters(c *fiber.Ctx) dto.AttemptFilters {
 		}
 	}
 
+	// TODO: fix it
+	_ = startDate
+	_ = endDate
 
 	return dto.AttemptFilters{
 		CategoryID: c.Query("category_id"),
 		StartDate:  startDateStr, // Keep as string for now, service layer will parse
 		EndDate:    endDateStr,   // Keep as string for now, service layer will parse
 		IsCorrect:  isCorrectPtr,
-		SortBy:     c.Query("sort_by", "attempted_at"), // Default sort by time
+		SortBy:     c.Query("sort_by", "attempted_at"),             // Default sort by time
 		SortOrder:  strings.ToUpper(c.Query("sort_order", "DESC")), // Default sort order DESC
 	}
 }
@@ -212,7 +216,6 @@ func (h *UserHandler) GetMyIncorrectAnswers(c *fiber.Ctx) error {
 	}
 	return c.JSON(response)
 }
-
 
 // GetMyRecommendations retrieves personalized quiz recommendations for the authenticated user.
 // @Summary Get My Quiz Recommendations

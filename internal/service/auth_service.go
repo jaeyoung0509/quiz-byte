@@ -11,7 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
+
 	"quiz-byte/internal/config"
 	"quiz-byte/internal/domain" // For custom errors like UserNotFoundError
 	"quiz-byte/internal/dto"    // For AuthClaims
@@ -72,11 +72,10 @@ func NewAuthService(userRepo repository.UserRepository, appConfig *config.Config
 	if len(appConfig.JWT.SecretKey) >= 32 {
 		encKey = []byte(appConfig.JWT.SecretKey[:32])
 	} else {
-        // This is not secure for production. A proper key should be configured.
+		// This is not secure for production. A proper key should be configured.
 		// For now, let's pad or error. Erroring is safer.
 		return nil, errors.New("encryption key must be at least 32 bytes long")
 	}
-
 
 	return &authServiceImpl{
 		userRepo: userRepo,
@@ -143,16 +142,16 @@ func (s *authServiceImpl) HandleGoogleCallback(ctx context.Context, code string,
 	now := time.Now()
 	if user == nil { // User not found, create new user
 		newUser := &models.User{
-			ID:                  util.NewULID(),
-			GoogleID:            userInfo.ID,
-			Email:               userInfo.Email,
-			Name:                util.StringToNullString(userInfo.Name),
-			ProfilePictureURL:   util.StringToNullString(userInfo.Picture),
-			EncryptedAccessToken: util.StringToNullString(encryptedAccessToken),
+			ID:                    util.NewULID(),
+			GoogleID:              userInfo.ID,
+			Email:                 userInfo.Email,
+			Name:                  util.StringToNullString(userInfo.Name),
+			ProfilePictureURL:     util.StringToNullString(userInfo.Picture),
+			EncryptedAccessToken:  util.StringToNullString(encryptedAccessToken),
 			EncryptedRefreshToken: util.StringToNullString(encryptedRefreshToken),
-			TokenExpiresAt:      util.TimeToNullTime(googleToken.Expiry),
-			CreatedAt:           now,
-			UpdatedAt:           now,
+			TokenExpiresAt:        util.TimeToNullTime(googleToken.Expiry),
+			CreatedAt:             now,
+			UpdatedAt:             now,
 		}
 		if err := s.userRepo.CreateUser(ctx, newUser); err != nil {
 			return "", "", nil, fmt.Errorf("failed to create user: %w", err)
@@ -253,11 +252,8 @@ func (s *authServiceImpl) RefreshToken(ctx context.Context, refreshTokenString s
 
 	user, err := s.userRepo.GetUserByID(ctx, claims.UserID)
 	if err != nil || user == nil {
-		if errors.Is(err, sql.ErrNoRows) || user == nil { // More explicit check for not found
-			return "", "", domain.ErrUserNotFound // Use a domain specific error
-		}
 		appLogger.Error("User not found for refresh token", zap.String("userID", claims.UserID), zap.Error(err))
-		return "", "", fmt.Errorf("error fetching user for refresh token: %w", err)
+		return "", "", domain.NewNotFoundError(fmt.Sprintf("User %s not found for refresh token", claims.UserID))
 	}
 
 	newAccessToken, err := s.CreateJWT(ctx, user, s.appConfig.JWT.AccessTokenTTL, tokenTypeAccess)
@@ -272,7 +268,6 @@ func (s *authServiceImpl) RefreshToken(ctx context.Context, refreshTokenString s
 	appLogger.Info("JWT token refreshed", zap.String("userID", user.ID))
 	return newAccessToken, newRefreshToken, nil
 }
-
 
 // EncryptToken encrypts a token using AES-GCM.
 func (s *authServiceImpl) EncryptToken(token string) (string, error) {

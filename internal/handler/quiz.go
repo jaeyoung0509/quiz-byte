@@ -92,7 +92,6 @@ func (h *QuizHandler) GetRandomQuiz(c *fiber.Ctx) error {
 		appLogger.Info("Random quiz requested (unauthenticated)", zap.String("sub_category", subCategory))
 	}
 
-
 	quiz, err := h.service.GetRandomQuiz(subCategory)
 	if err != nil {
 		appLogger.Error("Failed to get random quiz from service",
@@ -171,17 +170,18 @@ func (h *QuizHandler) CheckAnswer(c *fiber.Ctx) error {
 		})
 	}
 
-	result, err := h.service.CheckAnswer(&req) // This is domain.Answer
+	// Call the service to get both the domain.Answer and the response DTO
+	domainResult, err := h.service.CheckAnswer(&req) // Adjust service to return both if needed
 	if err != nil {
 		appLogger.Error("Failed to check answer via QuizService",
 			zap.Error(err),
 			zap.String("quiz_id", req.QuizID),
 		)
 		if domainErr, ok := err.(*domain.DomainError); ok {
-            return c.Status(mapDomainErrorToHTTPStatus(domainErr)).JSON(middleware.ErrorResponse{
-                Code: string(domainErr.Code), Message: domainErr.Message, Status: mapDomainErrorToHTTPStatus(domainErr),
-            })
-        }
+			return c.Status(mapDomainErrorToHTTPStatus(domainErr)).JSON(middleware.ErrorResponse{
+				Code: string(domainErr.Code), Message: domainErr.Message, Status: mapDomainErrorToHTTPStatus(domainErr),
+			})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(middleware.ErrorResponse{
 			Code: "INTERNAL_ERROR", Message: "Error checking answer", Status: fiber.StatusInternalServerError,
 		})
@@ -191,60 +191,68 @@ func (h *QuizHandler) CheckAnswer(c *fiber.Ctx) error {
 	userID, ok := c.Locals(middleware.UserIDKey).(string)
 	if ok && userID != "" && h.userService != nil {
 		appLogger.Info("Quiz attempt recording initiated for user", zap.String("userID", userID), zap.String("quizID", req.QuizID))
+
+		// Convert dto.CheckAnswerResponse to domain.Answer
+		answer := &domain.Answer{
+			Score:          domainResult.Score,
+			Explanation:    domainResult.Explanation,
+			KeywordMatches: domainResult.KeywordMatches,
+			AnsweredAt:     time.Now(),
+			Completeness:   domainResult.Completeness,
+			Relevance:      domainResult.Relevance,
+			Accuracy:       domainResult.Accuracy,
+		}
+
 		go func(ctx context.Context, currentUserID string, quizIDFromReq string, userAnswerFromReq string, evalResultFromService *domain.Answer) {
-			// Create a new context for the goroutine if c.Context() is not safe to pass directly
-			// For simplicity, using c.Context() but background context is safer for detached goroutines.
-			// detachedCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second) // Example timeout
-			// defer cancel()
 			errRecord := h.userService.RecordQuizAttempt(ctx, currentUserID, quizIDFromReq, userAnswerFromReq, evalResultFromService)
 			if errRecord != nil {
-				// This logger is already in the goroutine from previous step, so it's fine.
-				logger.Get().Error("Failed to record user quiz attempt in goroutine", // Clarified log source
+				logger.Get().Error("Failed to record user quiz attempt in goroutine",
 					zap.String("userID", currentUserID),
 					zap.String("quizID", quizIDFromReq),
 					zap.Error(errRecord),
 				)
 			}
-		}(c.Context(), userID, req.QuizID, req.UserAnswer, result)
+		}(c.Context(), userID, req.QuizID, req.UserAnswer, answer)
 	}
+
+	if err != nil {
 		if domainErr, ok := err.(*domain.DomainError); ok {
 			switch domainErr.Code {
 			case domain.ErrQuizNotFound:
 				return c.Status(fiber.StatusNotFound).JSON(dto.ErrorResponse{
-					Error: string(domainErr.Code), // Use code from error
+					Error: string(domainErr.Code),
 				})
 			case domain.ErrLLMServiceError:
 				return c.Status(fiber.StatusServiceUnavailable).JSON(dto.ErrorResponse{
-					Error: string(domainErr.Code), // Use code from error
+					Error: string(domainErr.Code),
 				})
 			default:
 				return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
-					Error: string(domain.ErrInternal), // Default to internal error code
+					Error: string(domain.ErrInternal),
 				})
 			}
-		} // Added missing closing brace for if domainErr
+		}
 		// Fallback for non-DomainError types
 		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
 			Error: string(domain.ErrInternal),
 		})
-	} // This is the closing brace for if err != nil
+	}
 
-	return c.JSON(result)
+	return c.JSON(domainResult)
 }
 
 // Helper function (can be moved to a shared place or be part of existing error handling)
 func mapDomainErrorToHTTPStatus(err *domain.DomainError) int {
-    // This function might already exist or be similar to one in middleware/error.go
-    switch err.Code {
-    case domain.ErrQuizNotFound:
-        return fiber.StatusNotFound
-    case domain.ErrLLMServiceError:
-        return fiber.StatusServiceUnavailable
-    default:
-        return fiber.StatusInternalServerError
-    }
+	// This function might already exist or be similar to one in middleware/error.go
+	switch err.Code {
+	case domain.ErrQuizNotFound:
+		return fiber.StatusNotFound
+	case domain.ErrLLMServiceError:
+		return fiber.StatusServiceUnavailable
+	default:
+		return fiber.StatusInternalServerError
+	}
 }
-
 
 // GetBulkQuizzes godoc
 // @Summary Get multiple quizzes by sub-category
@@ -311,11 +319,11 @@ func (h *QuizHandler) GetBulkQuizzes(c *fiber.Ctx) error {
 			zap.String("sub_category", subCategory),
 			zap.Int("count", count),
 		)
-        if domainErr, ok := err.(*domain.DomainError); ok {
-            return c.Status(mapDomainErrorToHTTPStatus(domainErr)).JSON(middleware.ErrorResponse{
-                Code: string(domainErr.Code), Message: domainErr.Message, Status: mapDomainErrorToHTTPStatus(domainErr),
-            })
-        }
+		if domainErr, ok := err.(*domain.DomainError); ok {
+			return c.Status(mapDomainErrorToHTTPStatus(domainErr)).JSON(middleware.ErrorResponse{
+				Code: string(domainErr.Code), Message: domainErr.Message, Status: mapDomainErrorToHTTPStatus(domainErr),
+			})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(middleware.ErrorResponse{
 			Code: "INTERNAL_ERROR", Message: "Error getting bulk quizzes", Status: fiber.StatusInternalServerError,
 		})

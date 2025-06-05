@@ -3,10 +3,12 @@ package service
 import (
 	"bytes" // Added for gob
 	"context"
+
 	// "context" // Removed duplicate
 	"crypto/sha256"
 	"encoding/gob" // Added for gob
 	"encoding/hex"
+
 	// "encoding/json" // No longer used for cache data
 	"io" // For io.EOF with gob
 	"strings"
@@ -22,10 +24,10 @@ import (
 	"go.uber.org/zap"
 )
 
-// const (
-// 	// AnswerCachePrefix     = "quizanswers:" // Removed
-// 	// AnswerCacheExpiration = 24 * time.Hour // To be replaced by config
-// )
+const (
+	AnswerCachePrefix = "quizanswers:" // Cache prefix for answer evaluations
+	// AnswerCacheExpiration = 24 * time.Hour // To be replaced by config
+)
 
 // CachedAnswerEvaluation defines the structure for cached answer evaluations including embeddings
 type CachedAnswerEvaluation struct {
@@ -115,7 +117,6 @@ func (s *answerCacheServiceImpl) GetAnswerFromCache(ctx context.Context, quizID 
 				zap.String("fieldKey", fieldKey))
 			// Depending on policy, might skip or proceed. For now, proceed.
 		}
-
 
 		if len(cachedEntry.Embedding) == 0 {
 			logger.Get().Debug("AnswerCacheService: Skipping cached entry due to missing embedding",

@@ -90,19 +90,27 @@ func main() {
 	appLogger := logger.Get() // Renamed log to appLogger for clarity
 	defer logger.Sync()
 
+	// Initialize Redis Client (remains the same)
+	redisClient, err := cache.NewRedisClient(cfg)
+	if err != nil {
+		appLogger.Fatal("Failed to connect to Redis", zap.Error(err))
+	}
+	appLogger.Info("Successfully connected to Redis")
+	cacheAdapter := adapter.NewRedisCacheAdapter(redisClient)
+
 	// Initialize Embedding Service (remains the same)
 	var embeddingService domain.EmbeddingService
 	switch cfg.Embedding.Source {
 	case "ollama":
 		appLogger.Info("Initializing Ollama Embedding Service", zap.String("server_url", cfg.Embedding.Ollama.ServerURL), zap.String("model", cfg.Embedding.Ollama.Model))
-		embeddingService, err = embedding.NewOllamaEmbeddingService(cfg.Embedding.Ollama.ServerURL, cfg.Embedding.Ollama.Model)
+		embeddingService, err = embedding.NewOllamaEmbeddingService(cfg.Embedding.Ollama.ServerURL, cfg.Embedding.Ollama.Model, cacheAdapter, cfg)
 		if err != nil {
 			appLogger.Fatal("Failed to create Ollama Embedding Service", zap.Error(err))
 		}
 		appLogger.Info("Ollama Embedding Service initialized successfully")
 	case "openai":
 		appLogger.Info("Initializing OpenAI Embedding Service", zap.String("model", cfg.Embedding.OpenAI.Model))
-		embeddingService, err = embedding.NewOpenAIEmbeddingService(cfg.Embedding.OpenAI.APIKey, cfg.Embedding.OpenAI.Model)
+		embeddingService, err = embedding.NewOpenAIEmbeddingService(cfg.Embedding.OpenAI.APIKey, cfg.Embedding.OpenAI.Model, cacheAdapter, cfg)
 		if err != nil {
 			appLogger.Fatal("Failed to create OpenAI Embedding Service", zap.Error(err))
 		}
@@ -129,17 +137,9 @@ func main() {
 	userRepository := repository.NewSQLXUserRepository(db)
 	userQuizAttemptRepository := repository.NewSQLXUserQuizAttemptRepository(db)
 
-
 	// Initialize LLM evaluator (remains the same)
 	evaluator := domain.NewLLMEvaluator(llm)
 
-	// Initialize Redis Client (remains the same)
-	redisClient, err := cache.NewRedisClient(cfg)
-	if err != nil {
-		appLogger.Fatal("Failed to connect to Redis", zap.Error(err))
-	}
-	appLogger.Info("Successfully connected to Redis")
-	cacheAdapter := adapter.NewRedisCacheAdapter(redisClient)
 	appLogger.Info("RedisCacheAdapter initialized")
 	answerCacheService := service.NewAnswerCacheService(cacheAdapter, quizRepository, cfg) // quizRepository instead of domainRepo
 	appLogger.Info("AnswerCacheService initialized")
@@ -156,12 +156,10 @@ func main() {
 	userService := service.NewUserService(userRepository, userQuizAttemptRepository, quizRepository, cfg) // Pass quizRepository
 	appLogger.Info("UserService initialized")
 
-
 	// Initialize handlers
 	quizHandler := handler.NewQuizHandler(quizService, userService) // Pass userService
 	authHandler := handler.NewAuthHandler(authService, cfg)
 	userHandler := handler.NewUserHandler(userService)
-
 
 	// Create Fiber app (remains the same)
 	app := fiber.New(fiber.Config{
@@ -197,13 +195,11 @@ func main() {
 	userGroup.Get("/me/incorrect-answers", userHandler.GetMyIncorrectAnswers)
 	userGroup.Get("/me/recommendations", userHandler.GetMyRecommendations)
 
-
 	// Quiz and Category routes
 	apiGroup.Get("/categories", quizHandler.GetAllSubCategories) // Categories can remain public
 	apiGroup.Get("/quiz", middleware.Protected(authService), quizHandler.GetRandomQuiz)
 	apiGroup.Get("/quizzes", middleware.Protected(authService), quizHandler.GetBulkQuizzes)
 	apiGroup.Post("/quiz/check", middleware.Protected(authService), quizHandler.CheckAnswer)
-
 
 	// Start server (remains the same)
 	go func() {

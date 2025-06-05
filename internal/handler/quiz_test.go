@@ -2,7 +2,9 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt" // Added for fmt.Errorf
 	"net/http"
 	"net/http/httptest"
 	"quiz-byte/internal/domain"
@@ -10,15 +12,15 @@ import (
 	"quiz-byte/internal/repository/models"
 	"quiz-byte/internal/util"
 	"testing"
-	"fmt" // Added for fmt.Errorf
+
+	"log"                       // Added for logger init fatal
+	"os"                        // Added for logger init
+	"quiz-byte/internal/config" // Added for logger init
+	"quiz-byte/internal/logger" // Added for logger init
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"quiz-byte/internal/config" // Added for logger init
-	"quiz-byte/internal/logger" // Added for logger init
-	"os"                        // Added for logger init
-	"log"                       // Added for logger init fatal
 )
 
 func TestMain(m *testing.M) {
@@ -42,6 +44,92 @@ func TestMain(m *testing.M) {
 	// Run tests
 	exitCode := m.Run()
 	os.Exit(exitCode)
+}
+
+// MockUserService is a mock implementation of service.UserService
+type MockUserService struct {
+	mock.Mock
+}
+
+func (m *MockUserService) CreateQuizAttempt(userID, quizID, userAnswer string) error {
+	args := m.Called(userID, quizID, userAnswer)
+	return args.Error(0)
+}
+
+func (m *MockUserService) CreateUser(user *domain.User) (*domain.User, error) {
+	args := m.Called(user)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.User), args.Error(1)
+}
+
+func (m *MockUserService) GetAllUsers() ([]*domain.User, error) {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.User), args.Error(1)
+}
+
+func (m *MockUserService) GetUserByID(id string) (*domain.User, error) {
+	args := m.Called(id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.User), args.Error(1)
+}
+
+func (m *MockUserService) UpdateUser(user *domain.User) error {
+	args := m.Called(user)
+	return args.Error(0)
+}
+
+func (m *MockUserService) DeleteUser(id string) error {
+	args := m.Called(id)
+	return args.Error(0)
+}
+
+// GetUserProfile retrieves a user's profile.
+func (m *MockUserService) GetUserProfile(ctx context.Context, userID string) (*dto.UserProfileResponse, error) {
+	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*dto.UserProfileResponse), args.Error(1)
+}
+
+// GetUserQuizAttempts retrieves user's quiz attempts.
+func (m *MockUserService) GetUserQuizAttempts(ctx context.Context, userID string, filters dto.AttemptFilters, pagination dto.Pagination) (*dto.UserQuizAttemptsResponse, error) {
+	args := m.Called(ctx, userID, filters, pagination)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*dto.UserQuizAttemptsResponse), args.Error(1)
+}
+
+// GetUserIncorrectAnswers retrieves user's incorrect answers.
+func (m *MockUserService) GetUserIncorrectAnswers(ctx context.Context, userID string, filters dto.AttemptFilters, pagination dto.Pagination) (*dto.UserIncorrectAnswersResponse, error) {
+	args := m.Called(ctx, userID, filters, pagination)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*dto.UserIncorrectAnswersResponse), args.Error(1)
+}
+
+// RecordQuizAttempt records a user's quiz attempt.
+func (m *MockUserService) RecordQuizAttempt(ctx context.Context, userID string, quizID string, userAnswer string, evalResult *domain.Answer) error {
+	args := m.Called(ctx, userID, quizID, userAnswer, evalResult)
+	return args.Error(0)
+}
+
+// GetUserRecommendations retrieves user's quiz recommendations.
+func (m *MockUserService) GetUserRecommendations(ctx context.Context, userID string, limit int, optionalSubCategoryID string) (*dto.QuizRecommendationsResponse, error) {
+	args := m.Called(ctx, userID, limit, optionalSubCategoryID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*dto.QuizRecommendationsResponse), args.Error(1)
 }
 
 // MockQuizRepository is a mock object that implements the QuizRepository interface.
@@ -129,8 +217,8 @@ func TestGetAllSubCategories(t *testing.T) {
 			mockError:      nil,
 			expectedStatus: http.StatusOK,
 			expectedBody: map[string]interface{}{
-				"id":          "", // Corrected to lowercase
-				"name":        "All Categories", // Corrected to lowercase
+				"id":          "",                            // Corrected to lowercase
+				"name":        "All Categories",              // Corrected to lowercase
 				"description": "List of all quiz categories", // Corrected to lowercase
 			},
 		},
@@ -148,12 +236,13 @@ func TestGetAllSubCategories(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			app := fiber.New()
-			mockService := new(MockQuizService)
-			handler := NewQuizHandler(mockService)
+			mockQuizService := new(MockQuizService)
+			mockUserService := new(MockUserService)
+			handler := NewQuizHandler(mockQuizService, mockUserService)
 			app.Get("/quiz/categories", handler.GetAllSubCategories)
 
 			// Setup mock
-			mockService.On("GetAllSubCategories").Return(tt.mockResponse, tt.mockError).Once() // Added .Once() for clarity
+			mockQuizService.On("GetAllSubCategories").Return(tt.mockResponse, tt.mockError).Once() // Added .Once() for clarity
 
 			// Create request
 			req := httptest.NewRequest(http.MethodGet, "/quiz/categories", nil)
@@ -173,8 +262,9 @@ func TestGetAllSubCategories(t *testing.T) {
 func TestGetRandomQuiz(t *testing.T) {
 	// Setup
 	app := fiber.New()
-	mockService := new(MockQuizService)
-	handler := NewQuizHandler(mockService)
+	mockQuizService := new(MockQuizService)
+	mockUserService := new(MockUserService)
+	handler := NewQuizHandler(mockQuizService, mockUserService)
 
 	app.Get("/quiz/random/:subCategory", handler.GetRandomQuiz)
 
@@ -221,7 +311,7 @@ func TestGetRandomQuiz(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup mock
-			mockService.On("GetRandomQuiz", tt.subCategory).Return(tt.mockResponse, tt.mockError)
+			mockQuizService.On("GetRandomQuiz", tt.subCategory).Return(tt.mockResponse, tt.mockError)
 
 			// Create request
 			req := httptest.NewRequest(http.MethodGet, "/quiz/random/"+tt.subCategory, nil)
@@ -241,8 +331,9 @@ func TestGetRandomQuiz(t *testing.T) {
 func TestCheckAnswer(t *testing.T) {
 	// Setup
 	app := fiber.New()
-	mockService := new(MockQuizService)
-	handler := NewQuizHandler(mockService)
+	mockQuizService := new(MockQuizService)
+	mockUserService := new(MockUserService)
+	handler := NewQuizHandler(mockQuizService, mockUserService)
 
 	app.Post("/quiz/check", handler.CheckAnswer)
 
@@ -299,7 +390,7 @@ func TestCheckAnswer(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup mock
-			mockService.On("CheckAnswer", tt.requestBody).Return(tt.mockResponse, tt.mockError)
+			mockQuizService.On("CheckAnswer", tt.requestBody).Return(tt.mockResponse, tt.mockError)
 
 			// Create request
 			body, _ := json.Marshal(tt.requestBody)

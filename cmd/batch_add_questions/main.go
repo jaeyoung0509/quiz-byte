@@ -12,6 +12,7 @@ import (
 	"quiz-byte/internal/logger"
 	"quiz-byte/internal/repository"
 	"quiz-byte/internal/service"
+
 	"go.uber.org/zap"
 )
 
@@ -42,7 +43,6 @@ func main() {
 	// Not logging DSN itself for security
 	logger.Get().Info("Successfully generated DSN.")
 
-
 	// Establish DB connection
 	db, err := database.NewSQLXOracleDB(dsn)
 	if err != nil {
@@ -63,7 +63,7 @@ func main() {
 		if cfg.Embedding.OpenAI.APIKey == "" {
 			logger.Get().Fatal("OpenAI API key is not configured.")
 		}
-		embedService, err = embedding.NewOpenAIEmbeddingService(cfg.Embedding.OpenAI.APIKey, cfg.Embedding.OpenAI.Model)
+		embedService, err = embedding.NewOpenAIEmbeddingService(cfg.Embedding.OpenAI.APIKey, cfg.Embedding.OpenAI.Model, nil, cfg)
 		if err != nil {
 			logger.Get().Fatal("Failed to initialize OpenAI Embedding Service", zap.Error(err))
 		}
@@ -78,7 +78,7 @@ func main() {
 		logger.Get().Fatal("Gemini API key is not configured.")
 	}
 	// Initialize the new QuizGenerator
-	quizGenerator, err := quizgen.NewGeminiQuizGenerator(cfg.Gemini.APIKey, cfg.Gemini.Model, logger.Get())
+	quizGenerator, err := quizgen.NewGeminiQuizGenerator(cfg.Gemini.APIKey, cfg.Gemini.Model, logger.Get(), nil, cfg)
 	if err != nil {
 		logger.Get().Fatal("Failed to initialize QuizGenerator", zap.Error(err))
 	}

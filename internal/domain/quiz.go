@@ -91,6 +91,12 @@ func (s *SubCategory) Validate() error {
 }
 
 // Quiz represents a quiz in the domain
+const (
+	DifficultyEasy   = 1
+	DifficultyMedium = 2
+	DifficultyHard   = 3
+)
+
 type Quiz struct {
 	ID            string
 	Question      string

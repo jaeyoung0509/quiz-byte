@@ -3,8 +3,7 @@ package service
 import (
 	"bytes" // Added for gob
 	"context"
-	"encoding/gob"  // Added for gob
-	"encoding/json" // Needed for test data setup before gob encoding for cache
+	"encoding/gob" // Added for gob
 	"fmt"
 	"os"
 	"testing"
@@ -304,8 +303,8 @@ func TestGetBulkQuizzes_Caching(t *testing.T) {
 	cacheKey := fmt.Sprintf("quizbyte:quiz_service:quiz_list:%s:%d", subCategoryID, reqCount)
 
 	domainQuizzes := []*domain.Quiz{
-		{ID: "q1", Question: "Q1?", ModelAnswers: []string{"A1"}, Keywords: []string{"k1"}, DifficultyLevel: domain.DifficultyEasy},
-		{ID: "q2", Question: "Q2?", ModelAnswers: []string{"A2"}, Keywords: []string{"k2"}, DifficultyLevel: domain.DifficultyMedium},
+		{ID: "q1", Question: "Q1?", ModelAnswers: []string{"A1"}, Keywords: []string{"k1"}, Difficulty: domain.DifficultyEasy},
+		{ID: "q2", Question: "Q2?", ModelAnswers: []string{"A2"}, Keywords: []string{"k2"}, Difficulty: domain.DifficultyMedium},
 	}
 	expectedResponse := &dto.BulkQuizzesResponse{
 		Quizzes: []dto.QuizResponse{
