@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"encoding/json" // For JSON marshaling/unmarshaling
 	"fmt"
 	"quiz-byte/internal/domain"
 	"quiz-byte/internal/dto" // Added for dto.QuizRecommendationItem
@@ -41,6 +42,7 @@ func (a *QuizDatabaseAdapter) GetRandomQuiz(ctx context.Context) (*domain.Quiz, 
 	WHERE deleted_at IS NULL 
 	ORDER BY DBMS_RANDOM.VALUE 
 	FETCH FIRST 1 ROWS ONLY`
+
 
 	err := a.db.GetContext(ctx, &modelQuiz, query)
 	if err != nil {
@@ -259,6 +261,7 @@ func (a *QuizDatabaseAdapter) GetAllSubCategories(ctx context.Context) ([]string
 	if err != nil {
 		return nil, fmt.Errorf("failed to query sub categories: %w", err)
 	}
+
 	if subCategoryIDs == nil { // Should not happen with SelectContext but good for safety
 		return []string{}, nil
 	}
@@ -267,14 +270,40 @@ func (a *QuizDatabaseAdapter) GetAllSubCategories(ctx context.Context) ([]string
 
 // SaveQuizEvaluation implements domain.QuizRepository
 func (a *QuizDatabaseAdapter) SaveQuizEvaluation(ctx context.Context, evaluation *domain.QuizEvaluation) error {
-	return fmt.Errorf("SaveQuizEvaluation not yet implemented with SQLx")
+	if evaluation.ID == "" {
+		evaluation.ID = util.NewULID()
+	}
+	now := time.Now()
+	evaluation.CreatedAt = now
+	evaluation.UpdatedAt = now
+
+	modelEval, err := toModelQuizEvaluation(evaluation)
+	if err != nil {
+		return fmt.Errorf("failed to convert domain.QuizEvaluation to model: %w", err)
+	}
+	if modelEval == nil {
+		return fmt.Errorf("cannot save nil QuizEvaluation")
+	}
+
+	modelEval.CreatedAt = evaluation.CreatedAt
+	modelEval.UpdatedAt = evaluation.UpdatedAt
+
+	query := `INSERT INTO quiz_evaluations (
+		id, quiz_id, minimum_keywords, required_topics, score_ranges,
+		sample_answers, rubric_details, created_at, updated_at, score_evaluations
+	) VALUES (
+		:id, :quiz_id, :minimum_keywords, :required_topics, :score_ranges,
+		:sample_answers, :rubric_details, :created_at, :updated_at, :score_evaluations
+	)`
+	_, err = a.db.NamedExecContext(ctx, query, modelEval)
+	if err != nil {
+		return fmt.Errorf("failed to save quiz evaluation for quiz_id %s: %w", modelEval.QuizID, err)
+	}
+	return nil
 }
 
 // GetQuizEvaluation implements domain.QuizRepository
 func (a *QuizDatabaseAdapter) GetQuizEvaluation(ctx context.Context, quizID string) (*domain.QuizEvaluation, error) {
-	return nil, fmt.Errorf("GetQuizEvaluation not yet implemented with SQLx")
-}
-
 // GetRandomQuizBySubCategory implements domain.QuizRepository
 func (a *QuizDatabaseAdapter) GetRandomQuizBySubCategory(ctx context.Context, subCategoryID string) (*domain.Quiz, error) {
 	var modelQuiz models.Quiz
@@ -350,7 +379,7 @@ func (a *QuizDatabaseAdapter) GetSubCategoryIDByName(ctx context.Context, name s
 	err := a.db.GetContext(ctx, &subCategoryID, query, name)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return "", nil // Return empty string when not found, not an error
+			return "", nil
 		}
 		return "", fmt.Errorf("failed to get subcategory ID for name %s: %w", name, err)
 	}
@@ -374,15 +403,11 @@ func (a *QuizDatabaseAdapter) GetQuizzesBySubCategory(ctx context.Context, subCa
 	FROM quizzes
 	WHERE sub_category_id = :1
 	AND deleted_at IS NULL
-	ORDER BY created_at DESC` // Or any other order you prefer
+	ORDER BY created_at DESC`
 
 	// Using SelectContext for context propagation
 	err := a.db.SelectContext(ctx, &modelQuizzes, query, subCategoryID) // Already using SelectContext
 	if err != nil {
-		// sqlx.Select already returns an empty slice if no rows are found,
-		// so explicit sql.ErrNoRows check might not be strictly necessary
-		// unless you want to return a specific error or log it.
-		// For this requirement, returning an empty slice and nil error is desired.
 		if err == sql.ErrNoRows {
 			return []*domain.Quiz{}, nil
 		}
@@ -397,8 +422,6 @@ func (a *QuizDatabaseAdapter) GetQuizzesBySubCategory(ctx context.Context, subCa
 	for _, mq := range modelQuizzes {
 		dq, err := toDomainQuiz(mq)
 		if err != nil {
-			// Log the error, but decide if you want to skip this quiz or return an error
-			// For now, let's return the error, as a partial list might be misleading
 			return nil, fmt.Errorf("failed to convert model quiz (ID: %s) to domain quiz: %w", mq.ID, err)
 		}
 		domainQuizzes = append(domainQuizzes, dq)
@@ -450,21 +473,68 @@ func toModelAnswer(d *domain.Answer) *models.Answer {
 		UserAnswer:     d.UserAnswer,
 		Score:          d.Score,
 		Explanation:    d.Explanation,
-		KeywordMatches: models.StringSlice(d.KeywordMatches), // StringSlice handles its own conversion
+		KeywordMatches: models.StringSlice(d.KeywordMatches),
 		Completeness:   d.Completeness,
 		Relevance:      d.Relevance,
 		Accuracy:       d.Accuracy,
 		AnsweredAt:     d.AnsweredAt,
-		// CreatedAt and UpdatedAt are set in the adapter before DB call,
-		// and are not part of the domain.Answer struct.
 	}
 }
 
+func toModelQuizEvaluation(d *domain.QuizEvaluation) (*models.QuizEvaluation, error) {
+	if d == nil {
+		return nil, nil
+	}
+
+	scoreEvaluationsJSON, err := json.Marshal(d.ScoreEvaluations)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal ScoreEvaluations: %w", err)
+	}
+
+	return &models.QuizEvaluation{
+		ID:               d.ID,
+		QuizID:           d.QuizID,
+		MinimumKeywords:  d.MinimumKeywords,
+		RequiredTopics:   models.StringSlice(d.RequiredTopics),
+		ScoreRanges:      models.StringSlice(d.ScoreRanges),
+		SampleAnswers:    models.StringSlice(d.SampleAnswers),
+		RubricDetails:    d.RubricDetails,
+		ScoreEvaluations: string(scoreEvaluationsJSON),
+		CreatedAt:        d.CreatedAt,
+		UpdatedAt:        d.UpdatedAt,
+	}, nil
+}
+
+func toDomainQuizEvaluation(m *models.QuizEvaluation) (*domain.QuizEvaluation, error) {
+	if m == nil {
+		return nil, nil
+	}
+
+	var scoreEvaluations []domain.ScoreEvaluationDetail
+	if m.ScoreEvaluations != "" {
+		if err := json.Unmarshal([]byte(m.ScoreEvaluations), &scoreEvaluations); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal ScoreEvaluations: %w", err)
+		}
+	}
+
+	return &domain.QuizEvaluation{
+		ID:               m.ID,
+		QuizID:           m.QuizID,
+		MinimumKeywords:  m.MinimumKeywords,
+		RequiredTopics:   []string(m.RequiredTopics),
+		ScoreRanges:      []string(m.ScoreRanges),
+		SampleAnswers:    []string(m.SampleAnswers),
+		RubricDetails:    m.RubricDetails,
+		ScoreEvaluations: scoreEvaluations,
+		CreatedAt:        m.CreatedAt,
+		UpdatedAt:        m.UpdatedAt,
+	}, nil
+}
+
 // GetUnattemptedQuizzesWithDetails fetches quizzes a user hasn't attempted, along with sub-category details.
-// Returns a slice of dto.QuizRecommendationItem.
 func (a *QuizDatabaseAdapter) GetUnattemptedQuizzesWithDetails(ctx context.Context, userID string, limit int, optionalSubCategoryID string) ([]dto.QuizRecommendationItem, error) {
 	if limit <= 0 {
-		limit = 10 // Default limit
+		limit = 10
 	}
 
 	var recommendations []dto.QuizRecommendationItem

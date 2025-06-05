@@ -66,7 +66,8 @@ type CacheTTLConfig struct {
 
 // BatchConfig holds configuration for batch processes.
 type BatchConfig struct {
-	NumQuestionsPerSubCategory int `yaml:"num_questions_per_subcategory"`
+	NumQuestionsPerSubCategory int      `yaml:"num_questions_per_subcategory"`
+	DefaultScoreRanges         []string `yaml:"default_score_ranges"` // Added
 }
 
 // GeminiConfig holds configuration for the Gemini LLM.
@@ -166,6 +167,7 @@ func LoadConfig() (*Config, error) {
 
 	// Batch process environment variables
 	viper.BindEnv("batch.num_questions_per_subcategory", "APP_BATCH_NUM_QUESTIONS_PER_SUBCATEGORY")
+	viper.BindEnv("batch.default_score_ranges", "APP_BATCH_DEFAULT_SCORE_RANGES")
 
 	// Auth environment variables
 	viper.BindEnv("auth.google_oauth.client_id", "APP_AUTH_GOOGLE_OAUTH_CLIENT_ID")
@@ -226,6 +228,7 @@ func LoadConfig() (*Config, error) {
 		},
 		Batch: BatchConfig{
 			NumQuestionsPerSubCategory: viper.GetInt("batch.num_questions_per_subcategory"),
+			DefaultScoreRanges:         viper.GetStringSlice("batch.default_score_ranges"),
 		},
 		Auth: AuthConfig{
 			GoogleOAuth: GoogleOAuthConfig{
@@ -278,6 +281,9 @@ func LoadConfig() (*Config, error) {
 	// Set default for NumQuestionsPerSubCategory if not provided or zero
 	if config.Batch.NumQuestionsPerSubCategory == 0 {
 		config.Batch.NumQuestionsPerSubCategory = 3 // Default value
+	}
+	if len(config.Batch.DefaultScoreRanges) == 0 {
+		config.Batch.DefaultScoreRanges = []string{"0.8-1.0", "0.6-0.8", "0.3-0.6", "0-0.3"} // Default value
 	}
 
 	// Set default for Auth.JWT.AccessTokenTTL if not provided or zero

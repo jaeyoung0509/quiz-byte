@@ -221,6 +221,62 @@ func (s *batchService) GenerateNewQuizzesAndSave(ctx context.Context) error {
 						zap.String("quiz_id", newDomainQuiz.ID),
 						zap.String("question", newDomainQuiz.Question),
 					)
+
+					// ---> START NEW CODE FOR QUIZ EVALUATION <---
+					s.logger.Info("Attempting to generate and save QuizEvaluation", zap.String("quiz_id", newDomainQuiz.ID))
+
+					existingEval, errEvalGet := s.quizRepo.GetQuizEvaluation(ctx, newDomainQuiz.ID)
+					if errEvalGet != nil {
+						s.logger.Error("Error checking for existing QuizEvaluation", zap.String("quiz_id", newDomainQuiz.ID), zap.Error(errEvalGet))
+					} else if existingEval != nil {
+						s.logger.Info("QuizEvaluation already exists for this quiz, skipping generation.", zap.String("quiz_id", newDomainQuiz.ID), zap.String("evaluation_id", existingEval.ID))
+					} else {
+						scoreRanges := []string{"0.8-1.0", "0.6-0.8", "0.3-0.6", "0-0.3"} // Default
+						if s.cfg != nil && s.cfg.Batch.DefaultScoreRanges != nil && len(s.cfg.Batch.DefaultScoreRanges) > 0 {
+							scoreRanges = s.cfg.Batch.DefaultScoreRanges
+						}
+
+						scoreEvalsDetails, errGenEvals := s.quizGenSvc.GenerateScoreEvaluationsForQuiz(ctx, &newDomainQuiz, scoreRanges)
+						if errGenEvals != nil {
+							s.logger.Error("Failed to generate score evaluations from LLM",
+								zap.String("quiz_id", newDomainQuiz.ID),
+								zap.Error(errGenEvals),
+							)
+						} else if len(scoreEvalsDetails) == 0 && len(scoreRanges) > 0 {
+							s.logger.Warn("LLM returned no score evaluation details", zap.String("quiz_id", newDomainQuiz.ID))
+						} else {
+							quizEval := domain.NewQuizEvaluation(
+								newDomainQuiz.ID,
+								len(newDomainQuiz.Keywords),
+								newDomainQuiz.Keywords,
+								scoreRanges,
+								newDomainQuiz.ModelAnswers,
+								fmt.Sprintf("Automated rubric for quiz %s based on predefined score ranges.", newDomainQuiz.ID),
+								scoreEvalsDetails,
+							)
+
+							if errVal := quizEval.Validate(); errVal != nil {
+								s.logger.Error("Failed to validate QuizEvaluation object",
+									zap.String("quiz_id", newDomainQuiz.ID),
+									zap.Error(errVal),
+								)
+							} else {
+								errSaveEval := s.quizRepo.SaveQuizEvaluation(ctx, quizEval) // Pass context
+								if errSaveEval != nil {
+									s.logger.Error("Failed to save QuizEvaluation",
+										zap.String("quiz_id", newDomainQuiz.ID),
+										zap.Error(errSaveEval),
+									)
+								} else {
+									s.logger.Info("Successfully generated and saved QuizEvaluation",
+										zap.String("quiz_id", newDomainQuiz.ID),
+										zap.String("evaluation_id", quizEval.ID),
+									)
+								}
+							}
+						}
+					}
+					// ---> END NEW CODE FOR QUIZ EVALUATION <---
 				}
 			} else {
 				s.logger.Info("Skipped saving quiz due to similarity",

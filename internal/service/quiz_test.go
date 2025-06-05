@@ -288,6 +288,63 @@ func TestGetAllSubCategories_Caching(t *testing.T) {
 	})
 }
 
+func TestFindMatchingScoreExplanation(t *testing.T) {
+	// Logger is initialized by TestMain
+	details := []domain.ScoreEvaluationDetail{
+		{ScoreRange: "0.0-0.3", SampleAnswers: []string{"ans1"}, Explanation: "Explanation for 0.0-0.3"},
+		{ScoreRange: "0.3-0.6", SampleAnswers: []string{"ans2"}, Explanation: "Explanation for 0.3-0.6"},
+		{ScoreRange: "0.6-0.8", SampleAnswers: []string{"ans3"}, Explanation: "Explanation for 0.6-0.8"},
+		{ScoreRange: "0.8-1.0", SampleAnswers: []string{"ans4"}, Explanation: "Explanation for 0.8-1.0"},
+	}
+	allRanges := []string{"0.0-0.3", "0.3-0.6", "0.6-0.8", "0.8-1.0"}
+
+	tests := []struct {
+		name            string
+		score           float64
+		details         []domain.ScoreEvaluationDetail
+		allRanges       []string
+		wantMatch       bool
+		wantExplanation string
+	}{
+		{"score in first range (low)", 0.1, details, allRanges, true, "Explanation for 0.0-0.3"},
+		{"score at boundary (0.3), exclusive end for first range", 0.3, details, allRanges, true, "Explanation for 0.3-0.6"}, // Matches [0.3-0.6)
+		{"score in second range", 0.5, details, allRanges, true, "Explanation for 0.3-0.6"},
+		{"score at boundary (0.6), exclusive end for second range", 0.6, details, allRanges, true, "Explanation for 0.6-0.8"}, // Matches [0.6-0.8)
+		{"score in third range", 0.75, details, allRanges, true, "Explanation for 0.6-0.8"},
+		{"score in last range (low)", 0.8, details, allRanges, true, "Explanation for 0.8-1.0"}, // Matches [0.8-1.0]
+		{"score in last range (high)", 0.95, details, allRanges, true, "Explanation for 0.8-1.0"},
+		{"score at max (1.0)", 1.0, details, allRanges, true, "Explanation for 0.8-1.0"},
+		{"score too low", -0.1, details, allRanges, false, ""},
+		{"score too high", 1.1, details, allRanges, false, ""},
+		{"empty details", 0.5, []domain.ScoreEvaluationDetail{}, allRanges, false, ""},
+		{"nil details", 0.5, nil, allRanges, false, ""},
+		{
+			"malformed range in details", 0.5,
+			[]domain.ScoreEvaluationDetail{{ScoreRange: "0.x-0.5", Explanation: "bad"}},
+			[]string{"0.x-0.5"},
+			false, "",
+		},
+		{
+			"explanation empty", 0.1,
+			[]domain.ScoreEvaluationDetail{{ScoreRange: "0.0-0.3", Explanation: ""}},
+			[]string{"0.0-0.3"},
+			false, "", // Expect no match if explanation is empty
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			explanation, matched := findMatchingScoreExplanation(tt.score, tt.details, tt.allRanges)
+			if matched != tt.wantMatch {
+				t.Errorf("findMatchingScoreExplanation() matched = %v, want %v", matched, tt.wantMatch)
+			}
+			if explanation != tt.wantExplanation {
+				t.Errorf("findMatchingScoreExplanation() explanation = %s, want %s", explanation, tt.wantExplanation)
+			}
+		})
+	}
+}
+
 // --- Tests for GetBulkQuizzes Caching ---
 func TestGetBulkQuizzes_Caching(t *testing.T) {
 	ctx := context.Background()

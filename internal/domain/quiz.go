@@ -153,6 +153,13 @@ type Answer struct {
 	AnsweredAt     time.Time
 }
 
+// ScoreEvaluationDetail represents detailed evaluation criteria for a specific score range.
+type ScoreEvaluationDetail struct {
+	ScoreRange    string   `json:"score_range"`    // 예: "0.8-1.0", "0.6-0.8"
+	SampleAnswers []string `json:"sample_answers"` // 해당 점수대에 해당하는 다양한 모범 답안 또는 예상 답안 예시
+	Explanation   string   `json:"explanation"`    // 해당 점수대의 답안에 대한 일반적인 해설 및 피드백
+}
+
 // NewAnswer creates a new Answer instance
 func NewAnswer(quizID string, userAnswer string) *Answer {
 	return &Answer{
@@ -176,14 +183,15 @@ func (a *Answer) Validate() error {
 // QuizEvaluation represents the evaluation criteria for a quiz
 type QuizEvaluation struct {
 	ID              string
-	QuizID          string
-	MinimumKeywords int      // Minimum required number of keywords
-	RequiredTopics  []string // Required topics to include
-	ScoreRanges     []string // Criteria per score range
-	SampleAnswers   []string // Sample answers
-	RubricDetails   string   // Detailed explanation of scoring rubric
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	QuizID            string
+	MinimumKeywords   int                     // Minimum required number of keywords
+	RequiredTopics    []string                // Required topics to include
+	ScoreRanges       []string                // Criteria per score range
+	SampleAnswers     []string                // Sample answers
+	RubricDetails     string                  // Detailed explanation of scoring rubric
+	ScoreEvaluations  []ScoreEvaluationDetail `json:"score_evaluations"`
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 // NewQuizEvaluation creates a new QuizEvaluation instance
@@ -191,19 +199,22 @@ func NewQuizEvaluation(
 	quizID string,
 	minKeywords int,
 	requiredTopics []string,
+	scoreRanges []string,
 	sampleAnswers []string,
 	rubricDetails string,
+	scoreEvaluations []ScoreEvaluationDetail,
 ) *QuizEvaluation {
 	now := time.Now()
 	return &QuizEvaluation{
-		QuizID:          quizID,
-		MinimumKeywords: minKeywords,
-		RequiredTopics:  requiredTopics,
-		SampleAnswers:   sampleAnswers,
-		RubricDetails:   rubricDetails,
-		ScoreRanges:     []string{"0-0.3", "0.3-0.6", "0.6-0.8", "0.8-1.0"},
-		CreatedAt:       now,
-		UpdatedAt:       now,
+		QuizID:            quizID,
+		MinimumKeywords:   minKeywords,
+		RequiredTopics:    requiredTopics,
+		ScoreRanges:       scoreRanges,
+		SampleAnswers:     sampleAnswers,
+		RubricDetails:     rubricDetails,
+		ScoreEvaluations:  scoreEvaluations,
+		CreatedAt:         now,
+		UpdatedAt:         now,
 	}
 }
 
@@ -212,21 +223,38 @@ func (e *QuizEvaluation) Validate() error {
 	if e.QuizID == "" {
 		return NewValidationError("quiz ID is required")
 	}
-	if e.MinimumKeywords == 0 {
-		return NewValidationError("minimum keywords is required")
-	}
-	if len(e.RequiredTopics) == 0 {
-		return NewValidationError("required topics are required")
-	}
+	// MinimumKeywords can be 0 if not applicable for a quiz type
+	// RequiredTopics can be empty if not applicable
+	// SampleAnswers can be empty if detailed ScoreEvaluations are provided
+
 	if len(e.ScoreRanges) == 0 {
 		return NewValidationError("score ranges are required")
 	}
-	if len(e.SampleAnswers) == 0 {
-		return NewValidationError("sample answers are required")
+	if len(e.ScoreEvaluations) != len(e.ScoreRanges) {
+		return NewValidationError("score evaluations must correspond to defined score ranges in count")
 	}
-	if e.RubricDetails == "" {
-		return NewValidationError("rubric details are required")
+	for _, se := range e.ScoreEvaluations {
+		if se.ScoreRange == "" {
+			return NewValidationError("score range in score evaluations is required")
+		}
+		found := false
+		for _, r := range e.ScoreRanges {
+			if se.ScoreRange == r {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return NewValidationError(fmt.Sprintf("score range '%s' in score evaluations not found in defined score ranges", se.ScoreRange))
+		}
+		if len(se.SampleAnswers) == 0 {
+			return NewValidationError(fmt.Sprintf("sample answers in score evaluation for range '%s' are required", se.ScoreRange))
+		}
+		if se.Explanation == "" {
+			return NewValidationError(fmt.Sprintf("explanation in score evaluation for range '%s' is required", se.ScoreRange))
+		}
 	}
+	// RubricDetails can be empty if detailed ScoreEvaluations cover all aspects
 	return nil
 }
 
