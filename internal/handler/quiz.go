@@ -48,8 +48,8 @@ func (h *QuizHandler) GetAllSubCategories(c *fiber.Ctx) error {
 	_, err := h.service.GetAllSubCategories()
 	if err != nil {
 		logger.Get().Error("Failed to get categories", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(middleware.ErrorResponse{ // Changed to middleware.ErrorResponse
-			Code: "INTERNAL_ERROR", Message: "Failed to retrieve categories", Status: fiber.StatusInternalServerError,
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Error: "INTERNAL_ERROR",
 		})
 	}
 
@@ -77,10 +77,14 @@ func (h *QuizHandler) GetAllSubCategories(c *fiber.Ctx) error {
 func (h *QuizHandler) GetRandomQuiz(c *fiber.Ctx) error {
 	appLogger := logger.Get()
 	userID, _ := c.Locals(middleware.UserIDKey).(string)
-	subCategory := c.Params("subCategory") // Correctly read path parameter
+
+	// Support both path parameter and query parameter for backward compatibility
+	subCategory := c.Params("subCategory")
 	if subCategory == "" {
-		// This check might be redundant if the route requires the param,
-		// but can stay as a safeguard or be removed if route guarantees presence.
+		subCategory = c.Query("sub_category")
+	}
+
+	if subCategory == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
 			Error: "INVALID_REQUEST",
 		})
@@ -101,13 +105,13 @@ func (h *QuizHandler) GetRandomQuiz(c *fiber.Ctx) error {
 
 		// Using mapDomainErrorToHTTPStatus helper for consistency
 		if domainErr, ok := err.(*domain.DomainError); ok {
-			return c.Status(mapDomainErrorToHTTPStatus(domainErr)).JSON(middleware.ErrorResponse{
-				Code: string(domainErr.Code), Message: domainErr.Message, Status: mapDomainErrorToHTTPStatus(domainErr),
+			return c.Status(mapDomainErrorToHTTPStatus(domainErr)).JSON(dto.ErrorResponse{
+				Error: string(domainErr.Code),
 			})
 		}
 		// Fallback for non-domain errors
-		return c.Status(fiber.StatusInternalServerError).JSON(middleware.ErrorResponse{
-			Code: "INTERNAL_ERROR", Message: "Failed to retrieve random quiz", Status: fiber.StatusInternalServerError,
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Error: "INTERNAL_ERROR",
 		})
 	}
 
@@ -151,22 +155,22 @@ func (h *QuizHandler) CheckAnswer(c *fiber.Ctx) error {
 	var req dto.CheckAnswerRequest
 	if err := c.BodyParser(&req); err != nil {
 		appLogger.Warn("Failed to parse request body for CheckAnswer", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(middleware.ErrorResponse{
-			Code: "INVALID_REQUEST_BODY", Message: "Invalid request body", Status: fiber.StatusBadRequest,
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Error: "INVALID_REQUEST_BODY",
 		})
 	}
 
 	// Validate request
 	if req.QuizID == "" {
 		appLogger.Warn("QuizID missing in CheckAnswer request")
-		return c.Status(fiber.StatusBadRequest).JSON(middleware.ErrorResponse{
-			Code: "QUIZ_ID_REQUIRED", Message: "quiz_id is required", Status: fiber.StatusBadRequest,
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Error: "QUIZ_ID_REQUIRED",
 		})
 	}
 	if req.UserAnswer == "" {
 		appLogger.Warn("UserAnswer missing in CheckAnswer request", zap.String("quizID", req.QuizID))
-		return c.Status(fiber.StatusBadRequest).JSON(middleware.ErrorResponse{
-			Code: "ANSWER_REQUIRED", Message: "answer is required", Status: fiber.StatusBadRequest,
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Error: "ANSWER_REQUIRED",
 		})
 	}
 
@@ -178,12 +182,12 @@ func (h *QuizHandler) CheckAnswer(c *fiber.Ctx) error {
 			zap.String("quiz_id", req.QuizID),
 		)
 		if domainErr, ok := err.(*domain.DomainError); ok {
-			return c.Status(mapDomainErrorToHTTPStatus(domainErr)).JSON(middleware.ErrorResponse{
-				Code: string(domainErr.Code), Message: domainErr.Message, Status: mapDomainErrorToHTTPStatus(domainErr),
+			return c.Status(mapDomainErrorToHTTPStatus(domainErr)).JSON(dto.ErrorResponse{
+				Error: string(domainErr.Code),
 			})
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(middleware.ErrorResponse{
-			Code: "INTERNAL_ERROR", Message: "Error checking answer", Status: fiber.StatusInternalServerError,
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Error: "INTERNAL_ERROR",
 		})
 	}
 
@@ -226,6 +230,8 @@ func mapDomainErrorToHTTPStatus(err *domain.DomainError) int {
 		return fiber.StatusNotFound
 	case domain.ErrLLMServiceError:
 		return fiber.StatusServiceUnavailable
+	case domain.ErrInvalidCategory:
+		return fiber.StatusBadRequest
 	default:
 		return fiber.StatusInternalServerError
 	}
@@ -252,8 +258,8 @@ func (h *QuizHandler) GetBulkQuizzes(c *fiber.Ctx) error {
 	subCategory := c.Query("sub_category")
 	if subCategory == "" {
 		appLogger.Warn("sub_category query parameter missing for GetBulkQuizzes", zap.String("userID", userID))
-		return c.Status(fiber.StatusBadRequest).JSON(middleware.ErrorResponse{
-			Code: "INVALID_REQUEST", Message: "sub_category query parameter is required", Status: fiber.StatusBadRequest,
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Error: "INVALID_REQUEST: sub_category is required",
 		})
 	}
 
@@ -267,8 +273,8 @@ func (h *QuizHandler) GetBulkQuizzes(c *fiber.Ctx) error {
 				zap.String("userID", userID),
 				zap.String("count_str", countStr),
 				zap.Error(err))
-			return c.Status(fiber.StatusBadRequest).JSON(middleware.ErrorResponse{
-				Code: "INVALID_COUNT_PARAM", Message: "count must be a positive integer between 1 and 50", Status: fiber.StatusBadRequest,
+			return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+				Error: "INVALID_COUNT_PARAM",
 			})
 		}
 	}
