@@ -28,7 +28,7 @@ func (r *CategoryDatabaseAdapter) GetAllCategories(ctx context.Context) ([]*doma
 		if err == sql.ErrNoRows {
 			return []*domain.Category{}, nil
 		}
-		return nil, err
+		return nil, fmt.Errorf("failed to get all categories: %w", err)
 	}
 
 	domainCategories := make([]*domain.Category, len(categories))
@@ -47,7 +47,7 @@ func (r *CategoryDatabaseAdapter) GetSubCategories(ctx context.Context, category
 		if err == sql.ErrNoRows {
 			return []*domain.SubCategory{}, nil
 		}
-		return nil, err
+		return nil, fmt.Errorf("failed to get subcategories for category ID %s: %w", categoryID, err)
 	}
 
 	domainSubCategories := make([]*domain.SubCategory, len(subCategories))
@@ -68,7 +68,7 @@ func (r *CategoryDatabaseAdapter) SaveCategory(ctx context.Context, category *do
               VALUES (:id, :name, :description, :created_at, :updated_at)`
 	_, err := r.db.NamedExecContext(ctx, query, modelCategory)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to save category: %w", err)
 	}
 	category.ID = modelCategory.ID
 	category.CreatedAt = modelCategory.CreatedAt
@@ -87,7 +87,7 @@ func (r *CategoryDatabaseAdapter) SaveSubCategory(ctx context.Context, subCatego
               VALUES (:id, :category_id, :name, :description, :created_at, :updated_at)`
 	_, err := r.db.NamedExecContext(ctx, query, modelSubCategory)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to save subcategory: %w", err)
 	}
 	subCategory.ID = modelSubCategory.ID
 	subCategory.CreatedAt = modelSubCategory.CreatedAt

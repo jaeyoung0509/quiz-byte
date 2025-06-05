@@ -75,3 +75,9 @@ type BulkQuizResponse struct {
 	PageSize    int            `json:"page_size"`
 	CurrentPage int            `json:"current_page"`
 }
+
+// SubCategoryIDsResponse represents a list of subcategory IDs
+// @Description Response body for a list of subcategory IDs
+type SubCategoryIDsResponse struct {
+	SubCategoryIDs []string `json:"sub_category_ids"`
+}

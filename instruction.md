@@ -7,7 +7,7 @@
 
 웹 프레임워크 / API 핸들러: Fiber v3
 
-ORM: GORM (Oracle DB 연동)
+DB Access: Sqlx (Oracle DB 연동 via godror driver)
 
 데이터베이스: Oracle Database (OCI Autonomous Database "상시 무료" 티어 활용 권장)
 
@@ -17,7 +17,7 @@ LLM 연동 (퀴즈 답변/생성 보조): LangchainGo
 
 로깅: Zap Logger
 
-스키마 관리: 데이터베이스 마이그레이션 도구를 사용한 버전 관리 (예: golang-migrate/migrate, GORM 자체 마이그레이션 기능 등)
+스키마 관리: 데이터베이스 마이그레이션 도구를 사용한 버전 관리 (예: golang-migrate/migrate)
 
 3. 배포 환경
 클라우드 플랫폼: Oracle Cloud Infrastructure (OCI)
@@ -36,7 +36,7 @@ LLM 연동 (퀴즈 답변/생성 보조): LangchainGo
 4.1. 퀴즈 데이터 관리
 Fiber를 사용한 퀴즈 CRUD (Create, Read, Update, Delete) API 개발.
 
-GORM을 사용하여 Oracle DB에 퀴즈 데이터 저장 및 관리.
+Sqlx를 사용하여 Oracle DB에 퀴즈 데이터 저장 및 관리.
 
 주기적인 퀴즈 업데이트:
 
@@ -89,7 +89,7 @@ Zap Logger를 사용하여 구조화된 로그(JSON 형식 권장)를 기록합�
 
 슬로우 쿼리 로깅/모니터링:
 
-GORM 레벨: 쿼리 실행 시간을 로깅하도록 설정 (Zap 로거와 연동).
+애플리케이션 레벨: Sqlx 사용 부분에서 필요한 경우 쿼리 실행 시간을 로깅 (Zap 로거와 연동).
 
 DB 레벨: OCI Autonomous Database의 Performance Hub 및 관련 OCI Monitoring 지표를 활용하여 DB 단의 슬로우 쿼리 분석 및 알림 설정.
 
@@ -100,7 +100,7 @@ Presentation Layer: API Endpoints (Fiber 라우터 및 핸들러)
 
 Business Logic Layer: 서비스 (애플리케이션 핵심 로직)
 
-Data Access Layer: 리포지토리 (GORM을 사용한 DB 연동)
+Data Access Layer: 리포지토리 (Sqlx를 사용한 DB 연동)
 
 인터페이스(Interface) 기반 설계 및 의존성 주입(Dependency Injection - DI) 패턴을 적극 활용하여 유연하고 테스트 가능한 코드 작성.
 

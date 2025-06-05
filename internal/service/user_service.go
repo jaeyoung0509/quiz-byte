@@ -52,17 +52,13 @@ func NewUserService(
 
 // GetUserProfile retrieves a user's profile information.
 func (s *userServiceImpl) GetUserProfile(ctx context.Context, userID string) (*dto.UserProfileResponse, error) {
-	domainUser, err := s.userRepo.GetUserByID(ctx, userID) // Returns domain.User
-	if err != nil {
-		// Check if the error is because the user was not found.
-		// The domain repository's GetUserByID should ideally return a specific domain.NotFoundError
-		if errors.Is(err, &domain.NotFoundError{}) || domainUser == nil && err == nil { // Adapt to how not found is signaled
-			return nil, ErrUserProfileNotFound
-		}
-		return nil, fmt.Errorf("failed to get user by id from repository: %w", err)
+	domainUser, err := s.userRepo.GetUserByID(ctx, userID)
+	if err != nil { // This error is already wrapped by the repository
+		// sqlxUserRepository.GetUserByID returns a wrapped error for DB issues other than ErrNoRows
+		return nil, domain.NewInternalError(fmt.Sprintf("failed to get user by id %s from repository", userID), err)
 	}
-	if domainUser == nil { // Explicitly handle case where err is nil but user is nil (should be covered by NotFoundError)
-		return nil, ErrUserProfileNotFound
+	if domainUser == nil { // Repository returns (nil, nil) for sql.ErrNoRows
+		return nil, domain.NewNotFoundError(fmt.Sprintf("user profile not found for id %s", userID))
 	}
 
 	return &dto.UserProfileResponse{
@@ -110,27 +106,29 @@ func (s *userServiceImpl) RecordQuizAttempt(ctx context.Context, userID string, 
 		domainAttempt.AttemptedAt = time.Now()
 	}
 
-	if err := s.attemptRepo.CreateAttempt(ctx, domainAttempt); err != nil { // Call with domain.UserQuizAttempt
-		return fmt.Errorf("failed to create user quiz attempt in repository: %w", err)
+	// The error from CreateAttempt is already wrapped by the repository
+	if err := s.attemptRepo.CreateAttempt(ctx, domainAttempt); err != nil {
+		return domain.NewInternalError("failed to create user quiz attempt in repository", err)
 	}
 	return nil
 }
 
 // GetUserQuizAttempts retrieves a user's quiz attempt history.
 func (s *userServiceImpl) GetUserQuizAttempts(ctx context.Context, userID string, filters dto.AttemptFilters, pagination dto.Pagination) (*dto.UserQuizAttemptsResponse, error) {
-	domainAttempts, total, err := s.attemptRepo.GetAttemptsByUserID(ctx, userID, filters, pagination) // Returns []domain.UserQuizAttempt
+	// Error from GetAttemptsByUserID is already wrapped by the repository
+	domainAttempts, total, err := s.attemptRepo.GetAttemptsByUserID(ctx, userID, filters, pagination)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user quiz attempts from repository: %w", err)
+		return nil, domain.NewInternalError("failed to get user quiz attempts from repository", err)
 	}
 
 	attemptItems := make([]dto.UserQuizAttemptItem, len(domainAttempts))
 	for i, attempt := range domainAttempts { // attempt is domain.UserQuizAttempt
-		quiz, errQuiz := s.quizRepo.GetQuizByID(ctx, attempt.QuizID) // Added ctx
-		if errQuiz != nil || quiz == nil {
-			if quiz == nil && errQuiz == nil {
-				return nil, fmt.Errorf("%w: quiz_id %s for attempt_id %s (quiz not found)", ErrQuizDetailNotFound, attempt.QuizID, attempt.ID)
-			}
-			return nil, fmt.Errorf("%w: quiz_id %s for attempt_id %s, repo error: %v", ErrQuizDetailNotFound, attempt.QuizID, attempt.ID, errQuiz)
+		quiz, errQuiz := s.quizRepo.GetQuizByID(ctx, attempt.QuizID)
+		if errQuiz != nil { // This error is already wrapped by the repository
+			return nil, domain.NewInternalError(fmt.Sprintf("failed to get quiz details for attempt %s (quiz_id %s)", attempt.ID, attempt.QuizID), errQuiz)
+		}
+		if quiz == nil { // Repository returns (nil, nil) for sql.ErrNoRows
+			return nil, domain.NewQuizNotFoundError(attempt.QuizID).WithContext("attempt_id", attempt.ID)
 		}
 
 		attemptItems[i] = dto.UserQuizAttemptItem{
@@ -171,9 +169,10 @@ func (s *userServiceImpl) GetUserRecommendations(ctx context.Context, userID str
 		limit = 10 // Default limit
 	}
 
+	// Error from GetUnattemptedQuizzesWithDetails is already wrapped by the repository
 	recommendationItems, err := s.quizRepo.GetUnattemptedQuizzesWithDetails(ctx, userID, limit, optionalSubCategoryID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve recommendations: %w", err)
+		return nil, domain.NewInternalError("failed to retrieve recommendations", err)
 	}
 
 	return &dto.QuizRecommendationsResponse{
@@ -186,19 +185,20 @@ func (s *userServiceImpl) GetUserIncorrectAnswers(ctx context.Context, userID st
 	isCorrectFilter := false
 	filters.IsCorrect = &isCorrectFilter // This DTO field is a *bool
 
-	domainAttempts, total, err := s.attemptRepo.GetIncorrectAttemptsByUserID(ctx, userID, filters, pagination) // Returns []domain.UserQuizAttempt
+	// Error from GetIncorrectAttemptsByUserID is already wrapped by the repository
+	domainAttempts, total, err := s.attemptRepo.GetIncorrectAttemptsByUserID(ctx, userID, filters, pagination)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user incorrect answers from repository: %w", err)
+		return nil, domain.NewInternalError("failed to get user incorrect answers from repository", err)
 	}
 
 	incorrectAnswerItems := make([]dto.UserIncorrectAnswerItem, len(domainAttempts))
 	for i, attempt := range domainAttempts { // attempt is domain.UserQuizAttempt
-		quiz, errQuiz := s.quizRepo.GetQuizByID(ctx, attempt.QuizID) // Added ctx
-		if errQuiz != nil || quiz == nil {
-			if quiz == nil && errQuiz == nil {
-				return nil, fmt.Errorf("%w: quiz_id %s for attempt_id %s (quiz not found)", ErrQuizDetailNotFound, attempt.QuizID, attempt.ID)
-			}
-			return nil, fmt.Errorf("%w: quiz_id %s for attempt_id %s, repo error: %v", ErrQuizDetailNotFound, attempt.QuizID, attempt.ID, errQuiz)
+		quiz, errQuiz := s.quizRepo.GetQuizByID(ctx, attempt.QuizID)
+		if errQuiz != nil { // This error is already wrapped by the repository
+			return nil, domain.NewInternalError(fmt.Sprintf("failed to get quiz details for incorrect attempt %s (quiz_id %s)", attempt.ID, attempt.QuizID), errQuiz)
+		}
+		if quiz == nil { // Repository returns (nil, nil) for sql.ErrNoRows
+			return nil, domain.NewQuizNotFoundError(attempt.QuizID).WithContext("attempt_id", attempt.ID)
 		}
 
 		// Note: domain.Quiz.ModelAnswers is a string, not []string.

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"quiz-byte/internal/cache" // Added for GenerateCacheKey
 	"quiz-byte/internal/domain"
 	"quiz-byte/internal/dto"
 	"quiz-byte/internal/logger"
@@ -13,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const anonymousResultCachePrefix = "anonymous_result:"
+// const anonymousResultCachePrefix = "anonymous_result:" // Replaced by cache.GenerateCacheKey
 
 // ErrAnonymousResultNotFound is returned when a cached result is not found.
 var ErrAnonymousResultNotFound = errors.New("anonymous result not found in cache")
@@ -43,27 +44,29 @@ func NewAnonymousResultCacheService(cache domain.Cache, ttl time.Duration) Anony
 	}
 }
 
-func (s *anonymousResultCacheServiceImpl) cacheKey(requestID string) string {
-	return anonymousResultCachePrefix + requestID
+func (s *anonymousResultCacheServiceImpl) generateKey(requestID string) string { // Renamed from cacheKey
+	return cache.GenerateCacheKey("anonymous_result", requestID) // Use central key generator
 }
 
 // Put stores the quiz result for an anonymous user in the cache.
 func (s *anonymousResultCacheServiceImpl) Put(ctx context.Context, requestID string, result *dto.CheckAnswerResponse) error {
 	if result == nil {
-		return errors.New("cannot cache nil result")
+		return domain.NewInvalidInputError("cannot cache nil result")
 	}
 
-	key := s.cacheKey(requestID)
-	data, err := json.Marshal(result)
+	key := s.generateKey(requestID)
+	dataBytes, err := json.Marshal(result)
 	if err != nil {
 		logger.Get().Error("Failed to marshal anonymous result for caching", zap.Error(err), zap.String("requestID", requestID))
-		return fmt.Errorf("failed to marshal result: %w", err)
+		return domain.NewInternalError("failed to marshal result for caching", err)
 	}
 
-	err = s.cache.Set(ctx, key, data, s.ttl)
+	// domain.Cache interface expects string for Set value
+	err = s.cache.Set(ctx, key, string(dataBytes), s.ttl)
 	if err != nil {
 		logger.Get().Error("Failed to cache anonymous result", zap.Error(err), zap.String("key", key))
-		return fmt.Errorf("failed to set cache: %w", err)
+		// Error from cache adapter is already wrapped, re-wrap into domain.InternalError
+		return domain.NewInternalError(fmt.Sprintf("failed to set anonymous result to cache for key %s", key), err)
 	}
 	logger.Get().Debug("Successfully cached anonymous result", zap.String("key", key), zap.Duration("ttl", s.ttl))
 	return nil
@@ -71,26 +74,29 @@ func (s *anonymousResultCacheServiceImpl) Put(ctx context.Context, requestID str
 
 // Get retrieves the quiz result for an anonymous user from the cache.
 func (s *anonymousResultCacheServiceImpl) Get(ctx context.Context, requestID string) (*dto.CheckAnswerResponse, error) {
-	key := s.cacheKey(requestID)
-	data, err := s.cache.Get(ctx, key)
+	key := s.generateKey(requestID)
+	// domain.Cache interface returns string
+	dataString, err := s.cache.Get(ctx, key)
 	if err != nil {
-		if errors.Is(err, domain.ErrCacheMiss) { // Assuming domain.Cache returns a specific error for cache miss
+		if errors.Is(err, domain.ErrCacheMiss) {
 			logger.Get().Debug("Anonymous result cache miss", zap.String("key", key))
-			return nil, ErrAnonymousResultNotFound // Return specific error for not found
+			return nil, ErrAnonymousResultNotFound
 		}
 		logger.Get().Error("Failed to get anonymous result from cache", zap.Error(err), zap.String("key", key))
-		return nil, fmt.Errorf("failed to get from cache: %w", err)
+		// Error from cache adapter is already wrapped, re-wrap into domain.InternalError
+		return nil, domain.NewInternalError(fmt.Sprintf("failed to get anonymous result from cache for key %s", key), err)
 	}
 
-	if data == nil { // Should be handled by domain.ErrCacheMiss, but as a safeguard
-		logger.Get().Debug("Anonymous result cache miss (nil data)", zap.String("key", key))
+	if dataString == "" { // Cache might return empty string, nil for a miss (depending on adapter)
+		logger.Get().Debug("Anonymous result cache miss (empty data string)", zap.String("key", key))
 		return nil, ErrAnonymousResultNotFound
 	}
 
 	var result dto.CheckAnswerResponse
-	if err := json.Unmarshal(data, &result); err != nil {
+	// Unmarshal from []byte(dataString)
+	if err := json.Unmarshal([]byte(dataString), &result); err != nil {
 		logger.Get().Error("Failed to unmarshal anonymous result from cache", zap.Error(err), zap.String("key", key))
-		return nil, fmt.Errorf("failed to unmarshal result: %w", err)
+		return nil, domain.NewInternalError(fmt.Sprintf("failed to unmarshal result from cache for key %s", key), err)
 	}
 
 	logger.Get().Debug("Successfully retrieved anonymous result from cache", zap.String("key", key))

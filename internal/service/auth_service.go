@@ -117,10 +117,10 @@ func (s *authServiceImpl) HandleGoogleCallback(ctx context.Context, code string,
 
 	domainUser, err := s.userRepo.GetUserByGoogleID(ctx, userInfo.ID)
 	// Check for actual error vs not found (nil, nil from repo)
-	if err != nil && domainUser == nil { // Assuming GetUserByGoogleID returns (nil, actualError) for DB errors
-		return "", "", nil, fmt.Errorf("error fetching user by google_id: %w", err)
+	if err != nil { // Error from repository (other than sql.ErrNoRows which results in domainUser == nil, err == nil)
+		return "", "", nil, domain.NewInternalError(fmt.Sprintf("error fetching user by google_id %s", userInfo.ID), err)
 	}
-	// If domainUser is nil and err is nil, it means user not found, which is handled next.
+	// If domainUser is nil (and err is nil), it means user not found, which is handled by creating the user.
 
 	// Token encryption logic remains, but these encrypted tokens are not directly saved
 	// by the domain repository's CreateUser/UpdateUser methods.
@@ -147,8 +147,9 @@ func (s *authServiceImpl) HandleGoogleCallback(ctx context.Context, code string,
 			CreatedAt:         now,
 			UpdatedAt:         now,
 		}
+		// err from CreateUser is already wrapped by the repository
 		if err := s.userRepo.CreateUser(ctx, domainUser); err != nil {
-			return "", "", nil, fmt.Errorf("failed to create user: %w", err)
+			return "", "", nil, domain.NewInternalError("failed to create user during google callback", err)
 		}
 		appLogger.Info("New user created via Google OAuth", zap.String("userID", domainUser.ID), zap.String("email", domainUser.Email))
 	} else { // User found, update profile info if changed
@@ -156,19 +157,22 @@ func (s *authServiceImpl) HandleGoogleCallback(ctx context.Context, code string,
 		domainUser.Name = userInfo.Name
 		domainUser.ProfilePictureURL = userInfo.Picture
 		domainUser.UpdatedAt = now
+		// err from UpdateUser is already wrapped by the repository
 		if err := s.userRepo.UpdateUser(ctx, domainUser); err != nil {
-			return "", "", nil, fmt.Errorf("failed to update user: %w", err)
+			return "", "", nil, domain.NewInternalError("failed to update user during google callback", err)
 		}
 		appLogger.Info("User logged in via Google OAuth", zap.String("userID", domainUser.ID), zap.String("email", domainUser.Email))
 	}
 
 	accessToken, err := s.CreateJWT(ctx, domainUser, s.authCfg.JWT.AccessTokenTTL, tokenTypeAccess)
 	if err != nil {
-		return "", "", nil, fmt.Errorf("failed to create access token: %w", err)
+		// CreateJWT now returns a wrapped error
+		return "", "", nil, domain.NewInternalError("failed to create access token", err)
 	}
 	refreshToken, err := s.CreateJWT(ctx, domainUser, s.authCfg.JWT.RefreshTokenTTL, tokenTypeRefresh)
 	if err != nil {
-		return "", "", nil, fmt.Errorf("failed to create refresh token: %w", err)
+		// CreateJWT now returns a wrapped error
+		return "", "", nil, domain.NewInternalError("failed to create refresh token", err)
 	}
 
 	// Map domainUser to dto.AuthenticatedUser for the return type.
@@ -194,7 +198,11 @@ func (s *authServiceImpl) CreateJWT(ctx context.Context, user *domain.User, ttl 
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(s.authCfg.JWT.SecretKey))
+	signedToken, err := token.SignedString([]byte(s.authCfg.JWT.SecretKey))
+	if err != nil {
+		return "", fmt.Errorf("failed to sign JWT: %w", err)
+	}
+	return signedToken, nil
 }
 
 func min(a, b int) int {
@@ -245,24 +253,32 @@ func (s *authServiceImpl) RefreshToken(ctx context.Context, refreshTokenString s
 		return "", "", errors.New("not a refresh token")
 	}
 
-	domainUser, err := s.userRepo.GetUserByID(ctx, claims.UserID) // Returns domain.User
-	if err != nil || domainUser == nil {
-		// Handle domain.NewNotFoundError if userRepo returns that for not found
-		if errors.Is(err, &domain.NotFoundError{}) || domainUser == nil && err == nil { // Check custom error type if applicable
-			appLogger.Warn("User not found for refresh token", zap.String("userID", claims.UserID))
-			return "", "", domain.NewNotFoundError(fmt.Sprintf("user %s not found for refresh token", claims.UserID))
-		}
+	domainUser, err := s.userRepo.GetUserByID(ctx, claims.UserID)
+	if err != nil { // This error is already wrapped by the repository
 		appLogger.Error("Error fetching user for refresh token", zap.String("userID", claims.UserID), zap.Error(err))
-		return "", "", fmt.Errorf("error fetching user for refresh token: %w", err)
+		// Check if it's sql.ErrNoRows (via errors.Is if repo returns it, or if it's already converted to domain.ErrNotFound)
+		// Assuming userRepo.GetUserByID returns (nil, nil) for sql.ErrNoRows
+		// And (nil, wrappedError) for other errors.
+		// The GetUserByID in user_repository.go returns (nil, nil) for sql.ErrNoRows
+		// and a wrapped error for other DB issues.
+		// So, if err is not nil here, it's already a wrapped DB error.
+		return "", "", domain.NewInternalError(fmt.Sprintf("error fetching user %s for refresh token", claims.UserID), err)
 	}
+	if domainUser == nil { // This means sql.ErrNoRows was encountered in the repo, and it returned (nil,nil)
+		appLogger.Warn("User not found for refresh token", zap.String("userID", claims.UserID))
+		return "", "", domain.NewNotFoundError(fmt.Sprintf("user %s not found for refresh token", claims.UserID))
+	}
+
 
 	newAccessToken, err := s.CreateJWT(ctx, domainUser, s.authCfg.JWT.AccessTokenTTL, tokenTypeAccess)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to create new access token: %w", err)
+		// CreateJWT now returns a wrapped error
+		return "", "", domain.NewInternalError("failed to create new access token during refresh", err)
 	}
 	newRefreshToken, err := s.CreateJWT(ctx, domainUser, s.authCfg.JWT.RefreshTokenTTL, tokenTypeRefresh)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to create new refresh token: %w", err)
+		// CreateJWT now returns a wrapped error
+		return "", "", domain.NewInternalError("failed to create new refresh token during refresh", err)
 	}
 
 	appLogger.Info("JWT token refreshed", zap.String("userID", domainUser.ID))

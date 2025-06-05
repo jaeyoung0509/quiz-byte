@@ -50,16 +50,23 @@ func NewQuizHandler(
 // @Failure 500 {object} middleware.ErrorResponse
 // @Router /categories [get]
 func (h *QuizHandler) GetAllSubCategories(c *fiber.Ctx) error {
-	_, err := h.quizService.GetAllSubCategories()
+	// Note: The service method `GetAllSubCategories` returns a list of subcategory IDs from quizzes.
+	// This handler is named GetAllSubCategories, but the route is /categories.
+	// This might be confusing. For this refactor, we align the handler's output DTO
+	// with what the called service method actually returns.
+	subCategoryIDs, err := h.quizService.GetAllSubCategories()
 	if err != nil {
-		logger.Get().Error("Failed to get categories", zap.Error(err))
-		return domain.NewInternalError("Failed to retrieve categories", err)
+		logger.Get().Error("Failed to get subcategory IDs from service", zap.Error(err))
+		// Assuming domain.NewInternalError or similar is appropriate here,
+		// or the error from service is already a domain.Error
+		if _, ok := err.(*domain.DomainError); ok {
+			return err // Return domain error directly
+		}
+		return domain.NewInternalError("Failed to retrieve subcategory IDs", err)
 	}
 
-	return c.JSON(dto.CategoryResponse{
-		ID:          "",
-		Name:        "All Categories",
-		Description: "List of all quiz categories",
+	return c.JSON(dto.SubCategoryIDsResponse{
+		SubCategoryIDs: subCategoryIDs,
 	})
 }
 

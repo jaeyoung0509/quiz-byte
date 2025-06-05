@@ -137,9 +137,9 @@ func (h *AuthHandler) GoogleCallback(c *fiber.Ctx) error {
 	// return c.Redirect(frontendURL, fiber.StatusTemporaryRedirect)
 	//
 	// For now, returning as JSON as per original plan for API-style interaction.
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"access_token":  accessToken,
-		"refresh_token": refreshToken,
+	return c.Status(fiber.StatusOK).JSON(dto.TokenResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
 	})
 }
 
@@ -156,23 +156,25 @@ func (h *AuthHandler) GoogleCallback(c *fiber.Ctx) error {
 // @Router /auth/refresh [post]
 func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 	appLogger := logger.Get()
-	var reqBody map[string]string
-	if err := c.BodyParser(&reqBody); err != nil {
+	var req dto.RefreshTokenRequest // Changed to dto.RefreshTokenRequest
+	if err := c.BodyParser(&req); err != nil {
 		appLogger.Warn("Failed to parse request body for token refresh", zap.Error(err))
 		return c.Status(fiber.StatusBadRequest).JSON(middleware.ErrorResponse{
 			Code: "INVALID_REQUEST_BODY", Message: "Invalid request body", Status: fiber.StatusBadRequest,
 		})
 	}
 
-	refreshTokenString, ok := reqBody["refresh_token"]
-	if !ok || refreshTokenString == "" {
+	// TODO: Add validation for req.RefreshToken if not handled by a global validator
+	// Example: if req.RefreshToken == "" { ... }
+
+	if req.RefreshToken == "" { // Basic validation
 		appLogger.Warn("Refresh token missing in request body")
 		return c.Status(fiber.StatusBadRequest).JSON(middleware.ErrorResponse{
 			Code: "MISSING_REFRESH_TOKEN", Message: "Refresh token is missing in request body", Status: fiber.StatusBadRequest,
 		})
 	}
 
-	newAccessToken, newRefreshToken, err := h.authService.RefreshToken(c.Context(), refreshTokenString)
+	newAccessToken, newRefreshToken, err := h.authService.RefreshToken(c.Context(), req.RefreshToken) // Use req.RefreshToken
 	if err != nil {
 		appLogger.Warn("AuthService failed to refresh token", zap.Error(err))
 		return c.Status(fiber.StatusUnauthorized).JSON(middleware.ErrorResponse{
@@ -184,9 +186,9 @@ func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 	// For simplicity, the service layer already logs this with UserID. Handler log can be simpler.
 	appLogger.Info("Tokens refreshed successfully via /auth/refresh endpoint")
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"access_token":  newAccessToken,
-		"refresh_token": newRefreshToken,
+	return c.Status(fiber.StatusOK).JSON(dto.TokenResponse{ // Changed to dto.TokenResponse
+		AccessToken:  newAccessToken,
+		RefreshToken: newRefreshToken,
 	})
 }
 
@@ -219,5 +221,5 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 	// SameSite: "Lax", // Match SameSite attribute
 	// Path: "/", // Match Path attribute
 	// })
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Logout successful. Please discard your tokens."})
+	return c.Status(fiber.StatusOK).JSON(dto.MessageResponse{Message: "Logout successful. Please discard your tokens."}) // Changed to dto.MessageResponse
 }

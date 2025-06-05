@@ -40,10 +40,3 @@ type UserQuizAttempt struct {
 }
 
 // TableName methods to satisfy potential ORM expectations, though sqlx doesn't strictly need them.
-func (User) TableName() string {
-	return "users"
-}
-
-func (UserQuizAttempt) TableName() string {
-	return "user_quiz_attempts"
-}

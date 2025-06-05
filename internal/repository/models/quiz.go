@@ -10,7 +10,7 @@ import (
 
 const stringDelimiter = "|||"
 
-// StringSlice is a custom type for handling string arrays in GORM
+// StringSlice implements custom serialization for []string to a single string for DB storage.
 type StringSlice []string
 
 // Value implements the driver.Valuer interface
@@ -65,10 +65,6 @@ type Category struct {
 	DeletedAt   *time.Time `db:"deleted_at"`
 }
 
-func (Category) TableName() string {
-	return "categories"
-}
-
 // SubCategory 모델
 type SubCategory struct {
 	ID          string     `db:"id"`
@@ -78,10 +74,6 @@ type SubCategory struct {
 	CreatedAt   time.Time  `db:"created_at"`
 	UpdatedAt   time.Time  `db:"updated_at"`
 	DeletedAt   *time.Time `db:"deleted_at"`
-}
-
-func (SubCategory) TableName() string {
-	return "sub_categories"
 }
 
 // Quiz 모델
@@ -95,10 +87,6 @@ type Quiz struct {
 	CreatedAt     time.Time  `db:"created_at"`
 	UpdatedAt     time.Time  `db:"updated_at"`
 	DeletedAt     *time.Time `db:"deleted_at"`
-}
-
-func (Quiz) TableName() string {
-	return "quizzes"
 }
 
 // Answer 모델
@@ -118,10 +106,6 @@ type Answer struct {
 	DeletedAt      *time.Time  `db:"deleted_at"`
 }
 
-func (Answer) TableName() string {
-	return "answers"
-}
-
 // QuizEvaluation 모델 (sqlx)
 type QuizEvaluation struct {
 	ID              string      `db:"id"`
@@ -137,8 +121,4 @@ type QuizEvaluation struct {
 
 	// 점수대별 상세 평가 정보를 JSON 문자열로 저장
 	ScoreEvaluations string `db:"score_evaluations"` // JSON string representing []ScoreEvaluationDetail
-}
-
-func (QuizEvaluation) TableName() string {
-	return "quiz_evaluations"
 }
