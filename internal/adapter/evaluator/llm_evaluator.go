@@ -1,41 +1,39 @@
-package domain
+package evaluator // Changed package name
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"quiz-byte/internal/logger" // Verify logger import
+	"quiz-byte/internal/domain" // Added for domain types
+	"quiz-byte/internal/logger"
 	"strings"
 	"time"
 
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/ollama"
-	"go.uber.org/zap" // Verify zap import
+	"go.uber.org/zap"
 )
 
-// llmEvaluator implements AnswerEvaluator
+// llmEvaluator implements domain.AnswerEvaluator
 type llmEvaluator struct {
 	llmClient *ollama.LLM
 }
 
 // NewLLMEvaluator creates a new instance of llmEvaluator
-func NewLLMEvaluator(llm *ollama.LLM) AnswerEvaluator {
+func NewLLMEvaluator(llm *ollama.LLM) domain.AnswerEvaluator { // Return type is domain.AnswerEvaluator
 	return &llmEvaluator{
 		llmClient: llm,
 	}
 }
 
-// EvaluateAnswer implements AnswerEvaluator
-func (e *llmEvaluator) EvaluateAnswer(questionText string, modelAnswer string, userAnswer string, keywords []string) (*Answer, error) {
-	l := logger.Get() // Use global logger
+// EvaluateAnswer implements domain.AnswerEvaluator
+func (e *llmEvaluator) EvaluateAnswer(questionText string, modelAnswer string, userAnswer string, keywords []string) (*domain.Answer, error) { // Return type is *domain.Answer
+	l := logger.Get()
 	l.Info("Evaluating answer with LLM",
 		zap.String("question", questionText),
-		// modelAnswer, userAnswer can be very long, so detailed logging is at Debug level or only when necessary
-		// zap.String("model_answer", modelAnswer),
-		// zap.String("user_answer", userAnswer),
 		zap.Strings("keywords", keywords))
 
-	// Prompt remains the same as before
+	// Prompt remains the same
 	prompt := fmt.Sprintf(`You are a quiz answer evaluator. Evaluate the answer and respond with ONLY a JSON object in the following format:
 {
     "score": 0.0,
@@ -61,25 +59,22 @@ Rules:
 
 	rawLLMResponse, err := e.callLLM(prompt)
 	if err != nil {
-		l.Error("callLLM failed during LLM evaluation", zap.Error(err), zap.String("prompt_part", prompt[:min(200, len(prompt))])) // Log part of the prompt
-		return nil, NewLLMServiceError(fmt.Errorf("callLLM failed: %w", err))
+		l.Error("callLLM failed during LLM evaluation", zap.Error(err), zap.String("prompt_part", prompt[:min(200, len(prompt))]))
+		return nil, domain.NewLLMServiceError(fmt.Errorf("callLLM failed: %w", err)) // Use domain.NewLLMServiceError
 	}
 
-	l.Debug("Raw LLM response received", zap.String("raw_response", rawLLMResponse)) // Log raw response (debug level)
+	l.Debug("Raw LLM response received", zap.String("raw_response", rawLLMResponse))
 
 	cleanedResponseStr := strings.TrimSpace(rawLLMResponse)
 
-	// Remove <think>...</think> block (if present)
 	if thinkStart := strings.Index(cleanedResponseStr, "<think>"); thinkStart != -1 {
 		if thinkEnd := strings.Index(cleanedResponseStr, "</think>"); thinkEnd != -1 && thinkEnd > thinkStart {
-			// Part before <think> block + part after
 			cleanedResponseStr = cleanedResponseStr[:thinkStart] + cleanedResponseStr[thinkEnd+len("</think>"):]
 			cleanedResponseStr = strings.TrimSpace(cleanedResponseStr)
 			l.Debug("LLM response after stripping <think> tags", zap.String("cleaned_response", cleanedResponseStr))
 		}
 	}
 
-	// Attempt to extract based on the first '{' and last '}' to find the JSON object
 	jsonStart := strings.Index(cleanedResponseStr, "{")
 	jsonEnd := strings.LastIndex(cleanedResponseStr, "}")
 
@@ -96,41 +91,35 @@ Rules:
 			Accuracy       float64  `json:"accuracy"`
 		}
 
-		// Attempt JSON parsing
 		if errUnmarshal := json.Unmarshal([]byte(extractedJSONStr), &llmResp); errUnmarshal != nil {
 			l.Error("Failed to unmarshal extracted JSON from LLM response",
 				zap.Error(errUnmarshal),
 				zap.String("json_string_tried_to_parse", extractedJSONStr),
-				zap.String("original_cleaned_llm_response", cleanedResponseStr)) // Log the original cleaned string for debugging
-			return nil, NewLLMServiceError(fmt.Errorf("failed to unmarshal JSON from LLM (tried to parse: '%s'): %w", extractedJSONStr, errUnmarshal))
+				zap.String("original_cleaned_llm_response", cleanedResponseStr))
+			return nil, domain.NewLLMServiceError(fmt.Errorf("failed to unmarshal JSON from LLM (tried to parse: '%s'): %w", extractedJSONStr, errUnmarshal)) // Use domain.NewLLMServiceError
 		}
 
 		l.Info("Successfully parsed LLM response", zap.Any("parsed_llm_evaluation", llmResp))
 
-		// Create Answer object
-		// QuizID is not in the LLM response, so it must be filled in the service layer
-		answer := &Answer{
-			UserAnswer:     userAnswer, // User's original answer
+		answer := &domain.Answer{ // Use domain.Answer
+			UserAnswer:     userAnswer,
 			Score:          llmResp.Score,
 			Explanation:    llmResp.Explanation,
 			KeywordMatches: llmResp.KeywordMatches,
 			Completeness:   llmResp.Completeness,
 			Relevance:      llmResp.Relevance,
 			Accuracy:       llmResp.Accuracy,
-			// QuizID and AnsweredAt are set when creating the Answer object in the service layer
 		}
 		return answer, nil
 
 	} else {
-		// If JSON delimiters '{' or '}' are not found
 		l.Error("Could not find valid JSON object delimiters '{' and '}' in LLM response",
 			zap.String("cleaned_response_without_json_delimiters", cleanedResponseStr),
 			zap.String("original_raw_llm_response", rawLLMResponse))
-		return nil, NewLLMServiceError(fmt.Errorf("no JSON object found in LLM response: %s", cleanedResponseStr))
+		return nil, domain.NewLLMServiceError(fmt.Errorf("no JSON object found in LLM response: %s", cleanedResponseStr)) // Use domain.NewLLMServiceError
 	}
 }
 
-// callLLM uses the llmClient from the struct
 func (e *llmEvaluator) callLLM(prompt string) (string, error) {
 	l := logger.Get()
 

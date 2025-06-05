@@ -14,8 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"quiz-byte/internal/cache" // Added
-	"quiz-byte/internal/config"
+	"quiz-byte/internal/cache"
 	"quiz-byte/internal/domain"
 	"quiz-byte/internal/dto"
 	"quiz-byte/internal/logger"
@@ -44,44 +43,47 @@ type AnswerCacheService interface {
 
 // answerCacheServiceImpl implements AnswerCacheService
 type answerCacheServiceImpl struct {
-	cache domain.Cache
-	repo  domain.QuizRepository
-	cfg   *config.Config
+	cache                      domain.Cache
+	repo                       domain.QuizRepository
+	answerEvaluationTTL        time.Duration // Added
+	embeddingSimilarityThreshold float64       // Added
 }
 
 // NewAnswerCacheService creates a new instance of answerCacheServiceImpl
-func NewAnswerCacheService(cache domain.Cache, repo domain.QuizRepository, cfg *config.Config) AnswerCacheService {
-	// Handle nil cache gracefully in the service methods if it can be nil.
-	// Or ensure it's never nil when NewAnswerCacheService is called.
-	// For now, assume it's a valid instance.
+func NewAnswerCacheService(
+	cache domain.Cache,
+	repo domain.QuizRepository,
+	answerEvaluationTTL time.Duration, // Added
+	embeddingSimilarityThreshold float64, // Added
+) AnswerCacheService {
 	return &answerCacheServiceImpl{
-		cache: cache,
-		repo:  repo,
-		cfg:   cfg,
+		cache:                      cache,
+		repo:                       repo,
+		answerEvaluationTTL:        answerEvaluationTTL,
+		embeddingSimilarityThreshold: embeddingSimilarityThreshold,
 	}
 }
 
 // GetAnswerFromCache retrieves an answer from the cache if a similar one exists.
 func (s *answerCacheServiceImpl) GetAnswerFromCache(ctx context.Context, quizID string, userAnswerEmbedding []float32, userAnswerText string) (*dto.CheckAnswerResponse, error) {
-	if s.cache == nil || s.cfg == nil { // Or s.cfg.Embedding.SimilarityThreshold == 0 if that's a disabled state
-		logger.Get().Debug("AnswerCacheService: Cache or config not available, skipping cache lookup.", zap.String("quizID", quizID))
+	if s.cache == nil {
+		logger.Get().Debug("AnswerCacheService: Cache not available, skipping cache lookup.", zap.String("quizID", quizID))
 		return nil, nil // Not an error, just no cache service available
 	}
-	if len(userAnswerEmbedding) == 0 { // Should not happen if called correctly, but good check
+	if len(userAnswerEmbedding) == 0 {
 		logger.Get().Warn("AnswerCacheService: GetAnswerFromCache called with empty userAnswerEmbedding", zap.String("quizID", quizID))
 		return nil, nil
 	}
 
-	// Use new cache key generation
 	cacheKey := cache.GenerateCacheKey("answer", "evaluation_map", quizID)
 	cachedAnswersMap, err := s.cache.HGetAll(ctx, cacheKey)
 	if err != nil {
-		if err == domain.ErrCacheMiss { // HGetAll might return this if key doesn't exist (depends on impl)
+		if err == domain.ErrCacheMiss {
 			logger.Get().Debug("AnswerCacheService: Cache miss (key not found)", zap.String("key", cacheKey), zap.String("quizID", quizID))
 			return nil, nil
 		}
 		logger.Get().Error("AnswerCacheService: Cache HGetAll failed", zap.Error(err), zap.String("key", cacheKey), zap.String("quizID", quizID))
-		return nil, err // Actual cache error
+		return nil, err
 	}
 
 	if len(cachedAnswersMap) == 0 {
@@ -89,7 +91,7 @@ func (s *answerCacheServiceImpl) GetAnswerFromCache(ctx context.Context, quizID 
 		return nil, nil
 	}
 
-	for fieldKey, cachedEvalDataStr := range cachedAnswersMap { // fieldKey is hashed user answer
+	for fieldKey, cachedEvalDataStr := range cachedAnswersMap {
 		var cachedEntry CachedAnswerEvaluation
 		byteReader := bytes.NewReader([]byte(cachedEvalDataStr))
 		decoder := gob.NewDecoder(byteReader)
@@ -104,26 +106,14 @@ func (s *answerCacheServiceImpl) GetAnswerFromCache(ctx context.Context, quizID 
 					zap.String("quizID", quizID),
 					zap.String("fieldKey", fieldKey))
 			}
-			continue // Skip this entry
+			continue
 		}
 
-		// Check if the UserAnswer in the decoded entry matches the hash used for fieldKey.
-		// This is an integrity check, as we store UserAnswer for debugging/logging.
-		// Note: This check might be removed if UserAnswer is not stored in CachedAnswerEvaluation.
 		if cachedEntry.UserAnswer != "" && hashString(cachedEntry.UserAnswer) != fieldKey {
 			logger.Get().Warn("AnswerCacheService: Decoded UserAnswer hash mismatch with fieldKey",
 				zap.String("quizID", quizID),
 				zap.String("decodedUserAnswer", cachedEntry.UserAnswer),
 				zap.String("fieldKey", fieldKey))
-			// Depending on policy, might skip or proceed. For now, proceed.
-		}
-
-		if len(cachedEntry.Embedding) == 0 {
-			logger.Get().Debug("AnswerCacheService: Skipping cached entry due to missing embedding",
-				zap.String("quizID", quizID),
-				zap.String("cachedUserAnswer", cachedEntry.UserAnswer), // UserAnswer from struct
-				zap.String("userAnswer", userAnswerText))
-			continue // Skip this entry
 		}
 
 		if len(cachedEntry.Embedding) == 0 {
@@ -131,7 +121,7 @@ func (s *answerCacheServiceImpl) GetAnswerFromCache(ctx context.Context, quizID 
 				zap.String("quizID", quizID),
 				zap.String("cachedUserAnswer", cachedEntry.UserAnswer),
 				zap.String("userAnswer", userAnswerText))
-			continue // Skip this entry
+			continue
 		}
 
 		similarity, errSim := util.CosineSimilarity(userAnswerEmbedding, cachedEntry.Embedding)
@@ -140,57 +130,54 @@ func (s *answerCacheServiceImpl) GetAnswerFromCache(ctx context.Context, quizID 
 				zap.Error(errSim),
 				zap.String("quizID", quizID),
 				zap.String("userAnswer", userAnswerText))
-			continue // Skip this entry
+			continue
 		}
 
-		if similarity >= s.cfg.Embedding.SimilarityThreshold {
+		if similarity >= s.embeddingSimilarityThreshold { // Use field value
 			logger.Get().Info("AnswerCacheService: Cache hit - Found similar answer",
 				zap.String("quizID", quizID),
 				zap.String("userAnswer", userAnswerText),
 				zap.Float64("similarity", similarity),
 				zap.String("cachedUserAnswer", cachedEntry.UserAnswer))
 
-			// Update model answer from latest quiz data
-			if s.repo != nil { // Ensure repo is available
+			if s.repo != nil {
 				quizForModelAnswer, errRepo := s.repo.GetQuizByID(quizID)
 				if errRepo != nil {
 					logger.Get().Error("AnswerCacheService: Failed to get quiz by ID for updating model answer in cache hit",
 						zap.Error(errRepo),
 						zap.String("quizID", quizID))
-					// Return the cached evaluation anyway, as updating model answer is an enhancement
 				} else if quizForModelAnswer != nil {
 					cachedEntry.Evaluation.ModelAnswer = strings.Join(quizForModelAnswer.ModelAnswers, "\n")
 				}
 			}
-			return cachedEntry.Evaluation, nil // Cache Hit
+			return cachedEntry.Evaluation, nil
 		}
 	}
 
 	logger.Get().Debug("AnswerCacheService: No sufficiently similar answer found in cache", zap.String("quizID", quizID), zap.String("userAnswer", userAnswerText))
-	return nil, nil // Cache Miss (no similar answer found)
+	return nil, nil
 }
 
 // PutAnswerToCache puts an answer evaluation into the cache.
 func (s *answerCacheServiceImpl) PutAnswerToCache(ctx context.Context, quizID string, userAnswerText string, userAnswerEmbedding []float32, evaluation *dto.CheckAnswerResponse) error {
 	if s.cache == nil {
 		logger.Get().Debug("AnswerCacheService: Cache not available, skipping cache write.", zap.String("quizID", quizID))
-		return nil // Not an error, just no cache service available
+		return nil
 	}
-	if len(userAnswerEmbedding) == 0 { // Should not happen if called correctly
+	if len(userAnswerEmbedding) == 0 {
 		logger.Get().Warn("AnswerCacheService: PutAnswerToCache called with empty userAnswerEmbedding, not caching.", zap.String("quizID", quizID))
-		return nil // Don't cache if embedding is missing
+		return nil
 	}
 	if evaluation == nil {
 		logger.Get().Warn("AnswerCacheService: PutAnswerToCache called with nil evaluation, not caching.", zap.String("quizID", quizID))
 		return nil
 	}
 
-	// Use new cache key generation
 	cacheKey := cache.GenerateCacheKey("answer", "evaluation_map", quizID)
 	cachedEval := CachedAnswerEvaluation{
 		Evaluation: evaluation,
 		Embedding:  userAnswerEmbedding,
-		UserAnswer: userAnswerText, // Storing original userAnswerText for potential debugging/logging
+		UserAnswer: userAnswerText,
 	}
 
 	var buffer bytes.Buffer
@@ -199,10 +186,9 @@ func (s *answerCacheServiceImpl) PutAnswerToCache(ctx context.Context, quizID st
 		logger.Get().Error("AnswerCacheService: Failed to gob encode answer evaluation for caching",
 			zap.Error(errEncode),
 			zap.String("quizID", quizID))
-		return errEncode // Return the error
+		return errEncode
 	}
 
-	// Use hashed userAnswerText as field key
 	fieldKey := hashString(userAnswerText)
 	if err := s.cache.HSet(ctx, cacheKey, fieldKey, buffer.String()); err != nil {
 		logger.Get().Error("AnswerCacheService: Failed to cache answer evaluation (HSet) (gob)",
@@ -211,18 +197,13 @@ func (s *answerCacheServiceImpl) PutAnswerToCache(ctx context.Context, quizID st
 		return err
 	}
 
-	defaultAnswerEvaluationTTL := 24 * time.Hour
-	cacheTTL := defaultAnswerEvaluationTTL
-	if s.cfg != nil && s.cfg.CacheTTLs.AnswerEvaluation != "" {
-		cacheTTL = s.cfg.ParseTTLStringOrDefault(s.cfg.CacheTTLs.AnswerEvaluation, defaultAnswerEvaluationTTL)
-	}
-
-	if err := s.cache.Expire(ctx, cacheKey, cacheTTL); err != nil {
+	// Use the answerEvaluationTTL field from the struct
+	if err := s.cache.Expire(ctx, cacheKey, s.answerEvaluationTTL); err != nil {
 		logger.Get().Error("AnswerCacheService: Failed to set cache expiration",
 			zap.Error(err),
 			zap.String("quizID", quizID),
-			zap.Duration("ttl", cacheTTL))
-		return err // Return the error, even if HSet succeeded.
+			zap.Duration("ttl", s.answerEvaluationTTL)) // Use field value
+		return err
 	}
 
 	logger.Get().Info("AnswerCacheService: Answer evaluation and embedding cached successfully",

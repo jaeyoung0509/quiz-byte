@@ -2,50 +2,123 @@ package repository
 
 import (
 	"context"
+	"context"
 	"database/sql"
-	"errors" // Added
+	"errors"
 	"fmt"
-	// "quiz-byte/internal/domain" // Removed unused import
+	"quiz-byte/internal/domain"
 	"quiz-byte/internal/dto" // For DTOs like AttemptFilters, Pagination
 	"quiz-byte/internal/repository/models"
+	"quiz-byte/internal/util" // For sql_helpers if needed, though direct sql.Null types are used here
 	"strings"
 	"time"
 
 	"github.com/jmoiron/sqlx"
 )
 
-// UserQuizAttemptRepository defines the interface for user quiz attempt data operations.
-type UserQuizAttemptRepository interface {
-	CreateAttempt(ctx context.Context, attempt *models.UserQuizAttempt) error
-	GetAttemptsByUserID(ctx context.Context, userID string, filters dto.AttemptFilters, pagination dto.Pagination) ([]models.UserQuizAttempt, int, error)
-	GetIncorrectAttemptsByUserID(ctx context.Context, userID string, filters dto.AttemptFilters, pagination dto.Pagination) ([]models.UserQuizAttempt, int, error)
-}
-
-// sqlxUserQuizAttemptRepository implements UserQuizAttemptRepository using sqlx.
+// sqlxUserQuizAttemptRepository implements domain.UserQuizAttemptRepository using sqlx.
 type sqlxUserQuizAttemptRepository struct {
 	db *sqlx.DB
 }
 
 // NewSQLXUserQuizAttemptRepository creates a new instance of sqlxUserQuizAttemptRepository.
-func NewSQLXUserQuizAttemptRepository(db *sqlx.DB) UserQuizAttemptRepository {
+func NewSQLXUserQuizAttemptRepository(db *sqlx.DB) domain.UserQuizAttemptRepository {
 	return &sqlxUserQuizAttemptRepository{db: db}
 }
 
-// CreateAttempt inserts a new quiz attempt into the database.
-func (r *sqlxUserQuizAttemptRepository) CreateAttempt(ctx context.Context, attempt *models.UserQuizAttempt) error {
-	query := `INSERT INTO user_quiz_attempts (id, user_id, quiz_id, user_answer, llm_score, llm_explanation, llm_keyword_matches, llm_completeness, llm_relevance, llm_accuracy, is_correct, attempted_at, created_at, updated_at)
-	          VALUES (:id, :user_id, :quiz_id, :user_answer, :llm_score, :llm_explanation, :llm_keyword_matches, :llm_completeness, :llm_relevance, :llm_accuracy, :is_correct, :attempted_at, :created_at, :updated_at)`
-
-	if attempt.AttemptedAt.IsZero() {
-		attempt.AttemptedAt = time.Now()
+func toDomainUserQuizAttempt(modelAttempt *models.UserQuizAttempt) *domain.UserQuizAttempt {
+	if modelAttempt == nil {
+		return nil
 	}
-	attempt.CreatedAt = time.Now()
-	attempt.UpdatedAt = time.Now()
+	var deletedAt *time.Time
+	if modelAttempt.DeletedAt.Valid {
+		deletedAt = &modelAttempt.DeletedAt.Time
+	}
 
-	// Handle StringSlice for llm_keyword_matches
-	// sqlx handles the Valuer interface of StringSlice automatically.
+	// LLMKeywordMatches is models.StringSlice, needs conversion to []string
+	// The StringSlice type itself is []string, so direct assignment is fine.
+	var llmKeywordMatches []string
+	if modelAttempt.LlmKeywordMatches != nil {
+		llmKeywordMatches = modelAttempt.LlmKeywordMatches
+	} else {
+		llmKeywordMatches = []string{} // Ensure it's not nil for domain model if that's a requirement
+	}
 
-	_, err := r.db.NamedExecContext(ctx, query, attempt)
+
+	return &domain.UserQuizAttempt{
+		ID:                modelAttempt.ID,
+		UserID:            modelAttempt.UserID,
+		QuizID:            modelAttempt.QuizID,
+		UserAnswer:        modelAttempt.UserAnswer.String, // Handle NullString
+		LLMScore:          modelAttempt.LlmScore.Float64,  // Handle NullFloat64
+		LLMExplanation:    modelAttempt.LlmExplanation.String,
+		LLMKeywordMatches: llmKeywordMatches,
+		LLMCompleteness:   modelAttempt.LlmCompleteness.Float64,
+		LLMRelevance:      modelAttempt.LlmRelevance.Float64,
+		LLMAccuracy:       modelAttempt.LlmAccuracy.Float64,
+		IsCorrect:         modelAttempt.IsCorrect,
+		AttemptedAt:       modelAttempt.AttemptedAt,
+		CreatedAt:         modelAttempt.CreatedAt,
+		UpdatedAt:         modelAttempt.UpdatedAt,
+		DeletedAt:         deletedAt,
+	}
+}
+
+func fromDomainUserQuizAttempt(domainAttempt *domain.UserQuizAttempt) *models.UserQuizAttempt {
+	if domainAttempt == nil {
+		return nil
+	}
+	var deletedAt sql.NullTime
+	if domainAttempt.DeletedAt != nil {
+		deletedAt = util.TimeToNullTime(*domainAttempt.DeletedAt)
+	}
+
+	// LLMKeywordMatches is []string, needs conversion to models.StringSlice
+	// models.StringSlice is type []string, so direct assignment.
+	var llmKeywordMatches models.StringSlice
+	if domainAttempt.LLMKeywordMatches != nil {
+		llmKeywordMatches = domainAttempt.LLMKeywordMatches
+	} else {
+		llmKeywordMatches = models.StringSlice{}
+	}
+
+
+	return &models.UserQuizAttempt{
+		ID:                 domainAttempt.ID,
+		UserID:             domainAttempt.UserID,
+		QuizID:             domainAttempt.QuizID,
+		UserAnswer:         util.StringToNullString(domainAttempt.UserAnswer),
+		LlmScore:           sql.NullFloat64{Float64: domainAttempt.LLMScore, Valid: domainAttempt.LLMScore != 0}, // Consider if 0 is a valid score or means null
+		LlmExplanation:     util.StringToNullString(domainAttempt.LLMExplanation),
+		LlmKeywordMatches:  llmKeywordMatches,
+		LlmCompleteness:    sql.NullFloat64{Float64: domainAttempt.LLMCompleteness, Valid: domainAttempt.LLMCompleteness != 0},
+		LlmRelevance:       sql.NullFloat64{Float64: domainAttempt.LLMRelevance, Valid: domainAttempt.LLMRelevance != 0},
+		LlmAccuracy:        sql.NullFloat64{Float64: domainAttempt.LLMAccuracy, Valid: domainAttempt.LLMAccuracy != 0},
+		IsCorrect:          domainAttempt.IsCorrect,
+		AttemptedAt:        domainAttempt.AttemptedAt,
+		CreatedAt:          domainAttempt.CreatedAt,
+		UpdatedAt:          domainAttempt.UpdatedAt,
+		DeletedAt:          deletedAt,
+	}
+}
+
+// CreateAttempt inserts a new quiz attempt into the database.
+func (r *sqlxUserQuizAttemptRepository) CreateAttempt(ctx context.Context, domainAttempt *domain.UserQuizAttempt) error {
+	modelAttempt := fromDomainUserQuizAttempt(domainAttempt)
+
+	if modelAttempt.AttemptedAt.IsZero() {
+		modelAttempt.AttemptedAt = time.Now()
+	}
+	if modelAttempt.CreatedAt.IsZero() {
+		modelAttempt.CreatedAt = time.Now()
+	}
+	modelAttempt.UpdatedAt = time.Now()
+
+
+	query := `INSERT INTO user_quiz_attempts (id, user_id, quiz_id, user_answer, llm_score, llm_explanation, llm_keyword_matches, llm_completeness, llm_relevance, llm_accuracy, is_correct, attempted_at, created_at, updated_at, deleted_at)
+	          VALUES (:id, :user_id, :quiz_id, :user_answer, :llm_score, :llm_explanation, :llm_keyword_matches, :llm_completeness, :llm_relevance, :llm_accuracy, :is_correct, :attempted_at, :created_at, :updated_at, :deleted_at)`
+
+	_, err := r.db.NamedExecContext(ctx, query, modelAttempt)
 	if err != nil {
 		return fmt.Errorf("failed to create user quiz attempt: %w", err)
 	}
@@ -54,6 +127,7 @@ func (r *sqlxUserQuizAttemptRepository) CreateAttempt(ctx context.Context, attem
 
 // buildAttemptsQuery constructs the SELECT query for fetching attempts based on filters and pagination.
 // It returns the query string for fetching results, the query string for counting total results, and the arguments map.
+// This function remains unchanged as it operates on model level and DTOs.
 func buildAttemptsQuery(baseQueryFields, baseQueryFrom, baseQueryWhere string, userID string, filters dto.AttemptFilters, pagination dto.Pagination, forIncorrectOnly bool) (string, string, map[string]interface{}) {
 	args := make(map[string]interface{})
 	args["user_id"] = userID
@@ -67,64 +141,31 @@ func buildAttemptsQuery(baseQueryFields, baseQueryFrom, baseQueryWhere string, u
 
 
 	if filters.CategoryID != "" {
-		// This requires joining with quizzes and sub_categories table
-		// Assuming sub_category_id is directly on quizzes table.
-		// If filters.CategoryID is for main category, a further join is needed.
-		// For now, let's assume filters.CategoryID is actually filters.SubCategoryID for simplicity or that quizzes has category_id
-		// This part might need adjustment based on exact DTO and schema relation.
-		// Let's assume for now 'q.sub_category_id' can be used and filters.CategoryID is actually sub_category_id
-		// Or, if it's a main category ID, the join would be:
-		// JOIN quizzes q ON uqa.quiz_id = q.id JOIN sub_categories sc ON q.sub_category_id = sc.id
-		// For now, we'll filter by quiz_id if SubCategoryID is provided, assuming a more direct link or pre-filtering.
-		// This is a simplification and might need refinement.
-		// A better approach would be to have quiz_id in filters or ensure CategoryID allows for proper join.
-		// For this example, if CategoryID is present, we assume it means a sub_category_id on the quiz.
-		// whereClauses = append(whereClauses, "q.sub_category_id = :category_id") // Requires JOIN with quizzes q
-		// args["category_id"] = filters.CategoryID
-
-		// Based on the GetAttemptsByUserID and GetIncorrectAttemptsByUserID, if CategoryID is present,
-		// baseQueryFrom is already updated to include JOINs up to sub_categories (sc).
-		// So, we can add the filter condition on sc.category_id (if CategoryID is main category)
-		// or q.sub_category_id (if CategoryID is sub-category).
-		// Let's assume filters.CategoryID is the ID of the *main* category.
-		// The JOIN in the calling functions is: user_quiz_attempts uqa JOIN quizzes q ON uqa.quiz_id = q.id JOIN sub_categories sc ON q.sub_category_id = sc.id
 		whereClauses = append(whereClauses, "sc.category_id = :category_id")
 		args["category_id"] = filters.CategoryID
-
 	}
 
-	if filters.StartDate != "" { // Changed from !filters.StartDate.IsZero()
-		// Assuming StartDate is a string like "YYYY-MM-DD"
-		// For robust parsing, consider validating format or using time.Parse
-		// For now, direct usage if DB supports string comparison with date fields.
-		// If not, parsing is required:
-		// parsedStartDate, err := time.Parse("2006-01-02", filters.StartDate)
-		// if err == nil { whereClauses = append(whereClauses, "uqa.attempted_at >= :start_date"); args["start_date"] = parsedStartDate }
+	if filters.StartDate != "" {
 		whereClauses = append(whereClauses, "uqa.attempted_at >= :start_date")
 		args["start_date"] = filters.StartDate
 	}
-	if filters.EndDate != "" { // Changed from !filters.EndDate.IsZero()
-		// Assuming EndDate is a string like "YYYY-MM-DD"
-		// Parse to time.Time to use .Add()
+	if filters.EndDate != "" {
 		parsedEndDate, err := time.Parse("2006-01-02", filters.EndDate)
 		if err == nil {
 			whereClauses = append(whereClauses, "uqa.attempted_at <= :end_date")
-			args["end_date"] = parsedEndDate.Add(24*time.Hour - 1*time.Nanosecond) // Include the whole end day
+			args["end_date"] = parsedEndDate.Add(24*time.Hour - 1*time.Nanosecond)
 		} else {
-			// Handle error or assume direct comparison if parsing fails, though less robust
-			whereClauses = append(whereClauses, "uqa.attempted_at <= :end_date_str") // Use a different placeholder if not parsing
+			whereClauses = append(whereClauses, "uqa.attempted_at <= :end_date_str")
 			args["end_date_str"] = filters.EndDate
 		}
 	}
 
-	if filters.IsCorrect != nil { // Tri-state bool: true, false, or nil (don't filter)
+	if filters.IsCorrect != nil {
 		whereClauses = append(whereClauses, "uqa.is_correct = :is_correct")
 		args["is_correct"] = *filters.IsCorrect
 	} else if forIncorrectOnly {
-		// if baseQueryWhere already sets is_correct = 0, this is redundant but harmless
-		// ensure it's not already in baseQueryWhere to avoid "is_correct=0 AND is_correct=0"
-		if !strings.Contains(baseQueryWhere, "is_correct = 0") {
-			whereClauses = append(whereClauses, "uqa.is_correct = 0") // 0 for false
+		if !strings.Contains(baseQueryWhere, "is_correct = 0") && !strings.Contains(baseQueryWhere, "is_correct = :is_correct") {
+			whereClauses = append(whereClauses, "uqa.is_correct = 0")
 		}
 	}
 
@@ -167,39 +208,42 @@ func buildAttemptsQuery(baseQueryFields, baseQueryFrom, baseQueryWhere string, u
 
 
 // GetAttemptsByUserID retrieves a paginated list of quiz attempts for a user, with filters.
-func (r *sqlxUserQuizAttemptRepository) GetAttemptsByUserID(ctx context.Context, userID string, filters dto.AttemptFilters, pagination dto.Pagination) ([]models.UserQuizAttempt, int, error) {
+func (r *sqlxUserQuizAttemptRepository) GetAttemptsByUserID(ctx context.Context, userID string, filters dto.AttemptFilters, pagination dto.Pagination) ([]domain.UserQuizAttempt, int, error) {
 	baseQueryFields := "uqa.*"
 	baseQueryFrom := "user_quiz_attempts uqa"
 	baseQueryWhere := ""
 
 	if filters.CategoryID != "" {
-		// Assuming filters.CategoryID refers to the main category ID (categories.id)
-		// And sub_categories has a category_id FK to categories.id
-		// And quizzes has a sub_category_id FK to sub_categories.id
 		baseQueryFrom = "user_quiz_attempts uqa JOIN quizzes q ON uqa.quiz_id = q.id JOIN sub_categories sc ON q.sub_category_id = sc.id"
 	}
 
 	resultsQuery, countQuery, args := buildAttemptsQuery(baseQueryFields, baseQueryFrom, baseQueryWhere, userID, filters, pagination, false)
 
-	var attempts []models.UserQuizAttempt
-	// For SelectContext, if using structs in `args` for nested properties (like `pagination.Limit`), it won't work directly.
-	// Ensure `args` is a flat map[string]interface{}. buildAttemptsQuery already does this.
+	var modelAttempts []models.UserQuizAttempt
 	nstmt, err := r.db.PrepareNamedContext(ctx, resultsQuery)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to prepare query for GetAttemptsByUserID results: %w. Query: %s, Args: %+v", err, resultsQuery, args)
 	}
 	defer nstmt.Close()
-	err = nstmt.SelectContext(ctx, &attempts, args)
+	err = nstmt.SelectContext(ctx, &modelAttempts, args)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return []models.UserQuizAttempt{}, 0, nil
+			return []domain.UserQuizAttempt{}, 0, nil
 		}
 		return nil, 0, fmt.Errorf("failed to get user quiz attempts: %w. Query: %s, Args: %+v", err, resultsQuery, args)
 	}
 
+	domainAttempts := make([]domain.UserQuizAttempt, len(modelAttempts))
+	for i, ma := range modelAttempts {
+		da := toDomainUserQuizAttempt(&ma) // Pass pointer to ma
+		if da != nil {
+			domainAttempts[i] = *da
+		}
+		// Handle case where da is nil if necessary, though toDomainUserQuizAttempt shouldn't return nil for non-nil input
+	}
+
 	var total int
-	// For GetContext with count query
 	nstmtCount, err := r.db.PrepareNamedContext(ctx, countQuery)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to prepare query for GetAttemptsByUserID count: %w. Query: %s, Args: %+v", err, countQuery, args)
@@ -208,18 +252,21 @@ func (r *sqlxUserQuizAttemptRepository) GetAttemptsByUserID(ctx context.Context,
 	err = nstmtCount.GetContext(ctx, &total, args)
 
 	if err != nil {
-		// sql.ErrNoRows is not expected for COUNT(*), but handle defensively
 		return nil, 0, fmt.Errorf("failed to count user quiz attempts: %w. Query: %s, Args: %+v", err, countQuery, args)
 	}
 
-	return attempts, total, nil
+	return domainAttempts, total, nil
 }
 
 // GetIncorrectAttemptsByUserID retrieves a paginated list of incorrect quiz attempts for a user.
-func (r *sqlxUserQuizAttemptRepository) GetIncorrectAttemptsByUserID(ctx context.Context, userID string, filters dto.AttemptFilters, pagination dto.Pagination) ([]models.UserQuizAttempt, int, error) {
+func (r *sqlxUserQuizAttemptRepository) GetIncorrectAttemptsByUserID(ctx context.Context, userID string, filters dto.AttemptFilters, pagination dto.Pagination) ([]domain.UserQuizAttempt, int, error) {
 	baseQueryFields := "uqa.*"
 	baseQueryFrom := "user_quiz_attempts uqa"
+	// Ensure the base query correctly filters for incorrect attempts.
+	// The `forIncorrectOnly` flag in `buildAttemptsQuery` will also add `uqa.is_correct = 0`
+	// if not already present in `baseQueryWhere` and `filters.IsCorrect` is nil.
 	baseQueryWhere := "uqa.is_correct = 0"
+
 
     if filters.CategoryID != "" {
 		baseQueryFrom = "user_quiz_attempts uqa JOIN quizzes q ON uqa.quiz_id = q.id JOIN sub_categories sc ON q.sub_category_id = sc.id"
@@ -227,19 +274,27 @@ func (r *sqlxUserQuizAttemptRepository) GetIncorrectAttemptsByUserID(ctx context
 
 	resultsQuery, countQuery, args := buildAttemptsQuery(baseQueryFields, baseQueryFrom, baseQueryWhere, userID, filters, pagination, true)
 
-	var attempts []models.UserQuizAttempt
+	var modelAttempts []models.UserQuizAttempt
 	nstmt, err := r.db.PrepareNamedContext(ctx, resultsQuery)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to prepare query for GetIncorrectAttemptsByUserID results: %w. Query: %s, Args: %+v", err, resultsQuery, args)
 	}
 	defer nstmt.Close()
-	err = nstmt.SelectContext(ctx, &attempts, args)
+	err = nstmt.SelectContext(ctx, &modelAttempts, args)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return []models.UserQuizAttempt{}, 0, nil
+			return []domain.UserQuizAttempt{}, 0, nil
 		}
 		return nil, 0, fmt.Errorf("failed to get incorrect user quiz attempts: %w. Query: %s, Args: %+v", err, resultsQuery, args)
+	}
+
+	domainAttempts := make([]domain.UserQuizAttempt, len(modelAttempts))
+	for i, ma := range modelAttempts {
+		da := toDomainUserQuizAttempt(&ma) // Pass pointer to ma
+		if da != nil {
+			domainAttempts[i] = *da
+		}
 	}
 
 	var total int
@@ -253,5 +308,5 @@ func (r *sqlxUserQuizAttemptRepository) GetIncorrectAttemptsByUserID(ctx context
 		return nil, 0, fmt.Errorf("failed to count incorrect user quiz attempts: %w. Query: %s, Args: %+v", err, countQuery, args)
 	}
 
-	return attempts, total, nil
+	return domainAttempts, total, nil
 }

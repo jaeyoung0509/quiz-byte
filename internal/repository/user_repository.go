@@ -5,52 +5,94 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"quiz-byte/internal/repository/models" // Assuming models are in this path
-	// "strings" // Removed unused import
+	"quiz-byte/internal/domain"
+	"quiz-byte/internal/repository/models"
+	"quiz-byte/internal/util"
 	"time"
 
 	"github.com/jmoiron/sqlx"
 )
 
-// UserRepository defines the interface for user data operations.
-type UserRepository interface {
-	CreateUser(ctx context.Context, user *models.User) error
-	GetUserByGoogleID(ctx context.Context, googleID string) (*models.User, error)
-	GetUserByID(ctx context.Context, userID string) (*models.User, error)
-	UpdateUser(ctx context.Context, user *models.User) error
-	// Consider GetUserByEmail if needed for specific checks, though GoogleID is primary for OAuth
-}
-
-// sqlxUserRepository implements UserRepository using sqlx.
+// sqlxUserRepository implements domain.UserRepository using sqlx.
 type sqlxUserRepository struct {
 	db *sqlx.DB
 }
 
 // NewSQLXUserRepository creates a new instance of sqlxUserRepository.
-func NewSQLXUserRepository(db *sqlx.DB) UserRepository {
+func NewSQLXUserRepository(db *sqlx.DB) domain.UserRepository {
 	return &sqlxUserRepository{db: db}
 }
 
+func toDomainUser(modelUser *models.User) *domain.User {
+	if modelUser == nil {
+		return nil
+	}
+	var deletedAt *time.Time
+	if modelUser.DeletedAt.Valid {
+		deletedAt = &modelUser.DeletedAt.Time
+	}
+	return &domain.User{
+		ID:                modelUser.ID,
+		GoogleID:          modelUser.GoogleID,
+		Email:             modelUser.Email,
+		Name:              modelUser.Name.String,
+		ProfilePictureURL: modelUser.ProfilePictureURL.String,
+		CreatedAt:         modelUser.CreatedAt,
+		UpdatedAt:         modelUser.UpdatedAt,
+		DeletedAt:         deletedAt,
+	}
+}
+
+func fromDomainUser(domainUser *domain.User) *models.User {
+	if domainUser == nil {
+		return nil
+	}
+	var deletedAt sql.NullTime
+	if domainUser.DeletedAt != nil {
+		deletedAt = util.TimeToNullTime(*domainUser.DeletedAt)
+	}
+	return &models.User{
+		ID:                  domainUser.ID,
+		GoogleID:            domainUser.GoogleID,
+		Email:               domainUser.Email,
+		Name:                util.StringToNullString(domainUser.Name),
+		ProfilePictureURL:   util.StringToNullString(domainUser.ProfilePictureURL),
+		CreatedAt:           domainUser.CreatedAt,
+		UpdatedAt:           domainUser.UpdatedAt,
+		DeletedAt:           deletedAt,
+		// EncryptedAccessToken, EncryptedRefreshToken, TokenExpiresAt are not part of domain.User
+		// They will be their zero values (sql.NullString, sql.NullTime)
+	}
+}
+
 // CreateUser inserts a new user into the database.
-func (r *sqlxUserRepository) CreateUser(ctx context.Context, user *models.User) error {
-	query := `INSERT INTO users (id, google_id, email, name, profile_picture_url, encrypted_access_token, encrypted_refresh_token, token_expires_at, created_at, updated_at)
-	          VALUES (:id, :google_id, :email, :name, :profile_picture_url, :encrypted_access_token, :encrypted_refresh_token, :token_expires_at, :created_at, :updated_at)`
+func (r *sqlxUserRepository) CreateUser(ctx context.Context, domainUser *domain.User) error {
+	modelUser := fromDomainUser(domainUser)
+	// Ensure CreatedAt and UpdatedAt are set if not already by fromDomainUser (they are)
+	// The original CreateUser in domain.NewUser sets them, so they should be propagated.
+	// If by chance they are zero, set them.
+	if modelUser.CreatedAt.IsZero() {
+		modelUser.CreatedAt = time.Now()
+	}
+	if modelUser.UpdatedAt.IsZero() {
+		modelUser.UpdatedAt = time.Now()
+	}
 
-	user.CreatedAt = time.Now()
-	user.UpdatedAt = time.Now()
 
-	_, err := r.db.NamedExecContext(ctx, query, user)
+	query := `INSERT INTO users (id, google_id, email, name, profile_picture_url, created_at, updated_at, deleted_at)
+	          VALUES (:id, :google_id, :email, :name, :profile_picture_url, :created_at, :updated_at, :deleted_at)`
+	// Note: Removed token fields from insert as they are not in domain.User
+
+	_, err := r.db.NamedExecContext(ctx, query, modelUser)
 	if err != nil {
-		// TODO: Add more specific error handling for duplicate google_id or email if the DB driver supports it well.
-		// For Oracle, this might be an ORA-00001 error.
 		return fmt.Errorf("failed to create user: %w", err)
 	}
 	return nil
 }
 
 // GetUserByGoogleID retrieves a user by their Google ID.
-func (r *sqlxUserRepository) GetUserByGoogleID(ctx context.Context, googleID string) (*models.User, error) {
-	var user models.User
+func (r *sqlxUserRepository) GetUserByGoogleID(ctx context.Context, googleID string) (*domain.User, error) {
+	var modelUser models.User
 	query := `SELECT * FROM users WHERE google_id = :google_id AND deleted_at IS NULL`
 
 	stmt, err := r.db.PrepareNamedContext(ctx, query)
@@ -60,20 +102,20 @@ func (r *sqlxUserRepository) GetUserByGoogleID(ctx context.Context, googleID str
 	defer stmt.Close()
 
 	args := map[string]interface{}{"google_id": googleID}
-	err = stmt.GetContext(ctx, &user, args)
+	err = stmt.GetContext(ctx, &modelUser, args)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil // Return nil, nil for not found, services can handle this
+			return nil, nil // Return nil, nil for not found
 		}
 		return nil, fmt.Errorf("failed to get user by google_id: %w", err)
 	}
-	return &user, nil
+	return toDomainUser(&modelUser), nil
 }
 
 // GetUserByID retrieves a user by their internal ID.
-func (r *sqlxUserRepository) GetUserByID(ctx context.Context, userID string) (*models.User, error) {
-	var user models.User
+func (r *sqlxUserRepository) GetUserByID(ctx context.Context, userID string) (*domain.User, error) {
+	var modelUser models.User
 	query := `SELECT * FROM users WHERE id = :id AND deleted_at IS NULL`
 
 	stmt, err := r.db.PrepareNamedContext(ctx, query)
@@ -83,7 +125,7 @@ func (r *sqlxUserRepository) GetUserByID(ctx context.Context, userID string) (*m
 	defer stmt.Close()
 
 	args := map[string]interface{}{"id": userID}
-	err = stmt.GetContext(ctx, &user, args)
+	err = stmt.GetContext(ctx, &modelUser, args)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -91,32 +133,29 @@ func (r *sqlxUserRepository) GetUserByID(ctx context.Context, userID string) (*m
 		}
 		return nil, fmt.Errorf("failed to get user by id: %w", err)
 	}
-	return &user, nil
+	return toDomainUser(&modelUser), nil
 }
 
-// UpdateUser updates an existing user's information.
-// This implementation updates all fields provided in the user struct.
-// More granular updates (e.g., only tokens) might be needed.
-func (r *sqlxUserRepository) UpdateUser(ctx context.Context, user *models.User) error {
-	user.UpdatedAt = time.Now()
+// UpdateUser updates an existing user's information based on the domain.User model.
+// Note: This will only update fields present in domain.User. Tokens are not managed here.
+func (r *sqlxUserRepository) UpdateUser(ctx context.Context, domainUser *domain.User) error {
+	modelUser := fromDomainUser(domainUser)
+	modelUser.UpdatedAt = time.Now() // Ensure UpdatedAt is set
 
-	// Build the SET part of the query dynamically to only update fields that are meant to be updated.
-	// For simplicity here, we update several common fields. A more robust solution might involve
-	// checking which fields in the `user` struct are non-nil or using a map of fields to update.
-	// For now, we'll assume that the service layer prepares the `user` object with the correct fields to update.
-
-	// Example: Updating tokens, name, profile picture
 	query := `UPDATE users SET
 				email = :email,
 	            name = :name,
 	            profile_picture_url = :profile_picture_url,
-	            encrypted_access_token = :encrypted_access_token,
-	            encrypted_refresh_token = :encrypted_refresh_token,
-	            token_expires_at = :token_expires_at,
-	            updated_at = :updated_at
+	            updated_at = :updated_at,
+				deleted_at = :deleted_at
 	          WHERE id = :id AND deleted_at IS NULL`
+	// Note: Removed token fields from update as they are not in domain.User.
+	// Added deleted_at in SET clause for potential soft delete updates through this method if needed,
+	// though typically soft deletes have dedicated methods. If domainUser.DeletedAt is nil,
+	// modelUser.DeletedAt will be sql.NullTime{Valid:false}, preserving existing DB value if not changing.
+	// If domainUser.DeletedAt is set, it will update the DB field.
 
-	result, err := r.db.NamedExecContext(ctx, query, user)
+	result, err := r.db.NamedExecContext(ctx, query, modelUser)
 	if err != nil {
 		return fmt.Errorf("failed to update user: %w", err)
 	}
@@ -126,25 +165,12 @@ func (r *sqlxUserRepository) UpdateUser(ctx context.Context, user *models.User) 
 		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
 	if rowsAffected == 0 {
-		return sql.ErrNoRows // Or a custom error indicating user not found or not updated
+		// It's possible the user was not found, or the data was the same and no update occurred.
+		// For update, sql.ErrNoRows might be misleading if data was same.
+		// Consider fetching first or relying on service layer logic for "not found".
+		// For now, returning an error if no rows affected, which is common.
+		return fmt.Errorf("user not found or no changes made: %w", sql.ErrNoRows)
 	}
 
 	return nil
 }
-
-// Helper function to build SET clause for updates might be useful for a more dynamic UpdateUser
-// func buildUserUpdateSetClause(user *models.User, args map[string]interface{}) string {
-// 	var setClauses []string
-// 	if user.Email != "" { // Assuming Email is not nullable in struct if being updated
-// 		setClauses = append(setClauses, "email = :email")
-// 		args["email"] = user.Email
-// 	}
-// 	if user.Name.Valid {
-// 		setClauses = append(setClauses, "name = :name")
-// 		args["name"] = user.Name
-// 	}
-//   // ... other fields ...
-// 	setClauses = append(setClauses, "updated_at = :updated_at")
-// 	args["updated_at"] = user.UpdatedAt
-//	return strings.Join(setClauses, ", ")
-// }
