@@ -9,14 +9,30 @@ import (
 	"github.com/spf13/viper"
 )
 
+// GoogleOAuthConfig holds configuration for Google OAuth.
+type GoogleOAuthConfig struct {
+	ClientID     string `yaml:"client_id"`
+	ClientSecret string `yaml:"client_secret"`
+	RedirectURL  string `yaml:"redirect_url"`
+}
+
+// JWTConfig holds configuration for JWT.
+type JWTConfig struct {
+	SecretKey       string        `yaml:"secret_key"`
+	AccessTokenTTL  time.Duration `yaml:"access_token_ttl"`
+	RefreshTokenTTL time.Duration `yaml:"refresh_token_ttl"`
+}
+
 type Config struct {
-	DB        DBConfig
-	Server    ServerConfig
-	LLMServer string
-	Redis     RedisConfig
-	Embedding EmbeddingConfig
-	Gemini    GeminiConfig
-	Batch     BatchConfig // New field for Batch operations
+	DB          DBConfig
+	Server      ServerConfig
+	LLMServer   string
+	Redis       RedisConfig
+	Embedding   EmbeddingConfig
+	Gemini      GeminiConfig
+	Batch       BatchConfig // New field for Batch operations
+	GoogleOAuth GoogleOAuthConfig
+	JWT         JWTConfig
 }
 
 // BatchConfig holds configuration for batch processes.
@@ -118,6 +134,16 @@ func LoadConfig() (*Config, error) {
 	// Batch process environment variables
 	viper.BindEnv("batch.num_questions_per_subcategory", "APP_BATCH_NUM_QUESTIONS_PER_SUBCATEGORY")
 
+	// Google OAuth environment variables
+	viper.BindEnv("googleoauth.client_id", "APP_GOOGLE_CLIENT_ID")
+	viper.BindEnv("googleoauth.client_secret", "APP_GOOGLE_CLIENT_SECRET")
+	viper.BindEnv("googleoauth.redirect_url", "APP_GOOGLE_REDIRECT_URL")
+
+	// JWT environment variables
+	viper.BindEnv("jwt.secret_key", "APP_JWT_SECRET_KEY")
+	viper.BindEnv("jwt.access_token_ttl", "APP_JWT_ACCESS_TOKEN_TTL")   // Expecting value in seconds
+	viper.BindEnv("jwt.refresh_token_ttl", "APP_JWT_REFRESH_TOKEN_TTL") // Expecting value in seconds
+
 	if err := viper.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
@@ -167,6 +193,16 @@ func LoadConfig() (*Config, error) {
 		Batch: BatchConfig{
 			NumQuestionsPerSubCategory: viper.GetInt("batch.num_questions_per_subcategory"),
 		},
+		GoogleOAuth: GoogleOAuthConfig{
+			ClientID:     viper.GetString("googleoauth.client_id"),
+			ClientSecret: viper.GetString("googleoauth.client_secret"),
+			RedirectURL:  viper.GetString("googleoauth.redirect_url"),
+		},
+		JWT: JWTConfig{
+			SecretKey:       viper.GetString("jwt.secret_key"),
+			AccessTokenTTL:  viper.GetDuration("jwt.access_token_ttl") * time.Second,
+			RefreshTokenTTL: viper.GetDuration("jwt.refresh_token_ttl") * time.Second,
+		},
 	}
 
 	// Set default for SimilarityThreshold if not provided or zero
@@ -182,6 +218,16 @@ func LoadConfig() (*Config, error) {
 	// Set default for NumQuestionsPerSubCategory if not provided or zero
 	if config.Batch.NumQuestionsPerSubCategory == 0 {
 		config.Batch.NumQuestionsPerSubCategory = 3 // Default value
+	}
+
+	// Set default for JWT AccessTokenTTL if not provided or zero
+	if config.JWT.AccessTokenTTL == 0 {
+		config.JWT.AccessTokenTTL = 15 * time.Minute // Default to 15 minutes
+	}
+
+	// Set default for JWT RefreshTokenTTL if not provided or zero
+	if config.JWT.RefreshTokenTTL == 0 {
+		config.JWT.RefreshTokenTTL = 7 * 24 * time.Hour // Default to 7 days
 	}
 
 	return config, nil
