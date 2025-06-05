@@ -24,6 +24,51 @@ import (
 	"golang.org/x/sync/singleflight" // Added for singleflight
 )
 
+// findMatchingScoreExplanation finds the explanation for a given score from pre-defined score evaluations.
+func findMatchingScoreExplanation(score float64, details []domain.ScoreEvaluationDetail, allRanges []string) (string, bool) {
+	if details == nil || len(details) == 0 {
+		return "", false
+	}
+
+	for _, detail := range details {
+		parts := strings.Split(detail.ScoreRange, "-")
+		if len(parts) != 2 {
+			logger.Get().Warn("Invalid score range format in ScoreEvaluationDetail", zap.String("range", detail.ScoreRange))
+			continue
+		}
+		minScore, errMin := strconv.ParseFloat(parts[0], 64)
+		if errMin != nil {
+			logger.Get().Warn("Failed to parse min score in range", zap.String("range", detail.ScoreRange), zap.Error(errMin))
+			continue
+		}
+		maxScore, errMax := strconv.ParseFloat(parts[1], 64)
+		if errMax != nil {
+			logger.Get().Warn("Failed to parse max score in range", zap.String("range", detail.ScoreRange), zap.Error(errMax))
+			continue
+		}
+
+		isLastRange := false
+		if len(allRanges) > 0 && detail.ScoreRange == allRanges[len(allRanges)-1] {
+			isLastRange = true
+		}
+
+		if isLastRange { // Last range is inclusive: [min, max]
+			if score >= minScore && score <= maxScore {
+				if detail.Explanation != "" {
+					return detail.Explanation, true
+				}
+			}
+		} else { // Other ranges are inclusive start, exclusive end: [min, max)
+			if score >= minScore && score < maxScore {
+				if detail.Explanation != "" {
+					return detail.Explanation, true
+				}
+			}
+		}
+	}
+	return "", false
+}
+
 // LLMResponse represents the response from the LLM service
 type LLMResponse struct {
 	Score          float64  `json:"score"`           // 종합 점수
@@ -168,6 +213,38 @@ func (s *quizService) CheckAnswer(req *dto.CheckAnswerRequest) (*dto.CheckAnswer
 		if err != nil {
 			return nil, domain.NewLLMServiceError(err)
 		}
+
+		// ---> START NEW LOGIC TO GET PRE-GENERATED EXPLANATION <---
+		quizEvaluation, errEvalGet := s.repo.GetQuizEvaluation(ctx, quiz.ID) // ctx is available from CheckAnswer
+		if errEvalGet != nil {
+			logger.Get().Error("Failed to get QuizEvaluation during answer check",
+				zap.String("quiz_id", quiz.ID),
+				zap.Error(errEvalGet),
+			)
+			// Non-fatal, will use LLM's original explanation
+		} else if quizEvaluation != nil {
+			if len(quizEvaluation.ScoreEvaluations) > 0 {
+				preGeneratedExplanation, found := findMatchingScoreExplanation(evaluatedAnswer.Score, quizEvaluation.ScoreEvaluations, quizEvaluation.ScoreRanges)
+				if found {
+					logger.Get().Info("Using pre-generated explanation for score",
+						zap.Float64("score", evaluatedAnswer.Score),
+						zap.String("quiz_id", quiz.ID),
+						zap.String("score_range_matched_explanation", preGeneratedExplanation), // Log which explanation was chosen
+					)
+					evaluatedAnswer.Explanation = preGeneratedExplanation // Override explanation
+				} else {
+					logger.Get().Warn("No matching pre-generated explanation found for score. Using LLM's original explanation.",
+						zap.Float64("score", evaluatedAnswer.Score),
+						zap.String("quiz_id", quiz.ID),
+					)
+				}
+			} else {
+				logger.Get().Info("QuizEvaluation found but ScoreEvaluations is empty. Using LLM's original explanation.", zap.String("quiz_id", quiz.ID))
+			}
+		} else {
+			logger.Get().Info("No QuizEvaluation found for quiz. Using LLM's original explanation.", zap.String("quiz_id", quiz.ID))
+		}
+		// ---> END NEW LOGIC <---
 
 		response := &dto.CheckAnswerResponse{
 			Score:          evaluatedAnswer.Score,

@@ -16,4 +16,5 @@ type QuizGenerationService interface {
 		existingKeywords []string,
 		numQuestions int,
 	) ([]*NewQuizData, error)
+	GenerateScoreEvaluationsForQuiz(ctx context.Context, quiz *Quiz, scoreRanges []string) ([]ScoreEvaluationDetail, error) // Added
 }

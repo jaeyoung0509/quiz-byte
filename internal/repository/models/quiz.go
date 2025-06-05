@@ -121,3 +121,24 @@ type Answer struct {
 func (Answer) TableName() string {
 	return "answers"
 }
+
+// QuizEvaluation 모델 (sqlx)
+type QuizEvaluation struct {
+	ID              string      `db:"id"`
+	QuizID          string      `db:"quiz_id"`
+	MinimumKeywords int         `db:"minimum_keywords"`
+	RequiredTopics  StringSlice `db:"required_topics"` // StringSlice 사용 가정
+	ScoreRanges     StringSlice `db:"score_ranges"`    // StringSlice 사용
+	SampleAnswers   StringSlice `db:"sample_answers"`  // StringSlice 사용
+	RubricDetails   string      `db:"rubric_details"`
+	CreatedAt       time.Time   `db:"created_at"`
+	UpdatedAt       time.Time   `db:"updated_at"`
+	DeletedAt       *time.Time  `db:"deleted_at"`
+
+	// 점수대별 상세 평가 정보를 JSON 문자열로 저장
+	ScoreEvaluations string `db:"score_evaluations"` // JSON string representing []ScoreEvaluationDetail
+}
+
+func (QuizEvaluation) TableName() string {
+	return "quiz_evaluations"
+}

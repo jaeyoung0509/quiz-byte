@@ -224,3 +224,89 @@ Example for one quiz object:
 
 // Static assertion to ensure GeminiQuizGenerator implements QuizGenerationService
 var _ domain.QuizGenerationService = (*GeminiQuizGenerator)(nil)
+
+type llmScoreEvaluationResponse struct {
+	ScoreEvaluations []domain.ScoreEvaluationDetail `json:"score_evaluations"`
+}
+
+func (a *GeminiQuizGenerator) GenerateScoreEvaluationsForQuiz(ctx context.Context, quiz *domain.Quiz, scoreRanges []string) ([]domain.ScoreEvaluationDetail, error) {
+	a.logger.Info("Generating score evaluations for quiz", zap.String("quizID", quiz.ID), zap.String("question", quiz.Question))
+
+	var promptBuilder strings.Builder
+	promptBuilder.WriteString(fmt.Sprintf("For the following quiz question:\n"))
+	promptBuilder.WriteString(fmt.Sprintf("Question: \"%s\"\n", quiz.Question))
+	promptBuilder.WriteString(fmt.Sprintf("Ideal Model Answer(s) (for a perfect score): \"%s\"\n", strings.Join(quiz.ModelAnswers, "; ")))
+	promptBuilder.WriteString(fmt.Sprintf("Keywords: \"%s\"\n\n", strings.Join(quiz.Keywords, ", ")))
+	promptBuilder.WriteString("Please generate example answers and explanations for the following score ranges:\n")
+
+	for i, sr := range scoreRanges {
+		promptBuilder.WriteString(fmt.Sprintf("%d. Score Range: \"%s\"\n", i+1, sr))
+		promptBuilder.WriteString(fmt.Sprintf("   - Provide 1-2 distinct example answers that would achieve this score.\n"))
+		promptBuilder.WriteString(fmt.Sprintf("   - Provide a general explanation/feedback for answers in this range.\n"))
+	}
+	promptBuilder.WriteString("\nFormat your response as a JSON object with a list called \"score_evaluations\", where each item contains \"score_range\", \"sample_answers\" (list of strings), and \"explanation\" (string).\n")
+	promptBuilder.WriteString("Example item: {\"score_range\": \"0.8-1.0\", \"sample_answers\": [\"Example 1...\", \"Example 2...\"], \"explanation\": \"Feedback for this range...\"}\n")
+
+	prompt := promptBuilder.String()
+	promptHash := hashString(prompt)
+	cacheKey := cache.GenerateCacheKey("llm_score_evals", "gemini", promptHash)
+
+	if a.cache != nil {
+		cachedDataString, err := a.cache.Get(ctx, cacheKey)
+		if err == nil {
+			a.logger.Info("LLM score evaluations cache hit", zap.String("cacheKey", cacheKey))
+			var parsedResp llmScoreEvaluationResponse
+			if errUnmarshal := json.Unmarshal([]byte(cachedDataString), &parsedResp); errUnmarshal == nil {
+				if len(parsedResp.ScoreEvaluations) > 0 && len(parsedResp.ScoreEvaluations) == len(scoreRanges) {
+					a.logger.Info("Successfully decoded cached LLM score evaluations (JSON string)", zap.Int("count", len(parsedResp.ScoreEvaluations)))
+					return parsedResp.ScoreEvaluations, nil
+				}
+				a.logger.Warn("Cached LLM score evaluations (JSON string) invalid or mismatch.", zap.String("cacheKey", cacheKey))
+			} else {
+				a.logger.Error("Failed to unmarshal cached LLM score evaluations (JSON string)", zap.Error(errUnmarshal), zap.String("cacheKey", cacheKey))
+			}
+		} else if err != domain.ErrCacheMiss {
+			a.logger.Error("Cache get failed for score evaluations (not a miss)", zap.Error(err), zap.String("cacheKey", cacheKey))
+		} else {
+			a.logger.Info("LLM score evaluations cache miss", zap.String("cacheKey", cacheKey))
+		}
+	}
+
+	a.logger.Info("Simulating LLM call for score evaluations", zap.String("quizID", quiz.ID), zap.String("prompt_hash", promptHash))
+	var simulatedDetails []string
+	for _, sr := range scoreRanges {
+		detail := fmt.Sprintf(`{"score_range": "%s", "sample_answers": ["Simulated answer for %s range.", "Another simulated answer."], "explanation": "Simulated explanation for %s range."}`, sr, sr, sr)
+		simulatedDetails = append(simulatedDetails, detail)
+	}
+	llmResponseString := fmt.Sprintf(`{"score_evaluations": [%s]}`, strings.Join(simulatedDetails, ","))
+	a.logger.Debug("Simulated LLM response for score evaluations", zap.String("response", llmResponseString))
+
+	var parsedResp llmScoreEvaluationResponse
+	if err := json.Unmarshal([]byte(llmResponseString), &parsedResp); err != nil {
+		a.logger.Error("Failed to unmarshal LLM response for score evaluations", zap.Error(err), zap.String("quizID", quiz.ID), zap.String("response", llmResponseString))
+		return nil, fmt.Errorf("failed to parse LLM response: %w. Response: %s", err, llmResponseString)
+	}
+
+	if len(parsedResp.ScoreEvaluations) != len(scoreRanges) {
+		a.logger.Warn("LLM did not return evaluations for all requested score ranges",
+			zap.Int("returned_count", len(parsedResp.ScoreEvaluations)),
+			zap.Int("expected_count", len(scoreRanges)),
+			zap.String("quizID", quiz.ID))
+	}
+
+	if a.cache != nil && len(parsedResp.ScoreEvaluations) > 0 {
+		defaultTTL := 24 * time.Hour
+		cacheTTL := defaultTTL
+		if a.config != nil && a.config.CacheTTLs.LLMResponse != "" { // Check if CacheTTLs itself is not nil
+			cacheTTL = a.config.ParseTTLStringOrDefault(a.config.CacheTTLs.LLMResponse, defaultTTL)
+		}
+		if errCacheSet := a.cache.Set(ctx, cacheKey, llmResponseString, cacheTTL); errCacheSet != nil {
+			a.logger.Error("Failed to set LLM score evaluations to cache", zap.Error(errCacheSet), zap.String("cacheKey", cacheKey))
+		} else {
+			a.logger.Info("LLM score evaluations cached successfully", zap.String("cacheKey", cacheKey))
+		}
+	}
+
+	a.logger.Info("Successfully generated score evaluations for quiz", zap.String("quizID", quiz.ID), zap.Int("count", len(parsedResp.ScoreEvaluations)))
+	return parsedResp.ScoreEvaluations, nil
+}
