@@ -71,8 +71,10 @@ func (h *QuizHandler) GetAllSubCategories(c *fiber.Ctx) error {
 // @Failure 404 {object} middleware.ErrorResponse
 // @Failure 500 {object} middleware.ErrorResponse
 func (h *QuizHandler) GetRandomQuiz(c *fiber.Ctx) error {
-	subCategory := c.Query("sub_category")
+	subCategory := c.Params("subCategory") // Correctly read path parameter
 	if subCategory == "" {
+		// This check might be redundant if the route requires the param,
+		// but can stay as a safeguard or be removed if route guarantees presence.
 		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
 			Error: "INVALID_REQUEST",
 		})
@@ -85,23 +87,30 @@ func (h *QuizHandler) GetRandomQuiz(c *fiber.Ctx) error {
 			zap.String("sub_category", subCategory),
 		)
 
-		switch err.(type) {
-		case *domain.InvalidCategoryError:
-			return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
-				Error: "INVALID_CATEGORY",
-			})
-		default:
-			return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
-				Error: "INTERNAL_ERROR",
-			})
-		}
-	}
+		if domainErr, ok := err.(*domain.DomainError); ok {
+			switch domainErr.Code {
+			case domain.ErrInvalidCategory:
+				return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+					Error: string(domainErr.Code), // Use code from error
+				})
+			default:
+				return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+					Error: string(domain.ErrInternal), // Default to internal error code
+				})
+			}
+		} // Added missing closing brace for if domainErr
+		// Fallback for non-DomainError types, though ideally all service errors are DomainErrors
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Error: string(domain.ErrInternal),
+		})
+	} // This is the closing brace for if err != nil
 
 	return c.JSON(dto.QuizResponse{
 		ID:           quiz.ID,
 		Question:     quiz.Question,
 		Keywords:     quiz.Keywords,
 		ModelAnswers: quiz.ModelAnswers,
+		DiffLevel:    quiz.DiffLevel, // Assuming quiz.DiffLevel is the string "easy", "medium", "hard"
 	})
 }
 
@@ -156,21 +165,27 @@ func (h *QuizHandler) CheckAnswer(c *fiber.Ctx) error {
 			zap.String("quiz_id", req.QuizID), // Changed to zap.String
 		)
 
-		switch err.(type) {
-		case *domain.QuizNotFoundError:
-			return c.Status(fiber.StatusNotFound).JSON(dto.ErrorResponse{
-				Error: "QUIZ_NOT_FOUND",
-			})
-		case *domain.LLMServiceError:
-			return c.Status(fiber.StatusServiceUnavailable).JSON(dto.ErrorResponse{
-				Error: "LLM_SERVICE_UNAVAILABLE",
-			})
-		default:
-			return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
-				Error: "INTERNAL_ERROR",
-			})
-		}
-	}
+		if domainErr, ok := err.(*domain.DomainError); ok {
+			switch domainErr.Code {
+			case domain.ErrQuizNotFound:
+				return c.Status(fiber.StatusNotFound).JSON(dto.ErrorResponse{
+					Error: string(domainErr.Code), // Use code from error
+				})
+			case domain.ErrLLMServiceError:
+				return c.Status(fiber.StatusServiceUnavailable).JSON(dto.ErrorResponse{
+					Error: string(domainErr.Code), // Use code from error
+				})
+			default:
+				return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+					Error: string(domain.ErrInternal), // Default to internal error code
+				})
+			}
+		} // Added missing closing brace for if domainErr
+		// Fallback for non-DomainError types
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Error: string(domain.ErrInternal),
+		})
+	} // This is the closing brace for if err != nil
 
 	return c.JSON(result)
 }

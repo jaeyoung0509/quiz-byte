@@ -15,20 +15,20 @@ type MockEmbedder struct {
 	mock.Mock
 }
 
-func (m *MockEmbedder) EmbedDocuments(ctx context.Context, texts []string) ([][]float64, error) {
+func (m *MockEmbedder) EmbedDocuments(ctx context.Context, texts []string) ([][]float32, error) {
 	args := m.Called(ctx, texts)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).([][]float64), args.Error(1)
+	return args.Get(0).([][]float32), args.Error(1)
 }
 
-func (m *MockEmbedder) EmbedQuery(ctx context.Context, text string) ([]float64, error) {
+func (m *MockEmbedder) EmbedQuery(ctx context.Context, text string) ([]float32, error) {
 	args := m.Called(ctx, text)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).([]float64), args.Error(1)
+	return args.Get(0).([]float32), args.Error(1)
 }
 
 func TestNewOllamaEmbeddingService(t *testing.T) {
@@ -59,7 +59,7 @@ func TestOllamaEmbeddingService_Generate(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		mockEmb := new(MockEmbedder)
 		service := &OllamaEmbeddingService{embedder: mockEmb}
-		expectedEmbedding := []float64{0.1, 0.2, 0.3}
+		expectedEmbedding := []float32{0.1, 0.2, 0.3} // Changed to float32
 		expectedFloat32 := []float32{0.1, 0.2, 0.3}
 
 		mockEmb.On("EmbedQuery", ctx, "test text").Return(expectedEmbedding, nil).Once()

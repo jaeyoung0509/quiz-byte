@@ -1,5 +1,7 @@
 package domain
 
+import "context"
+
 // QuizService defines the core business operations for quizzes
 type QuizService interface {
 	// GetRandomQuiz returns a random quiz from the specified subcategory
