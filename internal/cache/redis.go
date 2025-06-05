@@ -10,15 +10,15 @@ import (
 
 // NewRedisClient creates and returns a new Redis client instance.
 // It pings the server to ensure connectivity.
-func NewRedisClient(cfg *config.Config) (*redis.Client, error) {
-	if cfg == nil || cfg.Redis.Address == "" {
+func NewRedisClient(redisCfg config.RedisConfig) (*redis.Client, error) {
+	if redisCfg.Address == "" {
 		return nil, fmt.Errorf("redis configuration is missing or address is empty")
 	}
 
 	opt := &redis.Options{
-		Addr:     cfg.Redis.Address,
-		Password: cfg.Redis.Password, // no password set
-		DB:       cfg.Redis.DB,       // use default DB
+		Addr:     redisCfg.Address,
+		Password: redisCfg.Password, // no password set
+		DB:       redisCfg.DB,       // use default DB
 	}
 
 	// For more complex scenarios, redis.ParseURL might be useful
@@ -31,7 +31,7 @@ func NewRedisClient(cfg *config.Config) (*redis.Client, error) {
 	ctx := context.Background()
 	_, err := client.Ping(ctx).Result()
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to Redis at %s: %w", cfg.Redis.Address, err)
+		return nil, fmt.Errorf("failed to connect to Redis at %s: %w", redisCfg.Address, err)
 	}
 
 	return client, nil

@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"quiz-byte/internal/cache"
-	"quiz-byte/internal/config"
+	// "quiz-byte/internal/config" // No longer needed here
 	"quiz-byte/internal/domain"
 
 	"github.com/tmc/langchaingo/embeddings"
@@ -30,15 +30,15 @@ func hashString(text string) string {
 
 // OllamaEmbeddingService implements the domain.EmbeddingService interface using Ollama.
 type OllamaEmbeddingService struct {
-	embedder embeddings.Embedder
-	cache    domain.Cache
-	config   *config.Config
-	sfGroup  singleflight.Group // Added for singleflight
+	embedder          embeddings.Embedder
+	cache             domain.Cache
+	embeddingCacheTTL time.Duration      // Added
+	sfGroup           singleflight.Group // Added for singleflight
 	// logger   *zap.Logger // Can be added if logging is formally introduced
 }
 
 // NewOllamaEmbeddingService creates a new OllamaEmbeddingService.
-func NewOllamaEmbeddingService(serverURL, modelName string, cache domain.Cache, config *config.Config /*, logger *zap.Logger*/) (*OllamaEmbeddingService, error) {
+func NewOllamaEmbeddingService(serverURL, modelName string, cache domain.Cache, embeddingCacheTTL time.Duration /*, logger *zap.Logger*/) (*OllamaEmbeddingService, error) {
 	if serverURL == "" {
 		return nil, fmt.Errorf("ollama server URL cannot be empty")
 	}
@@ -48,8 +48,8 @@ func NewOllamaEmbeddingService(serverURL, modelName string, cache domain.Cache, 
 	if cache == nil {
 		return nil, fmt.Errorf("cache instance cannot be nil for OllamaEmbeddingService")
 	}
-	if config == nil {
-		return nil, fmt.Errorf("config instance cannot be nil for OllamaEmbeddingService")
+	if embeddingCacheTTL <= 0 {
+		return nil, fmt.Errorf("embeddingCacheTTL must be positive for OllamaEmbeddingService")
 	}
 	// if logger == nil {
 	// 	return nil, fmt.Errorf("logger instance cannot be nil")
@@ -69,9 +69,9 @@ func NewOllamaEmbeddingService(serverURL, modelName string, cache domain.Cache, 
 	}
 
 	return &OllamaEmbeddingService{
-		embedder: embedder,
-		cache:    cache,
-		config:   config,
+		embedder:          embedder,
+		cache:             cache,
+		embeddingCacheTTL: embeddingCacheTTL,
 		// logger:   logger,
 	}, nil
 }
@@ -133,11 +133,7 @@ func (s *OllamaEmbeddingService) Generate(ctx context.Context, text string) ([]f
 				return embeddingResult, nil
 			}
 
-			defaultEmbeddingTTL := 168 * time.Hour // 7 days
-			cacheTTL := defaultEmbeddingTTL
-			if s.config != nil && s.config.CacheTTLs.Embedding != "" {
-				cacheTTL = s.config.ParseTTLStringOrDefault(s.config.CacheTTLs.Embedding, defaultEmbeddingTTL)
-			}
+			cacheTTL := s.embeddingCacheTTL
 
 			if errCacheSet := s.cache.Set(ctx, cacheKey, buffer.String(), cacheTTL); errCacheSet != nil {
 				// s.logger.Error("Failed to set ollama embedding to cache (singleflight)", zap.Error(errCacheSet), zap.String("cacheKey", cacheKey))

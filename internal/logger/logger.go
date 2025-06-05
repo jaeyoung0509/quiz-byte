@@ -11,7 +11,7 @@ import (
 var log *zap.Logger
 
 // Initialize sets up the logger with the given configuration
-func Initialize(cfg *config.Config) error {
+func Initialize(loggerCfg config.LoggerConfig) error {
 	// Create encoder config
 	encoderConfig := zapcore.EncoderConfig{
 		TimeKey:        "timestamp",
@@ -29,19 +29,24 @@ func Initialize(cfg *config.Config) error {
 
 	// Create core
 	var core zapcore.Core
-	if os.Getenv("ENV") == "production" {
+	logLevel := zapcore.InfoLevel // Default to InfoLevel
+	if loggerCfg.Level == "debug" {
+		logLevel = zapcore.DebugLevel
+	}
+
+	if loggerCfg.Env == "production" {
 		// Production: JSON format
 		core = zapcore.NewCore(
 			zapcore.NewJSONEncoder(encoderConfig),
 			zapcore.AddSync(os.Stdout),
-			zapcore.InfoLevel,
+			logLevel,
 		)
 	} else {
 		// Development: Console format
 		core = zapcore.NewCore(
 			zapcore.NewConsoleEncoder(encoderConfig),
 			zapcore.AddSync(os.Stdout),
-			zapcore.DebugLevel,
+			logLevel,
 		)
 	}
 

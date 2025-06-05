@@ -1,9 +1,0 @@
-embedding:
-  source: "openai" # or "ollama"
-  similarity_threshold: 0.95
-  ollama:
-    model: "your_ollama_model_name" # Required if source is "ollama"
-    server_url: "http://localhost:11434" # Required if source is "ollama"
-  openai:
-    api_key: "your_openai_api_key" # Required if source is "openai"
-    model: "text-embedding-ada-002" # Required if source is "openai"

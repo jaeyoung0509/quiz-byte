@@ -85,14 +85,14 @@ func main() {
 	}
 
 	// Initialize logger
-	if err := logger.Initialize(cfg); err != nil {
+	if err := logger.Initialize(cfg.Logger); err != nil { // Pass cfg.Logger
 		panic(err)
 	}
 	appLogger := logger.Get() // Renamed log to appLogger for clarity
 	defer logger.Sync()
 
-	// Initialize Redis Client (remains the same)
-	redisClient, err := cache.NewRedisClient(cfg)
+	// Initialize Redis Client
+	redisClient, err := cache.NewRedisClient(cfg.Redis) // Pass cfg.Redis
 	if err != nil {
 		appLogger.Fatal("Failed to connect to Redis", zap.Error(err))
 	}
@@ -104,14 +104,16 @@ func main() {
 	switch cfg.Embedding.Source {
 	case "ollama":
 		appLogger.Info("Initializing Ollama Embedding Service", zap.String("server_url", cfg.Embedding.Ollama.ServerURL), zap.String("model", cfg.Embedding.Ollama.Model))
-		embeddingService, err = embedding.NewOllamaEmbeddingService(cfg.Embedding.Ollama.ServerURL, cfg.Embedding.Ollama.Model, cacheAdapter, cfg)
+		embeddingTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.Embedding, 7*24*time.Hour)
+		embeddingService, err = embedding.NewOllamaEmbeddingService(cfg.Embedding.Ollama.ServerURL, cfg.Embedding.Ollama.Model, cacheAdapter, embeddingTTL) // Pass embeddingTTL
 		if err != nil {
 			appLogger.Fatal("Failed to create Ollama Embedding Service", zap.Error(err))
 		}
 		appLogger.Info("Ollama Embedding Service initialized successfully")
 	case "openai":
 		appLogger.Info("Initializing OpenAI Embedding Service", zap.String("model", cfg.Embedding.OpenAI.Model))
-		embeddingService, err = embedding.NewOpenAIEmbeddingService(cfg.Embedding.OpenAI.APIKey, cfg.Embedding.OpenAI.Model, cacheAdapter, cfg)
+		embeddingTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.Embedding, 7*24*time.Hour)
+		embeddingService, err = embedding.NewOpenAIEmbeddingService(cfg.Embedding.OpenAI.APIKey, cfg.Embedding.OpenAI.Model, cacheAdapter, embeddingTTL) // Pass embeddingTTL
 		if err != nil {
 			appLogger.Fatal("Failed to create OpenAI Embedding Service", zap.Error(err))
 		}
@@ -120,9 +122,10 @@ func main() {
 		appLogger.Fatal(fmt.Sprintf("Unsupported embedding source: %s. Please check EMBEDDING_SOURCE in config.", cfg.Embedding.Source))
 	}
 
-	// Configure HTTP client for Ollama (remains the same)
+	// Configure HTTP client for Ollama
 	ollamaHTTPClient := &http.Client{Timeout: 20 * time.Second}
-	llm, err := ollama.New(ollama.WithServerURL(cfg.LLMServer), ollama.WithModel("qwen3:0.6b"), ollama.WithHTTPClient(ollamaHTTPClient))
+	// Use LLMProviders.OllamaServerURL from config
+	llm, err := ollama.New(ollama.WithServerURL(cfg.LLMProviders.OllamaServerURL), ollama.WithModel("qwen3:0.6b"), ollama.WithHTTPClient(ollamaHTTPClient))
 	if err != nil {
 		appLogger.Fatal("Failed to create LLM client", zap.Error(err))
 	}
@@ -163,29 +166,29 @@ func main() {
 	)
 	appLogger.Info("QuizService initialized")
 
-	authService, err := service.NewAuthService(userRepository, cfg)
+	authService, err := service.NewAuthService(userRepository, cfg.Auth) // Pass cfg.Auth
 	if err != nil {
 		appLogger.Fatal("Failed to create AuthService", zap.Error(err))
 	}
 	appLogger.Info("AuthService initialized")
 
-	userService := service.NewUserService(userRepository, userQuizAttemptRepository, quizRepository, cfg) // Pass quizRepository
+	userService := service.NewUserService(userRepository, userQuizAttemptRepository, quizRepository) // Remove cfg
 	appLogger.Info("UserService initialized")
 
 	// Initialize handlers
-	quizHandler := handler.NewQuizHandler(quizService, userService) // Pass userService
-	authHandler := handler.NewAuthHandler(authService, cfg)
+	quizHandler := handler.NewQuizHandler(quizService, userService)
+	authHandler := handler.NewAuthHandler(authService) // Remove cfg
 	userHandler := handler.NewUserHandler(userService)
 
 	// Initialize validation middleware
 	validationMiddleware := middleware.NewValidationMiddleware()
 
-	// Create Fiber app (remains the same)
+	// Create Fiber app
 	app := fiber.New(fiber.Config{
-		ReadTimeout:  20 * time.Second,
-		WriteTimeout: 20 * time.Second,
-		IdleTimeout:  20 * time.Second,
-		BodyLimit:    10 * 1024 * 1024,
+		ReadTimeout:  cfg.Server.ReadTimeout,  // Use from config
+		WriteTimeout: cfg.Server.WriteTimeout, // Use from config
+		IdleTimeout:  20 * time.Second,        // Keep as is or add to config
+		BodyLimit:    10 * 1024 * 1024,        // Keep as is or add to config
 	})
 
 	// Add request logging middleware (remains the same)
