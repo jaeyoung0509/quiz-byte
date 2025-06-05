@@ -8,6 +8,7 @@ require (
 	github.com/godoes/gorm-oracle v1.6.11
 	github.com/gofiber/fiber/v2 v2.52.8
 	github.com/gofiber/swagger v1.1.1
+	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/oklog/ulid/v2 v2.1.1
 	github.com/redis/go-redis/v9 v9.9.0
@@ -17,10 +18,13 @@ require (
 	github.com/swaggo/swag v1.16.4
 	github.com/tmc/langchaingo v0.1.13
 	go.uber.org/zap v1.27.0
+	golang.org/x/oauth2 v0.25.0
+	golang.org/x/sync v0.14.0
 	gorm.io/gorm v1.25.11
 )
 
 require (
+	cloud.google.com/go/compute/metadata v0.6.0 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/andybalholm/brotli v1.1.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect

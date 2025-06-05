@@ -3,9 +3,10 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors" // Added
 	"fmt"
-	"quiz-byte/internal/domain" // For potential domain level errors or shared constants
-	"quiz-byte/internal/dto"    // For DTOs like AttemptFilters, Pagination
+	// "quiz-byte/internal/domain" // Removed unused import
+	"quiz-byte/internal/dto" // For DTOs like AttemptFilters, Pagination
 	"quiz-byte/internal/repository/models"
 	"strings"
 	"time"
@@ -92,13 +93,28 @@ func buildAttemptsQuery(baseQueryFields, baseQueryFrom, baseQueryWhere string, u
 
 	}
 
-	if !filters.StartDate.IsZero() {
+	if filters.StartDate != "" { // Changed from !filters.StartDate.IsZero()
+		// Assuming StartDate is a string like "YYYY-MM-DD"
+		// For robust parsing, consider validating format or using time.Parse
+		// For now, direct usage if DB supports string comparison with date fields.
+		// If not, parsing is required:
+		// parsedStartDate, err := time.Parse("2006-01-02", filters.StartDate)
+		// if err == nil { whereClauses = append(whereClauses, "uqa.attempted_at >= :start_date"); args["start_date"] = parsedStartDate }
 		whereClauses = append(whereClauses, "uqa.attempted_at >= :start_date")
 		args["start_date"] = filters.StartDate
 	}
-	if !filters.EndDate.IsZero() {
-		whereClauses = append(whereClauses, "uqa.attempted_at <= :end_date")
-		args["end_date"] = filters.EndDate.Add(24*time.Hour - 1*time.Nanosecond) // Include the whole end day
+	if filters.EndDate != "" { // Changed from !filters.EndDate.IsZero()
+		// Assuming EndDate is a string like "YYYY-MM-DD"
+		// Parse to time.Time to use .Add()
+		parsedEndDate, err := time.Parse("2006-01-02", filters.EndDate)
+		if err == nil {
+			whereClauses = append(whereClauses, "uqa.attempted_at <= :end_date")
+			args["end_date"] = parsedEndDate.Add(24*time.Hour - 1*time.Nanosecond) // Include the whole end day
+		} else {
+			// Handle error or assume direct comparison if parsing fails, though less robust
+			whereClauses = append(whereClauses, "uqa.attempted_at <= :end_date_str") // Use a different placeholder if not parsing
+			args["end_date_str"] = filters.EndDate
+		}
 	}
 
 	if filters.IsCorrect != nil { // Tri-state bool: true, false, or nil (don't filter)

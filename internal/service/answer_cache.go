@@ -1,11 +1,18 @@
 package service
 
 import (
+	"bytes" // Added for gob
 	"context"
-	"encoding/json"
+	// "context" // Removed duplicate
+	"crypto/sha256"
+	"encoding/gob" // Added for gob
+	"encoding/hex"
+	// "encoding/json" // No longer used for cache data
+	"io" // For io.EOF with gob
 	"strings"
 	"time"
 
+	"quiz-byte/internal/cache" // Added
 	"quiz-byte/internal/config"
 	"quiz-byte/internal/domain"
 	"quiz-byte/internal/dto"
@@ -15,10 +22,10 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	AnswerCachePrefix     = "quizanswers:"
-	AnswerCacheExpiration = 24 * time.Hour
-)
+// const (
+// 	// AnswerCachePrefix     = "quizanswers:" // Removed
+// 	// AnswerCacheExpiration = 24 * time.Hour // To be replaced by config
+// )
 
 // CachedAnswerEvaluation defines the structure for cached answer evaluations including embeddings
 type CachedAnswerEvaluation struct {
@@ -63,8 +70,8 @@ func (s *answerCacheServiceImpl) GetAnswerFromCache(ctx context.Context, quizID 
 		return nil, nil
 	}
 
-
-	cacheKey := AnswerCachePrefix + quizID
+	// Use new cache key generation
+	cacheKey := cache.GenerateCacheKey("answer", "evaluation_map", quizID)
 	cachedAnswersMap, err := s.cache.HGetAll(ctx, cacheKey)
 	if err != nil {
 		if err == domain.ErrCacheMiss { // HGetAll might return this if key doesn't exist (depends on impl)
@@ -80,12 +87,40 @@ func (s *answerCacheServiceImpl) GetAnswerFromCache(ctx context.Context, quizID 
 		return nil, nil
 	}
 
-	for _, cachedEvalDataStr := range cachedAnswersMap {
+	for fieldKey, cachedEvalDataStr := range cachedAnswersMap { // fieldKey is hashed user answer
 		var cachedEntry CachedAnswerEvaluation
-		if errUnmarshal := json.Unmarshal([]byte(cachedEvalDataStr), &cachedEntry); errUnmarshal != nil {
-			logger.Get().Warn("AnswerCacheService: Failed to unmarshal cached answer evaluation",
-				zap.Error(errUnmarshal),
+		byteReader := bytes.NewReader([]byte(cachedEvalDataStr))
+		decoder := gob.NewDecoder(byteReader)
+		if errDecode := decoder.Decode(&cachedEntry); errDecode != nil {
+			if errDecode == io.EOF {
+				logger.Get().Warn("AnswerCacheService: Cached answer evaluation data is empty (EOF) (gob)",
+					zap.String("quizID", quizID),
+					zap.String("fieldKey", fieldKey))
+			} else {
+				logger.Get().Warn("AnswerCacheService: Failed to decode cached answer evaluation (gob)",
+					zap.Error(errDecode),
+					zap.String("quizID", quizID),
+					zap.String("fieldKey", fieldKey))
+			}
+			continue // Skip this entry
+		}
+
+		// Check if the UserAnswer in the decoded entry matches the hash used for fieldKey.
+		// This is an integrity check, as we store UserAnswer for debugging/logging.
+		// Note: This check might be removed if UserAnswer is not stored in CachedAnswerEvaluation.
+		if cachedEntry.UserAnswer != "" && hashString(cachedEntry.UserAnswer) != fieldKey {
+			logger.Get().Warn("AnswerCacheService: Decoded UserAnswer hash mismatch with fieldKey",
 				zap.String("quizID", quizID),
+				zap.String("decodedUserAnswer", cachedEntry.UserAnswer),
+				zap.String("fieldKey", fieldKey))
+			// Depending on policy, might skip or proceed. For now, proceed.
+		}
+
+
+		if len(cachedEntry.Embedding) == 0 {
+			logger.Get().Debug("AnswerCacheService: Skipping cached entry due to missing embedding",
+				zap.String("quizID", quizID),
+				zap.String("cachedUserAnswer", cachedEntry.UserAnswer), // UserAnswer from struct
 				zap.String("userAnswer", userAnswerText))
 			continue // Skip this entry
 		}
@@ -149,32 +184,43 @@ func (s *answerCacheServiceImpl) PutAnswerToCache(ctx context.Context, quizID st
 		return nil
 	}
 
-	cacheKey := AnswerCachePrefix + quizID
+	// Use new cache key generation
+	cacheKey := cache.GenerateCacheKey("answer", "evaluation_map", quizID)
 	cachedEval := CachedAnswerEvaluation{
 		Evaluation: evaluation,
 		Embedding:  userAnswerEmbedding,
-		UserAnswer: userAnswerText,
+		UserAnswer: userAnswerText, // Storing original userAnswerText for potential debugging/logging
 	}
 
-	cachedJSON, errMarshal := json.Marshal(cachedEval)
-	if errMarshal != nil {
-		logger.Get().Error("AnswerCacheService: Failed to marshal answer evaluation for caching",
-			zap.Error(errMarshal),
+	var buffer bytes.Buffer
+	encoder := gob.NewEncoder(&buffer)
+	if errEncode := encoder.Encode(cachedEval); errEncode != nil {
+		logger.Get().Error("AnswerCacheService: Failed to gob encode answer evaluation for caching",
+			zap.Error(errEncode),
 			zap.String("quizID", quizID))
-		return errMarshal // Return the error
+		return errEncode // Return the error
 	}
 
-	if err := s.cache.HSet(ctx, cacheKey, userAnswerText, string(cachedJSON)); err != nil {
-		logger.Get().Error("AnswerCacheService: Failed to cache answer evaluation (HSet)",
+	// Use hashed userAnswerText as field key
+	fieldKey := hashString(userAnswerText)
+	if err := s.cache.HSet(ctx, cacheKey, fieldKey, buffer.String()); err != nil {
+		logger.Get().Error("AnswerCacheService: Failed to cache answer evaluation (HSet) (gob)",
 			zap.Error(err),
 			zap.String("quizID", quizID))
 		return err
 	}
 
-	if err := s.cache.Expire(ctx, cacheKey, AnswerCacheExpiration); err != nil {
+	defaultAnswerEvaluationTTL := 24 * time.Hour
+	cacheTTL := defaultAnswerEvaluationTTL
+	if s.cfg != nil && s.cfg.CacheTTLs.AnswerEvaluation != "" {
+		cacheTTL = s.cfg.ParseTTLStringOrDefault(s.cfg.CacheTTLs.AnswerEvaluation, defaultAnswerEvaluationTTL)
+	}
+
+	if err := s.cache.Expire(ctx, cacheKey, cacheTTL); err != nil {
 		logger.Get().Error("AnswerCacheService: Failed to set cache expiration",
 			zap.Error(err),
-			zap.String("quizID", quizID))
+			zap.String("quizID", quizID),
+			zap.Duration("ttl", cacheTTL))
 		return err // Return the error, even if HSet succeeded.
 	}
 
@@ -182,4 +228,11 @@ func (s *answerCacheServiceImpl) PutAnswerToCache(ctx context.Context, quizID st
 		zap.String("quizID", quizID),
 		zap.String("userAnswer", userAnswerText))
 	return nil
+}
+
+// hashString computes SHA256 hash of a string and returns it as a hex string.
+func hashString(text string) string {
+	hasher := sha256.New()
+	hasher.Write([]byte(text))
+	return hex.EncodeToString(hasher.Sum(nil))
 }
