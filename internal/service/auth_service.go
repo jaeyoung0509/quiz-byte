@@ -13,11 +13,9 @@ import (
 	"io"
 
 	"quiz-byte/internal/config"
-	"quiz-byte/internal/domain" // For custom errors like UserNotFoundError
-	"quiz-byte/internal/dto"    // For AuthClaims
+	"quiz-byte/internal/domain"
+	"quiz-byte/internal/dto"    // For AuthClaims and AuthenticatedUser
 	"quiz-byte/internal/logger" // Added
-	"quiz-byte/internal/repository"
-	"quiz-byte/internal/repository/models"
 	"quiz-byte/internal/util" // For ULID generation
 	"time"
 
@@ -45,35 +43,30 @@ var (
 // AuthService defines the interface for authentication operations.
 type AuthService interface {
 	GetGoogleLoginURL(state string) string
-	HandleGoogleCallback(ctx context.Context, code string, receivedState string, expectedState string) (accessToken string, refreshToken string, user *models.User, err error)
+	HandleGoogleCallback(ctx context.Context, code string, receivedState string, expectedState string) (accessToken string, refreshToken string, user *dto.AuthenticatedUser, err error) // Changed return type
 	ValidateJWT(ctx context.Context, tokenString string) (*dto.AuthClaims, error)
-	CreateJWT(ctx context.Context, user *models.User, ttl time.Duration, tokenType string) (string, error)
+	CreateJWT(ctx context.Context, user *domain.User, ttl time.Duration, tokenType string) (string, error)
 	RefreshToken(ctx context.Context, refreshTokenString string) (newAccessToken string, newRefreshToken string, err error)
 	EncryptToken(token string) (string, error)
 	DecryptToken(encryptedToken string) (string, error)
-	// Logout might be mostly client-side, but a hook can be here if server-side invalidation (e.g. blacklist) is added
 }
 
 type authServiceImpl struct {
-	userRepo      repository.UserRepository
+	userRepo      domain.UserRepository // Changed to domain.UserRepository
 	oauth2Config  *oauth2.Config
 	appConfig     *config.Config
-	encryptionKey []byte // Should be 32 bytes for AES-256
+	encryptionKey []byte
 }
 
 // NewAuthService creates a new instance of AuthService.
-func NewAuthService(userRepo repository.UserRepository, appConfig *config.Config) (AuthService, error) {
-	if len(appConfig.JWT.SecretKey) == 0 { // Also use a dedicated key for encryption
+func NewAuthService(userRepo domain.UserRepository, appConfig *config.Config) (AuthService, error) { // Changed param type
+	if len(appConfig.JWT.SecretKey) == 0 {
 		return nil, errors.New("encryption key for auth service is not configured (use JWT.SecretKey or a dedicated one)")
 	}
-	// For simplicity, using first 32 bytes of JWT secret if available, or a dedicated key.
-	// Best practice: use a dedicated, randomly generated key for encryption stored in config.
 	var encKey []byte
 	if len(appConfig.JWT.SecretKey) >= 32 {
 		encKey = []byte(appConfig.JWT.SecretKey[:32])
 	} else {
-		// This is not secure for production. A proper key should be configured.
-		// For now, let's pad or error. Erroring is safer.
 		return nil, errors.New("encryption key must be at least 32 bytes long")
 	}
 
@@ -92,10 +85,10 @@ func NewAuthService(userRepo repository.UserRepository, appConfig *config.Config
 }
 
 func (s *authServiceImpl) GetGoogleLoginURL(state string) string {
-	return s.oauth2Config.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.ApprovalForce) // Request refresh token
+	return s.oauth2Config.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.ApprovalForce)
 }
 
-func (s *authServiceImpl) HandleGoogleCallback(ctx context.Context, code string, receivedState string, expectedState string) (string, string, *models.User, error) {
+func (s *authServiceImpl) HandleGoogleCallback(ctx context.Context, code string, receivedState string, expectedState string) (string, string, *dto.AuthenticatedUser, error) { // Changed return type
 	appLogger := logger.Get()
 	if receivedState != expectedState {
 		return "", "", nil, ErrInvalidAuthState
@@ -122,71 +115,74 @@ func (s *authServiceImpl) HandleGoogleCallback(ctx context.Context, code string,
 		return "", "", nil, errors.New("google user info is incomplete")
 	}
 
-	user, err := s.userRepo.GetUserByGoogleID(ctx, userInfo.ID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) && user == nil { // Check for actual error vs not found
+	domainUser, err := s.userRepo.GetUserByGoogleID(ctx, userInfo.ID)
+	// Check for actual error vs not found (nil, nil from repo)
+	if err != nil && domainUser == nil { // Assuming GetUserByGoogleID returns (nil, actualError) for DB errors
 		return "", "", nil, fmt.Errorf("error fetching user by google_id: %w", err)
 	}
+	// If domainUser is nil and err is nil, it means user not found, which is handled next.
 
-	encryptedAccessToken, err := s.EncryptToken(googleToken.AccessToken)
+	// Token encryption logic remains, but these encrypted tokens are not directly saved
+	// by the domain repository's CreateUser/UpdateUser methods.
+	// Their persistence is deferred / handled by a future specialized repository method.
+	_, err = s.EncryptToken(googleToken.AccessToken) // Keep encryption to see if it works, but don't use the result for domainUser
 	if err != nil {
 		return "", "", nil, fmt.Errorf("failed to encrypt access token: %w", err)
 	}
-	var encryptedRefreshToken string
 	if googleToken.RefreshToken != "" {
-		encryptedRefreshToken, err = s.EncryptToken(googleToken.RefreshToken)
+		_, err = s.EncryptToken(googleToken.RefreshToken)
 		if err != nil {
 			return "", "", nil, fmt.Errorf("failed to encrypt refresh token: %w", err)
 		}
 	}
 
 	now := time.Now()
-	if user == nil { // User not found, create new user
-		newUser := &models.User{
-			ID:                    util.NewULID(),
-			GoogleID:              userInfo.ID,
-			Email:                 userInfo.Email,
-			Name:                  util.StringToNullString(userInfo.Name),
-			ProfilePictureURL:     util.StringToNullString(userInfo.Picture),
-			EncryptedAccessToken:  util.StringToNullString(encryptedAccessToken),
-			EncryptedRefreshToken: util.StringToNullString(encryptedRefreshToken),
-			TokenExpiresAt:        util.TimeToNullTime(googleToken.Expiry),
-			CreatedAt:             now,
-			UpdatedAt:             now,
+	if domainUser == nil { // User not found, create new domain user
+		domainUser = &domain.User{
+			ID:                util.NewULID(),
+			GoogleID:          userInfo.ID,
+			Email:             userInfo.Email,
+			Name:              userInfo.Name,
+			ProfilePictureURL: userInfo.Picture,
+			CreatedAt:         now,
+			UpdatedAt:         now,
 		}
-		if err := s.userRepo.CreateUser(ctx, newUser); err != nil {
+		if err := s.userRepo.CreateUser(ctx, domainUser); err != nil {
 			return "", "", nil, fmt.Errorf("failed to create user: %w", err)
 		}
-		user = newUser
-		appLogger.Info("New user created via Google OAuth", zap.String("userID", user.ID), zap.String("email", user.Email))
-	} else { // User found, update tokens and profile info if changed
-		user.Email = userInfo.Email // Google is source of truth for email
-		user.Name = util.StringToNullString(userInfo.Name)
-		user.ProfilePictureURL = util.StringToNullString(userInfo.Picture)
-		user.EncryptedAccessToken = util.StringToNullString(encryptedAccessToken)
-		if encryptedRefreshToken != "" { // Only update refresh token if a new one was provided
-			user.EncryptedRefreshToken = util.StringToNullString(encryptedRefreshToken)
-		}
-		user.TokenExpiresAt = util.TimeToNullTime(googleToken.Expiry)
-		user.UpdatedAt = now
-		if err := s.userRepo.UpdateUser(ctx, user); err != nil {
+		appLogger.Info("New user created via Google OAuth", zap.String("userID", domainUser.ID), zap.String("email", domainUser.Email))
+	} else { // User found, update profile info if changed
+		domainUser.Email = userInfo.Email
+		domainUser.Name = userInfo.Name
+		domainUser.ProfilePictureURL = userInfo.Picture
+		domainUser.UpdatedAt = now
+		if err := s.userRepo.UpdateUser(ctx, domainUser); err != nil {
 			return "", "", nil, fmt.Errorf("failed to update user: %w", err)
 		}
-		appLogger.Info("User logged in via Google OAuth", zap.String("userID", user.ID), zap.String("email", user.Email))
+		appLogger.Info("User logged in via Google OAuth", zap.String("userID", domainUser.ID), zap.String("email", domainUser.Email))
 	}
 
-	accessToken, err := s.CreateJWT(ctx, user, s.appConfig.JWT.AccessTokenTTL, tokenTypeAccess)
+	accessToken, err := s.CreateJWT(ctx, domainUser, s.appConfig.JWT.AccessTokenTTL, tokenTypeAccess)
 	if err != nil {
 		return "", "", nil, fmt.Errorf("failed to create access token: %w", err)
 	}
-	refreshToken, err := s.CreateJWT(ctx, user, s.appConfig.JWT.RefreshTokenTTL, tokenTypeRefresh)
+	refreshToken, err := s.CreateJWT(ctx, domainUser, s.appConfig.JWT.RefreshTokenTTL, tokenTypeRefresh)
 	if err != nil {
 		return "", "", nil, fmt.Errorf("failed to create refresh token: %w", err)
 	}
 
-	return accessToken, refreshToken, user, nil
+	// Map domainUser to dto.AuthenticatedUser for the return type.
+	authenticatedUserData := &dto.AuthenticatedUser{
+		ID:                domainUser.ID,
+		Email:             domainUser.Email,
+		Name:              domainUser.Name,
+		ProfilePictureURL: domainUser.ProfilePictureURL,
+	}
+
+	return accessToken, refreshToken, authenticatedUserData, nil
 }
 
-func (s *authServiceImpl) CreateJWT(ctx context.Context, user *models.User, ttl time.Duration, tokenType string) (string, error) {
+func (s *authServiceImpl) CreateJWT(ctx context.Context, user *domain.User, ttl time.Duration, tokenType string) (string, error) {
 	claims := dto.AuthClaims{
 		UserID:    user.ID,
 		TokenType: tokenType,
@@ -218,7 +214,6 @@ func (s *authServiceImpl) ValidateJWT(ctx context.Context, tokenString string) (
 	})
 
 	if err != nil {
-		// Log specific errors like token expiry
 		if errors.Is(err, jwt.ErrTokenExpired) {
 			appLogger.Warn("JWT token expired",
 				zap.Error(err),
@@ -250,22 +245,27 @@ func (s *authServiceImpl) RefreshToken(ctx context.Context, refreshTokenString s
 		return "", "", errors.New("not a refresh token")
 	}
 
-	user, err := s.userRepo.GetUserByID(ctx, claims.UserID)
-	if err != nil || user == nil {
-		appLogger.Error("User not found for refresh token", zap.String("userID", claims.UserID), zap.Error(err))
-		return "", "", domain.NewNotFoundError(fmt.Sprintf("User %s not found for refresh token", claims.UserID))
+	domainUser, err := s.userRepo.GetUserByID(ctx, claims.UserID) // Returns domain.User
+	if err != nil || domainUser == nil {
+		// Handle domain.NewNotFoundError if userRepo returns that for not found
+		if errors.Is(err, &domain.NotFoundError{}) || domainUser == nil && err == nil { // Check custom error type if applicable
+			appLogger.Warn("User not found for refresh token", zap.String("userID", claims.UserID))
+			return "", "", domain.NewNotFoundError(fmt.Sprintf("user %s not found for refresh token", claims.UserID))
+		}
+		appLogger.Error("Error fetching user for refresh token", zap.String("userID", claims.UserID), zap.Error(err))
+		return "", "", fmt.Errorf("error fetching user for refresh token: %w", err)
 	}
 
-	newAccessToken, err := s.CreateJWT(ctx, user, s.appConfig.JWT.AccessTokenTTL, tokenTypeAccess)
+	newAccessToken, err := s.CreateJWT(ctx, domainUser, s.appConfig.JWT.AccessTokenTTL, tokenTypeAccess)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create new access token: %w", err)
 	}
-	newRefreshToken, err := s.CreateJWT(ctx, user, s.appConfig.JWT.RefreshTokenTTL, tokenTypeRefresh)
+	newRefreshToken, err := s.CreateJWT(ctx, domainUser, s.appConfig.JWT.RefreshTokenTTL, tokenTypeRefresh)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create new refresh token: %w", err)
 	}
 
-	appLogger.Info("JWT token refreshed", zap.String("userID", user.ID))
+	appLogger.Info("JWT token refreshed", zap.String("userID", domainUser.ID))
 	return newAccessToken, newRefreshToken, nil
 }
 

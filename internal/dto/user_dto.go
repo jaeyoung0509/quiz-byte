@@ -120,3 +120,12 @@ type QuizRecommendationsResponse struct {
 	Recommendations []QuizRecommendationItem `json:"recommendations"`
 	// Context string `json:"context,omitempty"` // Future: why these were recommended
 }
+
+// AuthenticatedUser represents the user data returned upon successful authentication
+// by the AuthService, intended for internal use before constructing the final HTTP response.
+type AuthenticatedUser struct {
+	ID                string `json:"id"`
+	Email             string `json:"email"`
+	Name              string `json:"name,omitempty"`
+	ProfilePictureURL string `json:"profile_picture_url,omitempty"`
+}

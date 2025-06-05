@@ -4,15 +4,15 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
-	// "net/http" // Not directly used, can be removed
 	"quiz-byte/internal/config"
+	"quiz-byte/internal/dto"      // Ensure dto is imported if AuthenticatedUser is used explicitly in handler (it is for logging)
+	"quiz-byte/internal/logger"   // Added
 	"quiz-byte/internal/middleware" // For middleware.ErrorResponse
 	"quiz-byte/internal/service"
-	"quiz-byte/internal/logger" // Added
 	"time"
-	"go.uber.org/zap" // Added
 
 	"github.com/gofiber/fiber/v2"
+	"go.uber.org/zap" // Added
 )
 
 const (
@@ -104,7 +104,7 @@ func (h *AuthHandler) GoogleCallback(c *fiber.Ctx) error {
 		})
 	}
 
-	accessToken, refreshToken, user, err := h.authService.HandleGoogleCallback(c.Context(), code, receivedState, expectedState)
+	accessToken, refreshToken, authUser, err := h.authService.HandleGoogleCallback(c.Context(), code, receivedState, expectedState) // authUser is now *dto.AuthenticatedUser
 	if err != nil {
 		appLogger.Error("Failed to handle Google callback in authService",
 			zap.Error(err),
@@ -120,11 +120,10 @@ func (h *AuthHandler) GoogleCallback(c *fiber.Ctx) error {
 		})
 	}
 
-	if user != nil {
-		appLogger.Info("Google OAuth callback successful, tokens issued", zap.String("userID", user.ID))
+	if authUser != nil { // Check authUser
+		appLogger.Info("Google OAuth callback successful, tokens issued", zap.String("userID", authUser.ID)) // Use authUser.ID
 	} else {
-		// This case should ideally not happen if HandleGoogleCallback returns a user on success
-		appLogger.Error("User object is nil after successful Google OAuth callback")
+		appLogger.Error("AuthenticatedUser object is nil after successful Google OAuth callback")
 	}
 
 	// Here, instead of returning tokens in JSON, you might set them in HttpOnly cookies

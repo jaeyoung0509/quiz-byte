@@ -25,6 +25,7 @@ import (
 	"os/signal"
 	"quiz-byte/internal/adapter"
 	"quiz-byte/internal/adapter/embedding"
+	"quiz-byte/internal/adapter/evaluator" // Added for NewLLMEvaluator
 	"quiz-byte/internal/cache"
 	"quiz-byte/internal/config"
 	"quiz-byte/internal/database"
@@ -137,15 +138,30 @@ func main() {
 	userRepository := repository.NewSQLXUserRepository(db)
 	userQuizAttemptRepository := repository.NewSQLXUserQuizAttemptRepository(db)
 
-	// Initialize LLM evaluator (remains the same)
-	evaluator := domain.NewLLMEvaluator(llm)
+	// Initialize LLM evaluator
+	evaluatorService := evaluator.NewLLMEvaluator(llm)
 
 	appLogger.Info("RedisCacheAdapter initialized")
-	answerCacheService := service.NewAnswerCacheService(cacheAdapter, quizRepository, cfg) // quizRepository instead of domainRepo
+
+	// Initialize AnswerCacheService with parsed TTL and threshold
+	answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, 24*time.Hour) // Default from original service
+	embeddingSimilarityThreshold := cfg.Embedding.SimilarityThreshold
+	answerCacheSvc := service.NewAnswerCacheService(cacheAdapter, quizRepository, answerEvaluationTTL, embeddingSimilarityThreshold)
 	appLogger.Info("AnswerCacheService initialized")
 
-	// Initialize services
-	quizService := service.NewQuizService(quizRepository, evaluator, cacheAdapter, cfg, embeddingService, answerCacheService) // Renamed, use quizRepository
+	// Initialize QuizService with parsed TTLs
+	categoryListTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.CategoryList, 24*time.Hour) // Default from original service
+	quizListTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.QuizList, 1*time.Hour)          // Default from original service
+	quizService := service.NewQuizService(
+		quizRepository,
+		evaluatorService,
+		cacheAdapter,    // This is the domain.Cache for QuizService's own cache needs (e.g. category list)
+		embeddingService,
+		answerCacheSvc,  // Pass the initialized AnswerCacheService
+		categoryListTTL,
+		quizListTTL,
+	)
+	appLogger.Info("QuizService initialized")
 
 	authService, err := service.NewAuthService(userRepository, cfg)
 	if err != nil {

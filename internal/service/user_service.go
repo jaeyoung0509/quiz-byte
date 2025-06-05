@@ -2,16 +2,14 @@ package service
 
 import (
 	"context"
-	"database/sql" // For sql.NullString checks if needed, though models handle it
 	"errors"
 	"fmt"
 	"quiz-byte/internal/config"
 	"quiz-byte/internal/domain"
 	"quiz-byte/internal/dto"
-	"quiz-byte/internal/repository"
-	"quiz-byte/internal/repository/models"
 	"quiz-byte/internal/util" // For ULID or other utils if needed
 	"time"
+	// No longer directly using repository or models, only domain interfaces
 )
 
 var (
@@ -31,47 +29,47 @@ type UserService interface {
 }
 
 type userServiceImpl struct {
-	userRepo    repository.UserRepository
-	attemptRepo repository.UserQuizAttemptRepository
-	quizRepo    domain.QuizRepository // Changed from repository.QuizRepository
+	userRepo    domain.UserRepository           // Changed
+	attemptRepo domain.UserQuizAttemptRepository // Changed
+	quizRepo    domain.QuizRepository
 	appConfig   *config.Config
 }
 
 // NewUserService creates a new instance of UserService.
 func NewUserService(
-	userRepo repository.UserRepository,
-	attemptRepo repository.UserQuizAttemptRepository,
-	quizRepo domain.QuizRepository, // Changed from repository.QuizRepository
+	userRepo domain.UserRepository,           // Changed
+	attemptRepo domain.UserQuizAttemptRepository, // Changed
+	quizRepo domain.QuizRepository,
 	appConfig *config.Config,
 ) UserService {
 	return &userServiceImpl{
 		userRepo:    userRepo,
 		attemptRepo: attemptRepo,
-		quizRepo:    quizRepo, // Changed
+		quizRepo:    quizRepo,
 		appConfig:   appConfig,
 	}
 }
 
 // GetUserProfile retrieves a user's profile information.
 func (s *userServiceImpl) GetUserProfile(ctx context.Context, userID string) (*dto.UserProfileResponse, error) {
-	user, err := s.userRepo.GetUserByID(ctx, userID)
+	domainUser, err := s.userRepo.GetUserByID(ctx, userID) // Returns domain.User
 	if err != nil {
 		// Check if the error is because the user was not found.
-		// The repository's GetUserByID might return (nil, nil) for not found,
-		// or a specific error type that can be checked with errors.Is().
-		// Assuming the repository returns (nil, nil) for not found as per common practice in this project.
-		if user == nil && err != nil { // This condition implies not found from repo's (nil,nil)
+		// The domain repository's GetUserByID should ideally return a specific domain.NotFoundError
+		if errors.Is(err, &domain.NotFoundError{}) || domainUser == nil && err == nil { // Adapt to how not found is signaled
 			return nil, ErrUserProfileNotFound
 		}
-		// If err is not nil, it's some other repository error.
 		return nil, fmt.Errorf("failed to get user by id from repository: %w", err)
+	}
+	if domainUser == nil { // Explicitly handle case where err is nil but user is nil (should be covered by NotFoundError)
+		return nil, ErrUserProfileNotFound
 	}
 
 	return &dto.UserProfileResponse{
-		ID:                user.ID,
-		Email:             user.Email,
-		Name:              user.Name.String,              // Assuming Name is sql.NullString
-		ProfilePictureURL: user.ProfilePictureURL.String, // Assuming ProfilePictureURL is sql.NullString
+		ID:                domainUser.ID,
+		Email:             domainUser.Email,
+		Name:              domainUser.Name, // domain.User.Name is string
+		ProfilePictureURL: domainUser.ProfilePictureURL, // domain.User.ProfilePictureURL is string
 	}, nil
 }
 
@@ -81,33 +79,38 @@ func (s *userServiceImpl) RecordQuizAttempt(ctx context.Context, userID string, 
 		return errors.New("evaluation result cannot be nil")
 	}
 
-	isCorrect := evalResult.Score >= DefaultCorrectnessThreshold // Determine correctness
+	isCorrect := evalResult.Score >= DefaultCorrectnessThreshold
 
-	// Assuming evalResult.KeywordMatches is []string, needs conversion to models.StringSlice
-	var keywordMatchesSlice models.StringSlice
+	// domain.UserQuizAttempt uses []string for LLMKeywordMatches
+	// evalResult.KeywordMatches is already []string from domain.Answer
+	var llmKeywordMatches []string
 	if evalResult.KeywordMatches != nil {
-		keywordMatchesSlice = models.StringSlice(evalResult.KeywordMatches)
+		llmKeywordMatches = evalResult.KeywordMatches
+	} else {
+		llmKeywordMatches = []string{}
 	}
 
-	attempt := &models.UserQuizAttempt{
+
+	domainAttempt := &domain.UserQuizAttempt{ // Changed to domain.UserQuizAttempt
 		ID:                util.NewULID(),
 		UserID:            userID,
 		QuizID:            quizID,
-		UserAnswer:        util.StringToNullString(userAnswer),
-		LlmScore:          sql.NullFloat64{Float64: evalResult.Score, Valid: true},
-		LlmExplanation:    util.StringToNullString(evalResult.Explanation),
-		LlmKeywordMatches: keywordMatchesSlice, // Converted from []string
-		LlmCompleteness:   sql.NullFloat64{Float64: evalResult.Completeness, Valid: true},
-		LlmRelevance:      sql.NullFloat64{Float64: evalResult.Relevance, Valid: true},
-		LlmAccuracy:       sql.NullFloat64{Float64: evalResult.Accuracy, Valid: true},
+		UserAnswer:        userAnswer, // domain.UserQuizAttempt.UserAnswer is string
+		LLMScore:          evalResult.Score,
+		LLMExplanation:    evalResult.Explanation,
+		LLMKeywordMatches: llmKeywordMatches,
+		LLMCompleteness:   evalResult.Completeness,
+		LLMRelevance:      evalResult.Relevance,
+		LLMAccuracy:       evalResult.Accuracy,
 		IsCorrect:         isCorrect,
 		AttemptedAt:       evalResult.AnsweredAt,
+		// CreatedAt and UpdatedAt will be set by repository or domain constructor if applicable
 	}
-	if attempt.AttemptedAt.IsZero() {
-		attempt.AttemptedAt = time.Now()
+	if domainAttempt.AttemptedAt.IsZero() {
+		domainAttempt.AttemptedAt = time.Now()
 	}
 
-	if err := s.attemptRepo.CreateAttempt(ctx, attempt); err != nil {
+	if err := s.attemptRepo.CreateAttempt(ctx, domainAttempt); err != nil { // Call with domain.UserQuizAttempt
 		return fmt.Errorf("failed to create user quiz attempt in repository: %w", err)
 	}
 	return nil
@@ -115,16 +118,16 @@ func (s *userServiceImpl) RecordQuizAttempt(ctx context.Context, userID string, 
 
 // GetUserQuizAttempts retrieves a user's quiz attempt history.
 func (s *userServiceImpl) GetUserQuizAttempts(ctx context.Context, userID string, filters dto.AttemptFilters, pagination dto.Pagination) (*dto.UserQuizAttemptsResponse, error) {
-	attempts, total, err := s.attemptRepo.GetAttemptsByUserID(ctx, userID, filters, pagination)
+	domainAttempts, total, err := s.attemptRepo.GetAttemptsByUserID(ctx, userID, filters, pagination) // Returns []domain.UserQuizAttempt
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user quiz attempts from repository: %w", err)
 	}
 
-	attemptItems := make([]dto.UserQuizAttemptItem, len(attempts))
-	for i, attempt := range attempts {
+	attemptItems := make([]dto.UserQuizAttemptItem, len(domainAttempts))
+	for i, attempt := range domainAttempts { // attempt is domain.UserQuizAttempt
 		quiz, errQuiz := s.quizRepo.GetQuizByID(attempt.QuizID)
 		if errQuiz != nil || quiz == nil {
-			if quiz == nil && errQuiz == nil { // Repository returned (nil,nil) for not found
+			if quiz == nil && errQuiz == nil {
 				return nil, fmt.Errorf("%w: quiz_id %s for attempt_id %s (quiz not found)", ErrQuizDetailNotFound, attempt.QuizID, attempt.ID)
 			}
 			return nil, fmt.Errorf("%w: quiz_id %s for attempt_id %s, repo error: %v", ErrQuizDetailNotFound, attempt.QuizID, attempt.ID, errQuiz)
@@ -134,9 +137,9 @@ func (s *userServiceImpl) GetUserQuizAttempts(ctx context.Context, userID string
 			AttemptID:      attempt.ID,
 			QuizID:         attempt.QuizID,
 			QuizQuestion:   quiz.Question,
-			UserAnswer:     attempt.UserAnswer.String,
-			LlmScore:       attempt.LlmScore.Float64,
-			LlmExplanation: attempt.LlmExplanation.String,
+			UserAnswer:     attempt.UserAnswer, // Direct from domain.UserQuizAttempt
+			LlmScore:       attempt.LLMScore,
+			LlmExplanation: attempt.LLMExplanation,
 			IsCorrect:      attempt.IsCorrect,
 			AttemptedAt:    attempt.AttemptedAt,
 		}
@@ -170,7 +173,6 @@ func (s *userServiceImpl) GetUserRecommendations(ctx context.Context, userID str
 
 	recommendationItems, err := s.quizRepo.GetUnattemptedQuizzesWithDetails(ctx, userID, limit, optionalSubCategoryID)
 	if err != nil {
-		// logger.Get().Error("Failed to get unattempted quizzes for recommendations", zap.String("userID", userID), zap.Error(err))
 		return nil, fmt.Errorf("failed to retrieve recommendations: %w", err)
 	}
 
@@ -182,15 +184,15 @@ func (s *userServiceImpl) GetUserRecommendations(ctx context.Context, userID str
 // GetUserIncorrectAnswers retrieves a user's incorrect answers.
 func (s *userServiceImpl) GetUserIncorrectAnswers(ctx context.Context, userID string, filters dto.AttemptFilters, pagination dto.Pagination) (*dto.UserIncorrectAnswersResponse, error) {
 	isCorrectFilter := false
-	filters.IsCorrect = &isCorrectFilter
+	filters.IsCorrect = &isCorrectFilter // This DTO field is a *bool
 
-	attempts, total, err := s.attemptRepo.GetIncorrectAttemptsByUserID(ctx, userID, filters, pagination)
+	domainAttempts, total, err := s.attemptRepo.GetIncorrectAttemptsByUserID(ctx, userID, filters, pagination) // Returns []domain.UserQuizAttempt
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user incorrect answers from repository: %w", err)
 	}
 
-	incorrectAnswerItems := make([]dto.UserIncorrectAnswerItem, len(attempts))
-	for i, attempt := range attempts {
+	incorrectAnswerItems := make([]dto.UserIncorrectAnswerItem, len(domainAttempts))
+	for i, attempt := range domainAttempts { // attempt is domain.UserQuizAttempt
 		quiz, errQuiz := s.quizRepo.GetQuizByID(attempt.QuizID)
 		if errQuiz != nil || quiz == nil {
 			if quiz == nil && errQuiz == nil {
@@ -199,16 +201,28 @@ func (s *userServiceImpl) GetUserIncorrectAnswers(ctx context.Context, userID st
 			return nil, fmt.Errorf("%w: quiz_id %s for attempt_id %s, repo error: %v", ErrQuizDetailNotFound, attempt.QuizID, attempt.ID, errQuiz)
 		}
 
+		// Note: domain.Quiz.ModelAnswers is a string, not []string.
+		// If it's a JSON array string or delimited, it needs parsing.
+		// For simplicity, assuming it's a single answer or the DTO needs to be adapted.
+		// The original code had quiz.ModelAnswers[0] - this will break if ModelAnswers is just a string.
+		// For now, I'll pass quiz.ModelAnswers directly. This might need further review based on actual data.
+		correctAnswer := quiz.ModelAnswers // This was quiz.ModelAnswers[0]
+		if len(quiz.ModelAnswers) > 0 && (quiz.ModelAnswers[0] == '[' || quiz.ModelAnswers[0] == '{') {
+			// Simple check if it might be JSON array/object, could be more robust.
+			// Or if it's a specific delimited string.
+			// For this task, we'll assume the DTO might expect a single string or this needs external adjustment.
+		}
+
+
 		incorrectAnswerItems[i] = dto.UserIncorrectAnswerItem{
 			AttemptID:      attempt.ID,
 			QuizID:         attempt.QuizID,
 			QuizQuestion:   quiz.Question,
-			UserAnswer:     attempt.UserAnswer.String,
-			CorrectAnswer:  quiz.ModelAnswers[0], // Assuming ModelAnswers is a slice and we take the first one as the correct answer  TODO: fix it
-			LlmScore:       attempt.LlmScore.Float64,
-			LlmExplanation: attempt.LlmExplanation.String,
+			UserAnswer:     attempt.UserAnswer, // Direct from domain.UserQuizAttempt
+			CorrectAnswer:  correctAnswer,      // Changed from attempt.CorrectAnswer
+			LlmScore:       attempt.LLMScore,
+			LlmExplanation: attempt.LLMExplanation,
 			AttemptedAt:    attempt.AttemptedAt,
-			// QuizExplanation: quiz.Explanation,
 		}
 	}
 

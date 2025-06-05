@@ -1,7 +1,10 @@
 package domain
 
 import (
+	"context"
 	"time"
+
+	"quiz-byte/internal/dto"
 )
 
 // User represents a domain user object
@@ -36,4 +39,38 @@ func (u *User) Validate() error {
 		return NewValidationError("email is required")
 	}
 	return nil
+}
+
+// UserQuizAttempt represents a user's attempt at a quiz question.
+type UserQuizAttempt struct {
+	ID                string
+	UserID            string
+	QuizID            string
+	UserAnswer        string // Assuming string, can be *string if nullable
+	LLMScore          float64
+	LLMExplanation    string // Assuming string, can be *string if nullable
+	LLMKeywordMatches []string
+	LLMCompleteness   float64
+	LLMRelevance      float64
+	LLMAccuracy       float64
+	IsCorrect         bool
+	AttemptedAt       time.Time
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	DeletedAt         *time.Time
+}
+
+// UserRepository defines the interface for user data persistence.
+type UserRepository interface {
+	CreateUser(ctx context.Context, user *User) error
+	GetUserByGoogleID(ctx context.Context, googleID string) (*User, error)
+	GetUserByID(ctx context.Context, userID string) (*User, error)
+	UpdateUser(ctx context.Context, user *User) error
+}
+
+// UserQuizAttemptRepository defines the interface for user quiz attempt data persistence.
+type UserQuizAttemptRepository interface {
+	CreateAttempt(ctx context.Context, attempt *UserQuizAttempt) error
+	GetAttemptsByUserID(ctx context.Context, userID string, filters dto.AttemptFilters, pagination dto.Pagination) ([]UserQuizAttempt, int, error)
+	GetIncorrectAttemptsByUserID(ctx context.Context, userID string, filters dto.AttemptFilters, pagination dto.Pagination) ([]UserQuizAttempt, int, error)
 }

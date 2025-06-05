@@ -2,9 +2,7 @@ package service
 
 import (
 	"context"
-	// "encoding/json" // Removed unused import
-	"quiz-byte/internal/cache"  // Added import for cache key generation
-	"quiz-byte/internal/config" // Added import
+	"quiz-byte/internal/cache" // Added import for cache key generation
 	"quiz-byte/internal/domain"
 	"quiz-byte/internal/dto"
 	"quiz-byte/internal/logger"
@@ -48,29 +46,32 @@ type QuizService interface {
 type quizService struct {
 	repo             domain.QuizRepository
 	evaluator        domain.AnswerEvaluator
-	cache            domain.Cache // Retained for InvalidateQuizCache, though AnswerCacheService also has a cache. Consider if this is needed.
-	cfg              *config.Config
+	cache            domain.Cache // Retained for InvalidateQuizCache
 	embeddingService domain.EmbeddingService
-	answerCache      AnswerCacheService // New field
-	sfGroup          singleflight.Group // Added for singleflight
+	answerCache      AnswerCacheService
+	sfGroup          singleflight.Group
+	categoryListTTL  time.Duration // Added
+	quizListTTL      time.Duration // Added
 }
 
 // NewQuizService creates a new instance of quizService
 func NewQuizService(
 	repo domain.QuizRepository,
 	evaluator domain.AnswerEvaluator,
-	cache domain.Cache, // Retained for now
-	cfg *config.Config,
+	cache domain.Cache,
 	embeddingService domain.EmbeddingService,
-	answerCache AnswerCacheService, // New parameter
+	answerCache AnswerCacheService,
+	categoryListTTL time.Duration, // Added
+	quizListTTL time.Duration, // Added
 ) QuizService {
 	return &quizService{
 		repo:             repo,
 		evaluator:        evaluator,
-		cache:            cache, // Retained for now
-		cfg:              cfg,
+		cache:            cache,
 		embeddingService: embeddingService,
-		answerCache:      answerCache, // Assign new field
+		answerCache:      answerCache,
+		categoryListTTL:  categoryListTTL,
+		quizListTTL:      quizListTTL,
 	}
 }
 
@@ -246,19 +247,15 @@ func (s *quizService) GetAllSubCategories() ([]string, error) {
 			encoder := gob.NewEncoder(&buffer)
 			if errEncode := encoder.Encode(categories); errEncode != nil {
 				logger.Get().Error("GetAllSubCategories: Failed to gob encode data for caching (singleflight)", zap.Error(errEncode), zap.String("cacheKey", cacheKey))
-				return categories, nil
+				// Still return categories even if caching fails, but log the error.
+				return categories, nil // Return categories to prevent cache error from breaking the feature
 			}
 
-			defaultCategoryListTTL := 24 * time.Hour
-			cacheTTL := defaultCategoryListTTL
-			if s.cfg != nil && s.cfg.CacheTTLs.CategoryList != "" {
-				cacheTTL = s.cfg.ParseTTLStringOrDefault(s.cfg.CacheTTLs.CategoryList, defaultCategoryListTTL)
-			}
-
-			if errCacheSet := s.cache.Set(ctx, cacheKey, buffer.String(), cacheTTL); errCacheSet != nil {
+			// Use the categoryListTTL field from the struct
+			if errCacheSet := s.cache.Set(ctx, cacheKey, buffer.String(), s.categoryListTTL); errCacheSet != nil {
 				logger.Get().Error("GetAllSubCategories: Failed to set data to cache (gob, singleflight)", zap.Error(errCacheSet), zap.String("cacheKey", cacheKey))
 			} else {
-				logger.Get().Debug("GetAllSubCategories: Data cached successfully (gob, singleflight)", zap.String("cacheKey", cacheKey), zap.Duration("ttl", cacheTTL))
+				logger.Get().Debug("GetAllSubCategories: Data cached successfully (gob, singleflight)", zap.String("cacheKey", cacheKey), zap.Duration("ttl", s.categoryListTTL))
 			}
 		}
 		return categories, nil
@@ -350,19 +347,15 @@ func (s *quizService) GetBulkQuizzes(req *dto.BulkQuizzesRequest) (*dto.BulkQuiz
 			encoder := gob.NewEncoder(&buffer)
 			if errEncode := encoder.Encode(response); errEncode != nil {
 				logger.Get().Error("GetBulkQuizzes: Failed to gob encode response for caching (singleflight)", zap.Error(errEncode), zap.String("cacheKey", cacheKey))
-				return response, nil
+				// Still return response even if caching fails, but log the error.
+				return response, nil // Return response to prevent cache error from breaking the feature
 			}
 
-			defaultQuizListTTL := 1 * time.Hour
-			cacheTTL := defaultQuizListTTL
-			if s.cfg != nil && s.cfg.CacheTTLs.QuizList != "" {
-				cacheTTL = s.cfg.ParseTTLStringOrDefault(s.cfg.CacheTTLs.QuizList, defaultQuizListTTL)
-			}
-
-			if errCacheSet := s.cache.Set(ctx, cacheKey, buffer.String(), cacheTTL); errCacheSet != nil {
+			// Use the quizListTTL field from the struct
+			if errCacheSet := s.cache.Set(ctx, cacheKey, buffer.String(), s.quizListTTL); errCacheSet != nil {
 				logger.Get().Error("GetBulkQuizzes: Failed to set response to cache (gob, singleflight)", zap.Error(errCacheSet), zap.String("cacheKey", cacheKey))
 			} else {
-				logger.Get().Debug("GetBulkQuizzes: Response cached successfully (gob, singleflight)", zap.String("cacheKey", cacheKey), zap.Duration("ttl", cacheTTL))
+				logger.Get().Debug("GetBulkQuizzes: Response cached successfully (gob, singleflight)", zap.String("cacheKey", cacheKey), zap.Duration("ttl", s.quizListTTL))
 			}
 		}
 		return response, nil
