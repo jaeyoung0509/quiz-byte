@@ -1,13 +1,14 @@
 package service
 
 import (
+	"bytes" // Added for gob
 	"context"
+	"encoding/gob"  // Added for gob
+	"encoding/json" // Needed for test data setup before gob encoding for cache
 	"fmt"
 	"os"
 	"testing"
-	// "time" // Removed unused import
-
-	// Removed "encoding/json" as it's not directly used by these tests anymore for cache data setup
+	"time" // Needed for TTLs
 
 	"quiz-byte/internal/config"
 	"quiz-byte/internal/domain"
@@ -15,7 +16,7 @@ import (
 	"quiz-byte/internal/logger"
 
 	"github.com/stretchr/testify/assert"
-	// "github.com/stretchr/testify/mock" // Removed unused import
+	// "github.com/stretchr/testify/mock" // mock is in mocks_test.go
 )
 
 // TestMain will be used to initialize the logger for all tests in this package
@@ -220,3 +221,151 @@ func TestCheckAnswer_With_AnswerCacheService(t *testing.T) { // Renamed test fun
 }
 
 // TestInvalidateQuizCache has been removed as the method is no longer part of the QuizService interface.
+
+// --- Tests for GetAllSubCategories Caching ---
+func TestGetAllSubCategories_Caching(t *testing.T) {
+	ctx := context.Background()
+	testCategoryListTTLString := "15m"
+	cfg := &config.Config{
+		CacheTTLs: config.CacheTTLConfig{
+			CategoryList: testCategoryListTTLString,
+		},
+	}
+	expectedCategories := []string{"cat1", "cat2", "cat3"}
+	cacheKey := "quizbyte:quiz_service:category_list:all" // Manually construct as per GenerateCacheKey logic
+
+	t.Run("Cache Miss for GetAllSubCategories", func(t *testing.T) {
+		mockRepo := new(MockQuizRepository)
+		mockCache := new(MockCache) // Using the mock from mocks_test.go
+		// Other mocks for NewQuizService, can be nil if not used by GetAllSubCategories
+		mockEvaluator := new(MockAnswerEvaluator)
+		mockEmbSvc := new(MockEmbeddingService)
+		mockAnswerCacheSvc := new(MockAnswerCacheService)
+
+		service := NewQuizService(mockRepo, mockEvaluator, mockCache, cfg, mockEmbSvc, mockAnswerCacheSvc)
+
+		// Cache Miss
+		mockCache.On("Get", ctx, cacheKey).Return("", domain.ErrCacheMiss).Once()
+		mockRepo.On("GetAllSubCategories", ctx).Return(expectedCategories, nil).Once()
+
+		// Gob encode expected categories for cache set
+		var expectedBuffer bytes.Buffer
+		enc := gob.NewEncoder(&expectedBuffer)
+		err := enc.Encode(expectedCategories)
+		assert.NoError(t, err)
+		expectedGobData := expectedBuffer.String()
+		expectedTTL, _ := time.ParseDuration(testCategoryListTTLString)
+		mockCache.On("Set", ctx, cacheKey, expectedGobData, expectedTTL).Return(nil).Once()
+
+		categories, err := service.GetAllSubCategories()
+		assert.NoError(t, err)
+		assert.Equal(t, expectedCategories, categories)
+		mockRepo.AssertExpectations(t)
+		mockCache.AssertExpectations(t)
+	})
+
+	t.Run("Cache Hit for GetAllSubCategories", func(t *testing.T) {
+		mockRepo := new(MockQuizRepository)
+		mockCache := new(MockCache)
+		mockEvaluator := new(MockAnswerEvaluator)
+		mockEmbSvc := new(MockEmbeddingService)
+		mockAnswerCacheSvc := new(MockAnswerCacheService)
+
+		service := NewQuizService(mockRepo, mockEvaluator, mockCache, cfg, mockEmbSvc, mockAnswerCacheSvc)
+
+		// Gob encode expected categories for cache hit
+		var expectedBuffer bytes.Buffer
+		enc := gob.NewEncoder(&expectedBuffer)
+		err := enc.Encode(expectedCategories)
+		assert.NoError(t, err)
+		expectedGobData := expectedBuffer.String()
+		mockCache.On("Get", ctx, cacheKey).Return(expectedGobData, nil).Once()
+
+		categories, err := service.GetAllSubCategories()
+		assert.NoError(t, err)
+		assert.Equal(t, expectedCategories, categories)
+		mockCache.AssertExpectations(t)
+		mockRepo.AssertNotCalled(t, "GetAllSubCategories", ctx) // Ensure repo not called
+	})
+}
+
+// --- Tests for GetBulkQuizzes Caching ---
+func TestGetBulkQuizzes_Caching(t *testing.T) {
+	ctx := context.Background()
+	testQuizListTTLString := "5m"
+	cfg := &config.Config{
+		CacheTTLs: config.CacheTTLConfig{
+			QuizList: testQuizListTTLString,
+		},
+	}
+	subCategoryName := "Tech"
+	subCategoryID := "tech-id-123"
+	reqCount := 10
+	cacheKey := fmt.Sprintf("quizbyte:quiz_service:quiz_list:%s:%d", subCategoryID, reqCount)
+
+	domainQuizzes := []*domain.Quiz{
+		{ID: "q1", Question: "Q1?", ModelAnswers: []string{"A1"}, Keywords: []string{"k1"}, DifficultyLevel: domain.DifficultyEasy},
+		{ID: "q2", Question: "Q2?", ModelAnswers: []string{"A2"}, Keywords: []string{"k2"}, DifficultyLevel: domain.DifficultyMedium},
+	}
+	expectedResponse := &dto.BulkQuizzesResponse{
+		Quizzes: []dto.QuizResponse{
+			{ID: "q1", Question: "Q1?", ModelAnswers: []string{"A1"}, Keywords: []string{"k1"}, DiffLevel: "easy"},
+			{ID: "q2", Question: "Q2?", ModelAnswers: []string{"A2"}, Keywords: []string{"k2"}, DiffLevel: "medium"},
+		},
+	}
+
+	t.Run("Cache Miss for GetBulkQuizzes", func(t *testing.T) {
+		mockRepo := new(MockQuizRepository)
+		mockCache := new(MockCache)
+		mockEvaluator := new(MockAnswerEvaluator)
+		mockEmbSvc := new(MockEmbeddingService)
+		mockAnswerCacheSvc := new(MockAnswerCacheService)
+
+		service := NewQuizService(mockRepo, mockEvaluator, mockCache, cfg, mockEmbSvc, mockAnswerCacheSvc)
+
+		mockRepo.On("GetSubCategoryIDByName", subCategoryName).Return(subCategoryID, nil).Once()
+		mockCache.On("Get", ctx, cacheKey).Return("", domain.ErrCacheMiss).Once()
+		mockRepo.On("GetQuizzesByCriteria", subCategoryID, reqCount).Return(domainQuizzes, nil).Once()
+
+		var expectedBuffer bytes.Buffer
+		enc := gob.NewEncoder(&expectedBuffer)
+		err := enc.Encode(expectedResponse)
+		assert.NoError(t, err)
+		expectedGobData := expectedBuffer.String()
+		expectedTTL, _ := time.ParseDuration(testQuizListTTLString)
+		mockCache.On("Set", ctx, cacheKey, expectedGobData, expectedTTL).Return(nil).Once()
+
+		bulkReq := &dto.BulkQuizzesRequest{SubCategory: subCategoryName, Count: reqCount}
+		response, err := service.GetBulkQuizzes(bulkReq)
+		assert.NoError(t, err)
+		assert.Equal(t, expectedResponse, response)
+		mockRepo.AssertExpectations(t)
+		mockCache.AssertExpectations(t)
+	})
+
+	t.Run("Cache Hit for GetBulkQuizzes", func(t *testing.T) {
+		mockRepo := new(MockQuizRepository)
+		mockCache := new(MockCache)
+		mockEvaluator := new(MockAnswerEvaluator)
+		mockEmbSvc := new(MockEmbeddingService)
+		mockAnswerCacheSvc := new(MockAnswerCacheService)
+
+		service := NewQuizService(mockRepo, mockEvaluator, mockCache, cfg, mockEmbSvc, mockAnswerCacheSvc)
+
+		var expectedBuffer bytes.Buffer
+		enc := gob.NewEncoder(&expectedBuffer)
+		err := enc.Encode(expectedResponse)
+		assert.NoError(t, err)
+		expectedGobData := expectedBuffer.String()
+
+		mockRepo.On("GetSubCategoryIDByName", subCategoryName).Return(subCategoryID, nil).Once()
+		mockCache.On("Get", ctx, cacheKey).Return(expectedGobData, nil).Once()
+
+		bulkReq := &dto.BulkQuizzesRequest{SubCategory: subCategoryName, Count: reqCount}
+		response, err := service.GetBulkQuizzes(bulkReq)
+		assert.NoError(t, err)
+		assert.Equal(t, expectedResponse, response)
+		mockCache.AssertExpectations(t)
+		mockRepo.AssertNotCalled(t, "GetQuizzesByCriteria", subCategoryID, reqCount)
+	})
+}

@@ -4,14 +4,24 @@ import (
 	"context"
 	// "encoding/json" // Removed unused import
 	"quiz-byte/internal/domain"
+	"quiz-byte/internal/cache"  // Added import for cache key generation
 	"quiz-byte/internal/config" // Added import
 	"quiz-byte/internal/dto"
 	"quiz-byte/internal/logger"
 	// "quiz-byte/internal/util" // No longer directly used for CosineSimilarity here
+	"crypto/sha256" // For CheckAnswer singleflight key
+	"encoding/hex"  // For CheckAnswer singleflight key
+	"fmt"           // Added for singleflight error formatting
 	"strings"
-	// "time" // No longer directly used for CacheExpiration here
+	"bytes"         // Added for gob
+	"encoding/gob"  // Added for gob
+	// "encoding/json" // No longer needed directly for cache data
+	"io"            // For io.EOF with gob
+	"strconv"       // Added for caching GetBulkQuizzes
+	"time"          // Added for caching TTL
 
 	"go.uber.org/zap"
+	"golang.org/x/sync/singleflight" // Added for singleflight
 )
 
 // LLMResponse represents the response from the LLM service
@@ -40,6 +50,7 @@ type quizService struct {
 	cfg              *config.Config
 	embeddingService domain.EmbeddingService
 	answerCache      AnswerCacheService // New field
+	sfGroup          singleflight.Group // Added for singleflight
 }
 
 // NewQuizService creates a new instance of quizService
@@ -118,76 +129,152 @@ func (s *quizService) CheckAnswer(req *dto.CheckAnswerRequest) (*dto.CheckAnswer
 		// If cachedResp is nil and errCacheGet is nil, it's a cache miss, proceed to LLM.
 	}
 
-	// 2. Original Logic: Fetch quiz, validate, call LLM (if cache miss or error)
-	quiz, err := s.repo.GetQuizByID(req.QuizID)
-	if err != nil {
-		return nil, domain.NewInternalError("Failed to get quiz", err)
-	}
-	if quiz == nil {
-		return nil, domain.NewQuizNotFoundError(req.QuizID)
-	}
+	// 2. LLM Evaluation Logic (Protected by SingleFlight)
+	// Create a unique key for singleflight based on quizID and userAnswer to prevent multiple LLM calls for the same input.
+	hasher := sha256.New()
+	hasher.Write([]byte(req.UserAnswer))
+	userAnswerHash := hex.EncodeToString(hasher.Sum(nil))
+	sfKey := fmt.Sprintf("check_answer:%s:%s", req.QuizID, userAnswerHash)
 
-	// Create and validate answer
-	answer := domain.NewAnswer(req.QuizID, req.UserAnswer)
-	if err := answer.Validate(); err != nil {
-		return nil, err
-	}
+	res, sfErr, _ := s.sfGroup.Do(sfKey, func() (interface{}, error) {
+		logger.Get().Debug("Calling singleflight Do func for CheckAnswer", zap.String("sfKey", sfKey))
 
-	// Get model answers
-	if len(quiz.ModelAnswers) == 0 {
-		return nil, domain.NewInternalError("No model answer found", nil)
-	}
-
-	// Evaluate answer with LLM
-	evaluatedAnswer, err := s.evaluator.EvaluateAnswer(
-		quiz.Question,
-		quiz.ModelAnswers[0], // 현재는 첫 번째 모범답안만 사용
-		req.UserAnswer,
-		quiz.Keywords,
-	)
-	if err != nil {
-		return nil, domain.NewLLMServiceError(err)
-	}
-
-	// Construct full response
-	response := &dto.CheckAnswerResponse{
-		Score:          evaluatedAnswer.Score,
-		Explanation:    evaluatedAnswer.Explanation,
-		KeywordMatches: evaluatedAnswer.KeywordMatches,
-		Completeness:   evaluatedAnswer.Completeness,
-		Relevance:      evaluatedAnswer.Relevance,
-		Accuracy:       evaluatedAnswer.Accuracy,
-		ModelAnswer:    strings.Join(quiz.ModelAnswers, "\n"),
-	}
-
-	// 3. Cache Write Logic (delegated to AnswerCacheService)
-	if s.answerCache != nil && errEmbed == nil && len(userAnswerEmbedding) > 0 && response != nil {
-		errCachePut := s.answerCache.PutAnswerToCache(ctx, req.QuizID, req.UserAnswer, userAnswerEmbedding, response)
-		if errCachePut != nil {
-			// Log errors (actual errors are logged by AnswerCacheService)
-			logger.Get().Error("QuizService: Error putting answer to AnswerCacheService",
-				zap.Error(errCachePut),
-				zap.String("quizID", req.QuizID))
-			// Do not return error to client, just log it.
+		quiz, err := s.repo.GetQuizByID(req.QuizID)
+		if err != nil {
+			return nil, domain.NewInternalError("Failed to get quiz", err)
 		}
+		if quiz == nil {
+			return nil, domain.NewQuizNotFoundError(req.QuizID)
+		}
+
+		answer := domain.NewAnswer(req.QuizID, req.UserAnswer)
+		if err := answer.Validate(); err != nil {
+			return nil, err
+		}
+
+		if len(quiz.ModelAnswers) == 0 {
+			return nil, domain.NewInternalError("No model answer found", nil)
+		}
+
+		evaluatedAnswer, err := s.evaluator.EvaluateAnswer(
+			quiz.Question,
+			quiz.ModelAnswers[0],
+			req.UserAnswer,
+			quiz.Keywords,
+		)
+		if err != nil {
+			return nil, domain.NewLLMServiceError(err)
+		}
+
+		response := &dto.CheckAnswerResponse{
+			Score:          evaluatedAnswer.Score,
+			Explanation:    evaluatedAnswer.Explanation,
+			KeywordMatches: evaluatedAnswer.KeywordMatches,
+			Completeness:   evaluatedAnswer.Completeness,
+			Relevance:      evaluatedAnswer.Relevance,
+			Accuracy:       evaluatedAnswer.Accuracy,
+			ModelAnswer:    strings.Join(quiz.ModelAnswers, "\n"),
+		}
+
+		// 3. Cache Write Logic (delegated to AnswerCacheService, happens within singleflight)
+		if s.answerCache != nil && errEmbed == nil && len(userAnswerEmbedding) > 0 && response != nil {
+			errCachePut := s.answerCache.PutAnswerToCache(ctx, req.QuizID, req.UserAnswer, userAnswerEmbedding, response)
+			if errCachePut != nil {
+				logger.Get().Error("QuizService: Error putting answer to AnswerCacheService (singleflight)",
+					zap.Error(errCachePut),
+					zap.String("quizID", req.QuizID))
+				// Log and ignore, proceed with returning the response
+			}
+		}
+		return response, nil
+	})
+
+	if sfErr != nil {
+		return nil, sfErr
 	}
 
-	return response, nil
+	if response, ok := res.(*dto.CheckAnswerResponse); ok {
+		return response, nil
+	}
+
+	return nil, fmt.Errorf("unexpected type from singleflight.Do for CheckAnswer: %T", res)
 }
 
 // tryGetEvaluationFromCachedItem is removed as its logic is now in AnswerCacheService.
 
 // GetAllSubCategories implements QuizService
 func (s *quizService) GetAllSubCategories() ([]string, error) {
-	categories, err := s.repo.GetAllSubCategories(context.Background()) // Added context
-	if err != nil {
-		return nil, domain.NewInternalError("Failed to get subcategories", err)
+	ctx := context.Background() // Define context
+	cacheKey := cache.GenerateCacheKey("quiz_service", "category_list", "all")
+
+	// Cache Check
+	if s.cache != nil {
+		cachedDataString, err := s.cache.Get(ctx, cacheKey)
+		if err == nil { // Cache hit
+			var categories []string
+			byteReader := bytes.NewReader([]byte(cachedDataString))
+			decoder := gob.NewDecoder(byteReader)
+			if errDecode := decoder.Decode(&categories); errDecode == nil {
+				logger.Get().Debug("GetAllSubCategories cache hit (gob)", zap.String("cacheKey", cacheKey))
+				return categories, nil
+			} else if errDecode == io.EOF {
+				logger.Get().Warn("GetAllSubCategories: Cached data is empty (EOF) (gob)", zap.String("cacheKey", cacheKey))
+			} else {
+				logger.Get().Error("GetAllSubCategories: Failed to decode cached data (gob)", zap.Error(errDecode), zap.String("cacheKey", cacheKey))
+			}
+			// Proceed to fetch from repo if decoding failed
+		} else if err != domain.ErrCacheMiss {
+			logger.Get().Error("GetAllSubCategories: Cache Get failed (not a miss)", zap.Error(err), zap.String("cacheKey", cacheKey))
+			// Proceed to fetch from repo, but log that cache check failed
+		} else {
+			logger.Get().Debug("GetAllSubCategories cache miss", zap.String("cacheKey", cacheKey))
+		}
 	}
-	return categories, nil
+
+	// Cache Miss or error during cache read: Use singleflight
+	res, sfErr, _ := s.sfGroup.Do(cacheKey, func() (interface{}, error) {
+		logger.Get().Debug("Calling singleflight Do func for GetAllSubCategories", zap.String("cacheKey", cacheKey))
+		categories, err := s.repo.GetAllSubCategories(ctx)
+		if err != nil {
+			return nil, domain.NewInternalError("Failed to get subcategories", err)
+		}
+
+		if s.cache != nil {
+			var buffer bytes.Buffer
+			encoder := gob.NewEncoder(&buffer)
+			if errEncode := encoder.Encode(categories); errEncode != nil {
+				logger.Get().Error("GetAllSubCategories: Failed to gob encode data for caching (singleflight)", zap.Error(errEncode), zap.String("cacheKey", cacheKey))
+				return categories, nil
+			}
+
+			defaultCategoryListTTL := 24 * time.Hour
+			cacheTTL := defaultCategoryListTTL
+			if s.cfg != nil && s.cfg.CacheTTLs.CategoryList != "" {
+				cacheTTL = s.cfg.ParseTTLStringOrDefault(s.cfg.CacheTTLs.CategoryList, defaultCategoryListTTL)
+			}
+
+			if errCacheSet := s.cache.Set(ctx, cacheKey, buffer.String(), cacheTTL); errCacheSet != nil {
+				logger.Get().Error("GetAllSubCategories: Failed to set data to cache (gob, singleflight)", zap.Error(errCacheSet), zap.String("cacheKey", cacheKey))
+			} else {
+				logger.Get().Debug("GetAllSubCategories: Data cached successfully (gob, singleflight)", zap.String("cacheKey", cacheKey), zap.Duration("ttl", cacheTTL))
+			}
+		}
+		return categories, nil
+	})
+
+	if sfErr != nil {
+		return nil, sfErr
+	}
+	if categories, ok := res.([]string); ok {
+		return categories, nil
+	}
+	return nil, fmt.Errorf("unexpected type from singleflight.Do for GetAllSubCategories: %T", res)
 }
 
 // GetBulkQuizzes implements QuizService
 func (s *quizService) GetBulkQuizzes(req *dto.BulkQuizzesRequest) (*dto.BulkQuizzesResponse, error) {
+	ctx := context.Background() // Define context
+
 	// Validate Count (although handler also does, good to have service layer validation)
 	if req.Count <= 0 {
 		req.Count = 10 // Default to 10 if invalid count is somehow passed
@@ -205,31 +292,87 @@ func (s *quizService) GetBulkQuizzes(req *dto.BulkQuizzesRequest) (*dto.BulkQuiz
 		return nil, domain.NewInvalidCategoryError(req.SubCategory)
 	}
 
-	domainQuizzes, err := s.repo.GetQuizzesByCriteria(subCategoryID, req.Count)
-	if err != nil {
-		return nil, domain.NewInternalError("Failed to get bulk quizzes from repository", err)
+	cacheKey := cache.GenerateCacheKey("quiz_service", "quiz_list", subCategoryID, strconv.Itoa(req.Count))
+
+	// Cache Check
+	if s.cache != nil {
+		cachedDataString, errCacheGet := s.cache.Get(ctx, cacheKey)
+		if errCacheGet == nil { // Cache Hit
+			var response *dto.BulkQuizzesResponse
+			byteReader := bytes.NewReader([]byte(cachedDataString))
+			decoder := gob.NewDecoder(byteReader)
+			if errDecode := decoder.Decode(&response); errDecode == nil {
+				logger.Get().Debug("GetBulkQuizzes cache hit (gob)", zap.String("cacheKey", cacheKey))
+				return response, nil
+			} else if errDecode == io.EOF {
+				logger.Get().Warn("GetBulkQuizzes: Cached data is empty (EOF) (gob)", zap.String("cacheKey", cacheKey))
+			} else {
+				logger.Get().Error("GetBulkQuizzes: Failed to decode cached data (gob)", zap.Error(errDecode), zap.String("cacheKey", cacheKey))
+			}
+			// Proceed to fetch if decode fails
+		} else if errCacheGet != domain.ErrCacheMiss {
+			logger.Get().Error("GetBulkQuizzes: Cache Get failed (not a miss)", zap.Error(errCacheGet), zap.String("cacheKey", cacheKey))
+			// Proceed to fetch, log error
+		} else {
+			logger.Get().Debug("GetBulkQuizzes cache miss", zap.String("cacheKey", cacheKey))
+		}
 	}
 
-	if len(domainQuizzes) == 0 {
-		return &dto.BulkQuizzesResponse{
-			Quizzes: []dto.QuizResponse{},
-		}, nil
-	}
+	// Cache Miss or error: Use singleflight
+	res, sfErr, _ := s.sfGroup.Do(cacheKey, func() (interface{}, error) {
+		logger.Get().Debug("Calling singleflight Do func for GetBulkQuizzes", zap.String("cacheKey", cacheKey))
+		domainQuizzes, err := s.repo.GetQuizzesByCriteria(subCategoryID, req.Count)
+		if err != nil {
+			return nil, domain.NewInternalError("Failed to get bulk quizzes from repository", err)
+		}
 
-	quizResponses := make([]dto.QuizResponse, 0, len(domainQuizzes))
-	for _, quiz := range domainQuizzes {
-		quizResponses = append(quizResponses, dto.QuizResponse{
-			ID:           quiz.ID,
-			Question:     quiz.Question,
-			ModelAnswers: quiz.ModelAnswers,
-			Keywords:     quiz.Keywords,
-			DiffLevel:    quiz.DifficultyToString(),
-		})
-	}
+		quizResponses := make([]dto.QuizResponse, 0, len(domainQuizzes))
+		if len(domainQuizzes) > 0 {
+			for _, quiz := range domainQuizzes {
+				quizResponses = append(quizResponses, dto.QuizResponse{
+					ID:           quiz.ID,
+					Question:     quiz.Question,
+					ModelAnswers: quiz.ModelAnswers,
+					Keywords:     quiz.Keywords,
+					DiffLevel:    quiz.DifficultyToString(),
+				})
+			}
+		}
 
-	return &dto.BulkQuizzesResponse{
-		Quizzes: quizResponses,
-	}, nil
+		response := &dto.BulkQuizzesResponse{
+			Quizzes: quizResponses,
+		}
+
+		if s.cache != nil {
+			var buffer bytes.Buffer
+			encoder := gob.NewEncoder(&buffer)
+			if errEncode := encoder.Encode(response); errEncode != nil {
+				logger.Get().Error("GetBulkQuizzes: Failed to gob encode response for caching (singleflight)", zap.Error(errEncode), zap.String("cacheKey", cacheKey))
+				return response, nil
+			}
+
+			defaultQuizListTTL := 1 * time.Hour
+			cacheTTL := defaultQuizListTTL
+			if s.cfg != nil && s.cfg.CacheTTLs.QuizList != "" {
+				cacheTTL = s.cfg.ParseTTLStringOrDefault(s.cfg.CacheTTLs.QuizList, defaultQuizListTTL)
+			}
+
+			if errCacheSet := s.cache.Set(ctx, cacheKey, buffer.String(), cacheTTL); errCacheSet != nil {
+				logger.Get().Error("GetBulkQuizzes: Failed to set response to cache (gob, singleflight)", zap.Error(errCacheSet), zap.String("cacheKey", cacheKey))
+			} else {
+				logger.Get().Debug("GetBulkQuizzes: Response cached successfully (gob, singleflight)", zap.String("cacheKey", cacheKey), zap.Duration("ttl", cacheTTL))
+			}
+		}
+		return response, nil
+	})
+
+	if sfErr != nil {
+		return nil, sfErr
+	}
+	if response, ok := res.(*dto.BulkQuizzesResponse); ok {
+		return response, nil
+	}
+	return nil, fmt.Errorf("unexpected type from singleflight.Do for GetBulkQuizzes: %T", res)
 }
 
 // InvalidateQuizCache removes a quiz's answer evaluations from the cache.
@@ -269,8 +412,9 @@ func (s *quizService) InvalidateQuizCache(ctx context.Context, quizID string) er
 	// For now, I will use the new constant name `AnswerCachePrefix` from `answer_cache.go`.
 	// This implies that `quiz.go` and `answer_cache.go` are in the same package `service`.
 
-	cacheKey := AnswerCachePrefix + quizID // Using the constant from answer_cache.go
-	err := s.cache.Delete(ctx, cacheKey)
+	// Use the new cache key generation logic
+	cacheKey := cache.GenerateCacheKey("answer", "evaluation_map", quizID)
+	err := s.cache.Delete(ctx, cacheKey) // This will delete the entire hash map for the quizID
 
 	if err != nil {
 		logger.Get().Error("QuizService: Failed to invalidate cache",

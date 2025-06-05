@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"quiz-byte/internal/repository/models" // Assuming models are in this path
-	"strings"
+	// "strings" // Removed unused import
 	"time"
 
 	"github.com/jmoiron/sqlx"

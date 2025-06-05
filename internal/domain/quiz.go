@@ -1,9 +1,7 @@
 package domain
 
 import (
-	"context" // Make sure context is imported
 	"fmt"
-	"quiz-byte/internal/dto" // Make sure dto is imported for QuizRecommendationItem
 	"strings"
 	"time"
 )
@@ -288,22 +286,5 @@ func (e *LLMServiceError) Error() string {
 	return fmt.Sprintf("LLM service error: %v", e.cause)
 }
 
-// QuizRepository defines the operations for managing quizzes and related entities.
-type QuizRepository interface {
-	GetRandomQuiz() (*Quiz, error)
-	GetQuizByID(id string) (*Quiz, error)
-	SaveQuiz(ctx context.Context, quiz *Quiz) error
-	UpdateQuiz(quiz *Quiz) error
-	SaveAnswer(answer *Answer) error // This might be deprecated or moved if answers table is fully replaced
-	GetSimilarQuiz(quizID string) (*Quiz, error)
-	GetAllSubCategories(ctx context.Context) ([]string, error) // Assuming this returns sub-category names or IDs
-	SaveQuizEvaluation(evaluation *QuizEvaluation) error
-	GetQuizEvaluation(quizID string) (*QuizEvaluation, error)
-	GetRandomQuizBySubCategory(subCategoryID string) (*Quiz, error)
-	GetQuizzesByCriteria(subCategoryID string, count int) ([]*Quiz, error) // Used by GetBulkQuizzes
-	GetSubCategoryIDByName(name string) (string, error)
-	GetQuizzesBySubCategory(ctx context.Context, subCategoryID string) ([]*Quiz, error)
-
-	// New method for recommendations
-	GetUnattemptedQuizzesWithDetails(ctx context.Context, userID string, limit int, optionalSubCategoryID string) ([]dto.QuizRecommendationItem, error)
-}
+// QuizRepository interface definition is now in internal/domain/service.go
+// The following block has been removed.

@@ -1,6 +1,9 @@
 package domain
 
-import "context"
+import (
+	"context"
+	"quiz-byte/internal/dto" // Added for QuizRecommendationItem
+)
 
 // QuizService defines the core business operations for quizzes
 type QuizService interface {
@@ -34,6 +37,11 @@ type QuizRepository interface {
 	GetQuizzesByCriteria(SubCategoryID string, limit int) ([]*Quiz, error)
 	GetSubCategoryIDByName(name string) (string, error)
 	GetQuizzesBySubCategory(ctx context.Context, subCategoryID string) ([]*Quiz, error)
+	// Methods from internal/domain/quiz.go
+	UpdateQuiz(quiz *Quiz) error
+	SaveQuizEvaluation(evaluation *QuizEvaluation) error
+	GetQuizEvaluation(quizID string) (*QuizEvaluation, error)
+	GetUnattemptedQuizzesWithDetails(ctx context.Context, userID string, limit int, optionalSubCategoryID string) ([]dto.QuizRecommendationItem, error)
 }
 
 // CategoryRepository defines the interface for category persistence

@@ -33,7 +33,7 @@ type UserService interface {
 type userServiceImpl struct {
 	userRepo         repository.UserRepository
 	attemptRepo      repository.UserQuizAttemptRepository
-	quizRepo         repository.QuizRepository // Added for fetching quiz details
+	quizRepo         domain.QuizRepository // Changed from repository.QuizRepository
 	appConfig        *config.Config
 }
 
@@ -41,13 +41,13 @@ type userServiceImpl struct {
 func NewUserService(
 	userRepo repository.UserRepository,
 	attemptRepo repository.UserQuizAttemptRepository,
-	quizRepo repository.QuizRepository, // Added
+	quizRepo domain.QuizRepository, // Changed from repository.QuizRepository
 	appConfig *config.Config,
 ) UserService {
 	return &userServiceImpl{
 		userRepo:    userRepo,
 		attemptRepo: attemptRepo,
-		quizRepo:    quizRepo, // Added
+		quizRepo:    quizRepo, // Changed
 		appConfig:   appConfig,
 	}
 }

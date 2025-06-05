@@ -1,12 +1,15 @@
 package service
 
 import (
+	"bytes" // Added for gob
 	"context" // Keep one context
-	"encoding/json"
+	"encoding/gob"  // Added for gob
+	// "encoding/json" // No longer used for direct cache data
 	"fmt"
 	"testing"
 	"time"
 
+	"quiz-byte/internal/cache" // Added for GenerateCacheKey
 	"quiz-byte/internal/config"
 	"quiz-byte/internal/domain"
 	"quiz-byte/internal/dto"
@@ -92,18 +95,33 @@ func TestAnswerCacheServiceImpl_GetAnswerFromCache(t *testing.T) {
 		mockRepo := new(MockQuizRepository) // Changed to MockQuizRepository
 		service := NewAnswerCacheService(mockCache, mockRepo, cfg)
 
-		cacheKey := AnswerCachePrefix + baseQuizID
+		// Cache key for the HASH where evaluations are stored
+		hashCacheKey := cache.GenerateCacheKey("answer", "evaluation_map", baseQuizID)
+
 		similarEmbedding := []float32{0.11, 0.21, 0.31} // Similar
 		expectedEvalResponse := &dto.CheckAnswerResponse{Score: 0.85, Explanation: "Cached explanation", ModelAnswer: "Original Model Ans"}
+
+		// UserAnswer in CachedAnswerEvaluation is used for integrity check if present, and for logging.
+		// The field key for HGetAll is the hashed version of an original user answer.
+		// Let's assume "similar cached text" was the original user answer that got hashed to produce a field key.
+		userAnswerForFieldKey := "similar cached text"
+		fieldKey := hashString(userAnswerForFieldKey)
+
+
 		cachedData := CachedAnswerEvaluation{
 			Evaluation: expectedEvalResponse,
 			Embedding:  similarEmbedding,
-			UserAnswer: "similar cached text",
+			UserAnswer: userAnswerForFieldKey, // Store original text that matches the fieldKey's hash
 		}
-		marshaledCachedData, _ := json.Marshal(cachedData)
-		cacheReturnMap := map[string]string{cachedData.UserAnswer: string(marshaledCachedData)}
 
-		mockCache.On("HGetAll", ctx, cacheKey).Return(cacheReturnMap, nil).Once()
+		var expectedBuffer bytes.Buffer
+		enc := gob.NewEncoder(&expectedBuffer)
+		_ = enc.Encode(cachedData)
+		gobEncodedCachedData := expectedBuffer.String()
+
+		cacheReturnMap := map[string]string{fieldKey: gobEncodedCachedData}
+
+		mockCache.On("HGetAll", ctx, hashCacheKey).Return(cacheReturnMap, nil).Once()
 		updatedModelAnswer := "Updated Model Answer For Cache Hit"
 		mockRepo.On("GetQuizByID", baseQuizID).Return(&domain.Quiz{ModelAnswers: []string{updatedModelAnswer}}, nil).Once()
 
@@ -122,18 +140,27 @@ func TestAnswerCacheServiceImpl_GetAnswerFromCache(t *testing.T) {
 		mockRepo := new(MockQuizRepository) // Changed to MockQuizRepository
 		service := NewAnswerCacheService(mockCache, mockRepo, cfg)
 
-		cacheKey := AnswerCachePrefix + baseQuizID
+		hashCacheKey := cache.GenerateCacheKey("answer", "evaluation_map", baseQuizID)
 		dissimilarEmbedding := []float32{0.9, 0.8, 0.7} // Dissimilar
 		cachedEvalResponse := &dto.CheckAnswerResponse{Score: 0.30, Explanation: "Dissimilar cached explanation"}
+
+		userAnswerForFieldKey := "dissimilar cached text"
+		fieldKey := hashString(userAnswerForFieldKey)
+
 		cachedData := CachedAnswerEvaluation{
 			Evaluation: cachedEvalResponse,
 			Embedding:  dissimilarEmbedding,
-			UserAnswer: "dissimilar cached text",
+			UserAnswer: userAnswerForFieldKey,
 		}
-		marshaledCachedData, _ := json.Marshal(cachedData)
-		cacheReturnMap := map[string]string{cachedData.UserAnswer: string(marshaledCachedData)}
 
-		mockCache.On("HGetAll", ctx, cacheKey).Return(cacheReturnMap, nil).Once()
+		var expectedBuffer bytes.Buffer
+		enc := gob.NewEncoder(&expectedBuffer)
+		_ = enc.Encode(cachedData)
+		gobEncodedCachedData := expectedBuffer.String()
+
+		cacheReturnMap := map[string]string{fieldKey: gobEncodedCachedData}
+
+		mockCache.On("HGetAll", ctx, hashCacheKey).Return(cacheReturnMap, nil).Once()
 
 		response, err := service.GetAnswerFromCache(ctx, baseQuizID, baseUserAnswerEmbedding, baseUserAnswerText)
 
@@ -147,9 +174,9 @@ func TestAnswerCacheServiceImpl_GetAnswerFromCache(t *testing.T) {
 		mockCache := new(MockAnswerCacheDomainCache)
 		mockRepo := new(MockQuizRepository) // Changed to MockQuizRepository
 		service := NewAnswerCacheService(mockCache, mockRepo, cfg)
-		cacheKey := AnswerCachePrefix + baseQuizID
+		hashCacheKey := cache.GenerateCacheKey("answer", "evaluation_map", baseQuizID)
 
-		mockCache.On("HGetAll", ctx, cacheKey).Return(map[string]string{}, nil).Once()
+		mockCache.On("HGetAll", ctx, hashCacheKey).Return(map[string]string{}, nil).Once()
 
 		response, err := service.GetAnswerFromCache(ctx, baseQuizID, baseUserAnswerEmbedding, baseUserAnswerText)
 		assert.NoError(t, err)
@@ -162,9 +189,9 @@ func TestAnswerCacheServiceImpl_GetAnswerFromCache(t *testing.T) {
 		mockCache := new(MockAnswerCacheDomainCache)
 		mockRepo := new(MockQuizRepository) // Changed to MockQuizRepository
 		service := NewAnswerCacheService(mockCache, mockRepo, cfg)
-		cacheKey := AnswerCachePrefix + baseQuizID
+		hashCacheKey := cache.GenerateCacheKey("answer", "evaluation_map", baseQuizID)
 
-		mockCache.On("HGetAll", ctx, cacheKey).Return(nil, domain.ErrCacheMiss).Once()
+		mockCache.On("HGetAll", ctx, hashCacheKey).Return(nil, domain.ErrCacheMiss).Once()
 
 		response, err := service.GetAnswerFromCache(ctx, baseQuizID, baseUserAnswerEmbedding, baseUserAnswerText)
 		assert.NoError(t, err)
@@ -178,10 +205,10 @@ func TestAnswerCacheServiceImpl_GetAnswerFromCache(t *testing.T) {
 		mockCache := new(MockAnswerCacheDomainCache)
 		mockRepo := new(MockQuizRepository) // Changed to MockQuizRepository
 		service := NewAnswerCacheService(mockCache, mockRepo, cfg)
-		cacheKey := AnswerCachePrefix + baseQuizID
+		hashCacheKey := cache.GenerateCacheKey("answer", "evaluation_map", baseQuizID)
 		expectedError := fmt.Errorf("HGetAll failed")
 
-		mockCache.On("HGetAll", ctx, cacheKey).Return(nil, expectedError).Once()
+		mockCache.On("HGetAll", ctx, hashCacheKey).Return(nil, expectedError).Once()
 
 		response, err := service.GetAnswerFromCache(ctx, baseQuizID, baseUserAnswerEmbedding, baseUserAnswerText)
 		assert.ErrorIs(t, err, expectedError)
@@ -194,20 +221,29 @@ func TestAnswerCacheServiceImpl_GetAnswerFromCache(t *testing.T) {
 		mockCache := new(MockAnswerCacheDomainCache)
 		mockRepo := new(MockQuizRepository) // Changed to MockQuizRepository
 		service := NewAnswerCacheService(mockCache, mockRepo, cfg)
-		cacheKey := AnswerCachePrefix + baseQuizID
+		hashCacheKey := cache.GenerateCacheKey("answer", "evaluation_map", baseQuizID)
 
 		// One valid, one invalid
-		validCachedData := CachedAnswerEvaluation{Evaluation: &dto.CheckAnswerResponse{Score: 0.9}, Embedding: []float32{0.11,0.21,0.31}}
-		marshaledValid, _ := json.Marshal(validCachedData)
+		validUserAnswer := "valid answer text"
+		validFieldKey := hashString(validUserAnswer)
+		validCachedData := CachedAnswerEvaluation{
+			Evaluation: &dto.CheckAnswerResponse{Score: 0.9},
+			Embedding:  []float32{0.11, 0.21, 0.31}, // Assuming this is similar to baseUserAnswerEmbedding
+			UserAnswer: validUserAnswer,
+		}
+		var validBuffer bytes.Buffer
+		_ = gob.NewEncoder(&validBuffer).Encode(validCachedData)
+		gobEncodedValidData := validBuffer.String()
+
 		cacheReturnMap := map[string]string{
-			"validEntry":   string(marshaledValid),
-			"invalidEntry": "this is not json",
+			validFieldKey:    gobEncodedValidData,
+			"invalidFieldKey": "this is not gob", // This will cause decode error
 		}
 		// Mock GetQuizByID for the valid entry if it's found and similar
 		mockRepo.On("GetQuizByID", baseQuizID).Return(&domain.Quiz{ModelAnswers: []string{"Updated"}}, nil).Maybe()
 
 
-		mockCache.On("HGetAll", ctx, cacheKey).Return(cacheReturnMap, nil).Once()
+		mockCache.On("HGetAll", ctx, hashCacheKey).Return(cacheReturnMap, nil).Once()
 
 		response, err := service.GetAnswerFromCache(ctx, baseQuizID, baseUserAnswerEmbedding, baseUserAnswerText)
 
@@ -230,18 +266,26 @@ func TestAnswerCacheServiceImpl_GetAnswerFromCache(t *testing.T) {
 		mockRepo := new(MockQuizRepository) // Changed to MockQuizRepository
 		service := NewAnswerCacheService(mockCache, mockRepo, cfg)
 
-		cacheKey := AnswerCachePrefix + baseQuizID
+		hashCacheKey := cache.GenerateCacheKey("answer", "evaluation_map", baseQuizID)
 		similarEmbedding := []float32{0.11, 0.21, 0.31}
 		originalModelAnswer := "Original Model From Cache"
 		expectedEvalResponse := &dto.CheckAnswerResponse{Score: 0.85, Explanation: "Cached explanation", ModelAnswer: originalModelAnswer}
+
+		userAnswerForFieldKey := "somekey answer" // Text that would produce "somekey" field
+		fieldKey := hashString(userAnswerForFieldKey)
+
+
 		cachedData := CachedAnswerEvaluation{
 			Evaluation: expectedEvalResponse,
 			Embedding:  similarEmbedding,
+			UserAnswer: userAnswerForFieldKey,
 		}
-		marshaledCachedData, _ := json.Marshal(cachedData)
-		cacheReturnMap := map[string]string{"somekey": string(marshaledCachedData)}
+		var buffer bytes.Buffer
+		_ = gob.NewEncoder(&buffer).Encode(cachedData)
+		gobEncodedData := buffer.String()
+		cacheReturnMap := map[string]string{fieldKey: gobEncodedData}
 
-		mockCache.On("HGetAll", ctx, cacheKey).Return(cacheReturnMap, nil).Once()
+		mockCache.On("HGetAll", ctx, hashCacheKey).Return(cacheReturnMap, nil).Once()
 		repoError := fmt.Errorf("repo GetQuizByID failed")
 		mockRepo.On("GetQuizByID", baseQuizID).Return(nil, repoError).Once()
 
@@ -288,23 +332,35 @@ func TestAnswerCacheServiceImpl_PutAnswerToCache(t *testing.T) {
 		Explanation: "Great answer!",
 		ModelAnswer: "Model answer for put",
 	}
-	cfg := &config.Config{} // SimilarityThreshold not used in Put
+	testAnswerEvaluationTTLString := "30m"
+	cfg := &config.Config{
+		CacheTTLs: config.CacheTTLConfig{
+			AnswerEvaluation: testAnswerEvaluationTTLString,
+		},
+	}
 
 	t.Run("Successful Cache Write", func(t *testing.T) {
 		mockCache := new(MockAnswerCacheDomainCache)
 		// mockRepo is not used by PutAnswerToCache
 		service := NewAnswerCacheService(mockCache, nil, cfg)
 
-		cacheKey := AnswerCachePrefix + baseQuizID
 		expectedCachedEval := CachedAnswerEvaluation{
 			Evaluation: baseEvaluation,
 			Embedding:  baseUserAnswerEmbedding,
 			UserAnswer: baseUserAnswerText,
 		}
-		expectedJSON, _ := json.Marshal(expectedCachedEval)
+		var expectedBuffer bytes.Buffer
+		enc := gob.NewEncoder(&expectedBuffer)
+		_ = enc.Encode(expectedCachedEval)
+		expectedGobData := expectedBuffer.String()
 
-		mockCache.On("HSet", ctx, cacheKey, baseUserAnswerText, string(expectedJSON)).Return(nil).Once()
-		mockCache.On("Expire", ctx, cacheKey, AnswerCacheExpiration).Return(nil).Once()
+		fieldKey := hashString(baseUserAnswerText)
+		hashCacheKey := cache.GenerateCacheKey("answer", "evaluation_map", baseQuizID)
+
+
+		mockCache.On("HSet", ctx, hashCacheKey, fieldKey, expectedGobData).Return(nil).Once()
+		expectedTTL, _ := time.ParseDuration(testAnswerEvaluationTTLString)
+		mockCache.On("Expire", ctx, hashCacheKey, expectedTTL).Return(nil).Once()
 
 		err := service.PutAnswerToCache(ctx, baseQuizID, baseUserAnswerText, baseUserAnswerEmbedding, baseEvaluation)
 		assert.NoError(t, err)
@@ -314,18 +370,23 @@ func TestAnswerCacheServiceImpl_PutAnswerToCache(t *testing.T) {
 	t.Run("Cache HSet Fails", func(t *testing.T) {
 		mockCache := new(MockAnswerCacheDomainCache)
 		service := NewAnswerCacheService(mockCache, nil, cfg)
-		cacheKey := AnswerCachePrefix + baseQuizID
+		// cacheKey variable is not used directly here for HSet error, hashCacheKey is
 		expectedError := fmt.Errorf("HSet failed")
 
-		// json.Marshal will be called, so ensure args match for HSet
 		expectedCachedEval := CachedAnswerEvaluation{
 			Evaluation: baseEvaluation,
 			Embedding:  baseUserAnswerEmbedding,
 			UserAnswer: baseUserAnswerText,
 		}
-		expectedJSON, _ := json.Marshal(expectedCachedEval)
+		var expectedBuffer bytes.Buffer
+		enc := gob.NewEncoder(&expectedBuffer)
+		_ = enc.Encode(expectedCachedEval)
+		expectedGobData := expectedBuffer.String()
 
-		mockCache.On("HSet", ctx, cacheKey, baseUserAnswerText, string(expectedJSON)).Return(expectedError).Once()
+		fieldKey := hashString(baseUserAnswerText)
+		hashCacheKey := cache.GenerateCacheKey("answer", "evaluation_map", baseQuizID)
+
+		mockCache.On("HSet", ctx, hashCacheKey, fieldKey, expectedGobData).Return(expectedError).Once()
 
 		err := service.PutAnswerToCache(ctx, baseQuizID, baseUserAnswerText, baseUserAnswerEmbedding, baseEvaluation)
 		assert.ErrorIs(t, err, expectedError)
@@ -336,7 +397,7 @@ func TestAnswerCacheServiceImpl_PutAnswerToCache(t *testing.T) {
 	t.Run("Cache Expire Fails", func(t *testing.T) {
 		mockCache := new(MockAnswerCacheDomainCache)
 		service := NewAnswerCacheService(mockCache, nil, cfg)
-		cacheKey := AnswerCachePrefix + baseQuizID
+		// cacheKey variable is not used directly here for Expire error, hashCacheKey is
 		expectedError := fmt.Errorf("Expire failed")
 
 		expectedCachedEval := CachedAnswerEvaluation{
@@ -344,10 +405,17 @@ func TestAnswerCacheServiceImpl_PutAnswerToCache(t *testing.T) {
 			Embedding:  baseUserAnswerEmbedding,
 			UserAnswer: baseUserAnswerText,
 		}
-		expectedJSON, _ := json.Marshal(expectedCachedEval)
+		var expectedBuffer bytes.Buffer
+		enc := gob.NewEncoder(&expectedBuffer)
+		_ = enc.Encode(expectedCachedEval)
+		expectedGobData := expectedBuffer.String()
 
-		mockCache.On("HSet", ctx, cacheKey, baseUserAnswerText, string(expectedJSON)).Return(nil).Once()
-		mockCache.On("Expire", ctx, cacheKey, AnswerCacheExpiration).Return(expectedError).Once()
+		fieldKey := hashString(baseUserAnswerText)
+		hashCacheKey := cache.GenerateCacheKey("answer", "evaluation_map", baseQuizID)
+
+		mockCache.On("HSet", ctx, hashCacheKey, fieldKey, expectedGobData).Return(nil).Once()
+		expectedTTL, _ := time.ParseDuration(testAnswerEvaluationTTLString)
+		mockCache.On("Expire", ctx, hashCacheKey, expectedTTL).Return(expectedError).Once()
 
 		err := service.PutAnswerToCache(ctx, baseQuizID, baseUserAnswerText, baseUserAnswerEmbedding, baseEvaluation)
 		assert.ErrorIs(t, err, expectedError)
