@@ -77,12 +77,12 @@ func (h *QuizHandler) GetAllSubCategories(c *fiber.Ctx) error {
 func (h *QuizHandler) GetRandomQuiz(c *fiber.Ctx) error {
 	appLogger := logger.Get()
 	userID, _ := c.Locals(middleware.UserIDKey).(string)
-
-	subCategory := c.Query("sub_category")
+	subCategory := c.Params("subCategory") // Correctly read path parameter
 	if subCategory == "" {
-		appLogger.Warn("sub_category query parameter missing for GetRandomQuiz", zap.String("userID", userID))
-		return c.Status(fiber.StatusBadRequest).JSON(middleware.ErrorResponse{
-			Code: "INVALID_REQUEST", Message: "sub_category query parameter is required", Status: fiber.StatusBadRequest,
+		// This check might be redundant if the route requires the param,
+		// but can stay as a safeguard or be removed if route guarantees presence.
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Error: "INVALID_REQUEST",
 		})
 	}
 
@@ -117,6 +117,7 @@ func (h *QuizHandler) GetRandomQuiz(c *fiber.Ctx) error {
 		Question:     quiz.Question,
 		Keywords:     quiz.Keywords,
 		ModelAnswers: quiz.ModelAnswers,
+		DiffLevel:    quiz.DiffLevel, // Assuming quiz.DiffLevel is the string "easy", "medium", "hard"
 	})
 }
 
@@ -206,6 +207,27 @@ func (h *QuizHandler) CheckAnswer(c *fiber.Ctx) error {
 			}
 		}(c.Context(), userID, req.QuizID, req.UserAnswer, result)
 	}
+		if domainErr, ok := err.(*domain.DomainError); ok {
+			switch domainErr.Code {
+			case domain.ErrQuizNotFound:
+				return c.Status(fiber.StatusNotFound).JSON(dto.ErrorResponse{
+					Error: string(domainErr.Code), // Use code from error
+				})
+			case domain.ErrLLMServiceError:
+				return c.Status(fiber.StatusServiceUnavailable).JSON(dto.ErrorResponse{
+					Error: string(domainErr.Code), // Use code from error
+				})
+			default:
+				return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+					Error: string(domain.ErrInternal), // Default to internal error code
+				})
+			}
+		} // Added missing closing brace for if domainErr
+		// Fallback for non-DomainError types
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Error: string(domain.ErrInternal),
+		})
+	} // This is the closing brace for if err != nil
 
 	return c.JSON(result)
 }

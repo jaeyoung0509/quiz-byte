@@ -2,7 +2,7 @@ package service
 
 import (
 	"context"
-	"encoding/json"
+	// "encoding/json" // Removed unused import
 	"quiz-byte/internal/domain"
 	"quiz-byte/internal/config" // Added import
 	"quiz-byte/internal/dto"
@@ -179,7 +179,7 @@ func (s *quizService) CheckAnswer(req *dto.CheckAnswerRequest) (*dto.CheckAnswer
 
 // GetAllSubCategories implements QuizService
 func (s *quizService) GetAllSubCategories() ([]string, error) {
-	categories, err := s.repo.GetAllSubCategories()
+	categories, err := s.repo.GetAllSubCategories(context.Background()) // Added context
 	if err != nil {
 		return nil, domain.NewInternalError("Failed to get subcategories", err)
 	}

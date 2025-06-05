@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings" // For building the prompt
 
-	"github.com/surna/quiz_app/internal/domain"
+	"quiz-byte/internal/domain"
 	"go.uber.org/zap" // For logging the prompt
 )
 
@@ -43,7 +43,7 @@ func NewGeminiQuizGenerator(apiKey string, modelName string, logger *zap.Logger)
 // GenerateQuizCandidates constructs a prompt and simulates an LLM call.
 // This method matches the domain.QuizGenerationService interface.
 func (a *GeminiQuizGenerator) GenerateQuizCandidates(ctx context.Context, subCategoryName string, existingKeywords []string, numQuestions int) ([]*domain.NewQuizData, error) {
-	var generatedQuizzes []*domain.NewQuizData
+	generatedQuizzes := make([]*domain.NewQuizData, 0) // Initialize as empty slice
 
 	prompt := `
 You are an expert quiz generator. Your task is to create %d unique and high-quality quiz questions
@@ -81,10 +81,10 @@ Example for one quiz object:
 	for i := 0; i < numQuestions; i++ {
 		simulatedResponses = append(simulatedResponses, fmt.Sprintf(`
 		{
-			"question": "Simulated Question %d for %s: What is the primary function of a CPU?",
-			"model_answer": "The primary function of a CPU is to execute instructions from computer programs.",
-			"keywords": ["cpu", "processor", "computer architecture", "question%d"],
-			"difficulty": "%s"
+			"Question": "Simulated Question %d for %s: What is the primary function of a CPU?",
+			"ModelAnswer": "The primary function of a CPU is to execute instructions from computer programs.",
+			"Keywords": ["cpu", "processor", "computer architecture", "question%d"],
+			"Difficulty": "%s"
 		}`, i+1, subCategoryName, i+1, []string{"easy", "medium", "hard"}[i%3]))
 	}
 

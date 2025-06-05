@@ -4,14 +4,14 @@ import (
 	"context"
 	"fmt" // For initial error printing before logger is up
 
-	"github.com/surna/quiz_app/internal/adapter/embedding"
-	"github.com/surna/quiz_app/internal/adapter/quizgen" // Changed from llm to quizgen
-	"github.com/surna/quiz_app/internal/config"
-	"github.com/surna/quiz_app/internal/database"
-	"github.com/surna/quiz_app/internal/domain"
-	"github.com/surna/quiz_app/internal/logger"
-	"github.com/surna/quiz_app/internal/repository"
-	"github.com/surna/quiz_app/internal/service"
+	"quiz-byte/internal/adapter/embedding"
+	"quiz-byte/internal/adapter/quizgen" // Changed from llm to quizgen
+	"quiz-byte/internal/config"
+	"quiz-byte/internal/database"
+	"quiz-byte/internal/domain"
+	"quiz-byte/internal/logger"
+	"quiz-byte/internal/repository"
+	"quiz-byte/internal/service"
 	"go.uber.org/zap"
 )
 

@@ -40,7 +40,7 @@ func TestOpenAIEmbeddingService_Generate(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		mockEmb := new(MockEmbedder) // Defined in ollama_embedding_service_test.go
 		service := &OpenAIEmbeddingService{embedder: mockEmb}
-		expectedEmbedding := []float64{0.4, 0.5, 0.6}
+		expectedEmbedding := []float32{0.4, 0.5, 0.6} // Changed to float32
 		expectedFloat32 := []float32{0.4, 0.5, 0.6}
 
 		mockEmb.On("EmbedQuery", ctx, "test openai text").Return(expectedEmbedding, nil).Once()

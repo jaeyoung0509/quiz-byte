@@ -6,7 +6,6 @@ import (
 
 	"github.com/tmc/langchaingo/embeddings"
 	ollamaLLM "github.com/tmc/langchaingo/llms/ollama"
-	"quiz-byte/internal/domain"
 )
 
 // OllamaEmbeddingService implements the domain.EmbeddingService interface using Ollama.

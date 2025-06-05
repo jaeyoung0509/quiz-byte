@@ -1,7 +1,7 @@
 package repository
 
 import (
-	"context" // Added for context propagation
+	"context"
 	"database/sql"
 	"fmt"
 	"quiz-byte/internal/domain"

@@ -183,5 +183,3 @@ func (s *answerCacheServiceImpl) PutAnswerToCache(ctx context.Context, quizID st
 		zap.String("userAnswer", userAnswerText))
 	return nil
 }
-
-[end of internal/service/answer_cache.go]

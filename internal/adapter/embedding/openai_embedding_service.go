@@ -6,7 +6,6 @@ import (
 
 	"github.com/tmc/langchaingo/embeddings"
 	openaiLLM "github.com/tmc/langchaingo/llms/openai"
-	"quiz-byte/internal/domain"
 )
 
 // OpenAIEmbeddingService implements the domain.EmbeddingService interface using OpenAI.
