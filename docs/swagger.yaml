@@ -94,6 +94,38 @@ definitions:
       error:
         type: string
     type: object
+  dto.PaginationInfo:
+    properties:
+      current_page:
+        type: integer
+      limit:
+        type: integer
+      offset:
+        type: integer
+      total_items:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  dto.QuizRecommendationItem:
+    properties:
+      difficulty:
+        type: integer
+      quiz_id:
+        type: string
+      quiz_question:
+        type: string
+      sub_category_name:
+        description: Or full category path
+        type: string
+    type: object
+  dto.QuizRecommendationsResponse:
+    properties:
+      recommendations:
+        items:
+          $ref: '#/definitions/dto.QuizRecommendationItem'
+        type: array
+    type: object
   dto.QuizResponse:
     description: Quiz information
     properties:
@@ -111,6 +143,76 @@ definitions:
         type: array
       question:
         type: string
+    type: object
+  dto.UserIncorrectAnswerItem:
+    properties:
+      attempt_id:
+        type: string
+      attempted_at:
+        type: string
+      correct_answer:
+        description: Model answer from the quiz
+        type: string
+      llm_explanation:
+        description: LLM's explanation for user's answer
+        type: string
+      llm_score:
+        description: User's score on their attempt
+        type: number
+      quiz_id:
+        type: string
+      quiz_question:
+        type: string
+      user_answer:
+        type: string
+    type: object
+  dto.UserIncorrectAnswersResponse:
+    properties:
+      incorrect_answers:
+        items:
+          $ref: '#/definitions/dto.UserIncorrectAnswerItem'
+        type: array
+      pagination_info:
+        $ref: '#/definitions/dto.PaginationInfo'
+    type: object
+  dto.UserProfileResponse:
+    properties:
+      email:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      profile_picture_url:
+        type: string
+    type: object
+  dto.UserQuizAttemptItem:
+    properties:
+      attempt_id:
+        type: string
+      attempted_at:
+        type: string
+      is_correct:
+        type: boolean
+      llm_explanation:
+        type: string
+      llm_score:
+        type: number
+      quiz_id:
+        type: string
+      quiz_question:
+        type: string
+      user_answer:
+        type: string
+    type: object
+  dto.UserQuizAttemptsResponse:
+    properties:
+      attempts:
+        items:
+          $ref: '#/definitions/dto.UserQuizAttemptItem'
+        type: array
+      pagination_info:
+        $ref: '#/definitions/dto.PaginationInfo'
     type: object
   middleware.ErrorResponse:
     properties:
@@ -135,6 +237,100 @@ info:
   title: Quiz Byte API
   version: "1.0"
 paths:
+  /auth/google/callback:
+    get:
+      description: Handles user authentication after Google login, issues JWTs.
+      parameters:
+      - description: Authorization code from Google
+        in: query
+        name: code
+        required: true
+        type: string
+      - description: State string for CSRF protection
+        in: query
+        name: state
+        required: true
+        type: string
+      responses:
+        "200":
+          description: Contains access_token and refresh_token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid state or code
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+      summary: Google OAuth2 Callback
+      tags:
+      - auth
+  /auth/google/login:
+    get:
+      description: Redirects the user to Google's OAuth2 consent page.
+      responses:
+        "302":
+          description: Redirects to Google
+          schema:
+            type: string
+      summary: Initiate Google Login
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      description: Invalidates user's session/tokens (primarily client-side for JWTs
+        unless server-side blacklisting is used).
+      responses:
+        "200":
+          description: Logout success message
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Logout user
+      tags:
+      - auth
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Provides a new access token and potentially a new refresh token
+        if the provided refresh token is valid.
+      parameters:
+      - description: JSON object with 'refresh_token'
+        in: body
+        name: body
+        required: true
+        schema:
+          additionalProperties:
+            type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Contains 'access_token' and 'refresh_token'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Refresh token missing or invalid format
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "401":
+          description: Refresh token invalid or expired
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+      summary: Refresh JWT tokens
+      tags:
+      - auth
   /categories:
     get:
       consumes:
@@ -158,10 +354,7 @@ paths:
     get:
       consumes:
       - application/json
-      - application/json
-      description: |-
-        Get a random quiz by sub category
-        Returns a random quiz question
+      description: Get a random quiz by sub category. Requires authentication.
       parameters:
       - description: Sub Category
         in: query
@@ -170,27 +363,31 @@ paths:
         type: string
       produces:
       - application/json
-      - application/json
       responses:
         "200":
           description: OK
           schema:
             $ref: '#/definitions/dto.QuizResponse'
         "400":
-          description: Bad Request
+          description: Invalid request (e.g., missing sub_category)
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
         "404":
-          description: Not Found
+          description: Quiz or category not found
           schema:
             $ref: '#/definitions/middleware.ErrorResponse'
         "500":
-          description: Internal Server Error
+          description: Internal server error
           schema:
             $ref: '#/definitions/middleware.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
       summary: Get a random quiz
       tags:
-      - quiz
       - quiz
   /quiz/check:
     post:
@@ -230,13 +427,15 @@ paths:
           schema:
             $ref: '#/definitions/dto.ErrorResponse'
         "500":
-          description: Internal Server Error
+          description: Internal server error
           schema:
             $ref: '#/definitions/middleware.ErrorResponse'
         "503":
-          description: Service Unavailable
+          description: LLM service unavailable
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/middleware.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
       summary: Check quiz answer
       tags:
       - quiz
@@ -264,17 +463,199 @@ paths:
           schema:
             $ref: '#/definitions/dto.BulkQuizzesResponse'
         "400":
-          description: INVALID_REQUEST if sub_category is missing or count is invalid
+          description: Invalid request (e.g., missing sub_category or invalid count)
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
         "500":
-          description: INTERNAL_ERROR for other server-side issues
+          description: Internal server error
           schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+            $ref: '#/definitions/middleware.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
       summary: Get multiple quizzes by sub-category
       tags:
       - quiz
+  /users/me:
+    get:
+      description: Retrieves the profile information of the logged-in user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.UserProfileResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get My Profile
+      tags:
+      - users
+  /users/me/attempts:
+    get:
+      description: Retrieves a paginated list of the logged-in user's quiz attempts,
+        with filtering options.
+      parameters:
+      - description: Number of items per page (default 10)
+        in: query
+        name: limit
+        type: integer
+      - description: Page number (default 1)
+        in: query
+        name: page
+        type: integer
+      - description: Filter by category ID
+        in: query
+        name: category_id
+        type: string
+      - description: Filter by start date (YYYY-MM-DD)
+        in: query
+        name: start_date
+        type: string
+      - description: Filter by end date (YYYY-MM-DD)
+        in: query
+        name: end_date
+        type: string
+      - description: Filter by correctness (true/false)
+        in: query
+        name: is_correct
+        type: boolean
+      - description: Sort by field (e.g., 'attempted_at', 'score', default 'attempted_at')
+        in: query
+        name: sort_by
+        type: string
+      - description: Sort order ('ASC', 'DESC', default 'DESC')
+        in: query
+        name: sort_order
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.UserQuizAttemptsResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get My Quiz Attempts
+      tags:
+      - users
+  /users/me/incorrect-answers:
+    get:
+      description: Retrieves a paginated list of the logged-in user's incorrect quiz
+        answers, with filtering options.
+      parameters:
+      - description: Number of items per page (default 10)
+        in: query
+        name: limit
+        type: integer
+      - description: Page number (default 1)
+        in: query
+        name: page
+        type: integer
+      - description: Filter by category ID
+        in: query
+        name: category_id
+        type: string
+      - description: Filter by start date (YYYY-MM-DD)
+        in: query
+        name: start_date
+        type: string
+      - description: Filter by end date (YYYY-MM-DD)
+        in: query
+        name: end_date
+        type: string
+      - description: Sort by field (e.g., 'attempted_at', 'score', default 'attempted_at')
+        in: query
+        name: sort_by
+        type: string
+      - description: Sort order ('ASC', 'DESC', default 'DESC')
+        in: query
+        name: sort_order
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.UserIncorrectAnswersResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get My Incorrect Answers
+      tags:
+      - users
+  /users/me/recommendations:
+    get:
+      description: Retrieves a list of personalized quiz recommendations for the logged-in
+        user.
+      parameters:
+      - description: Number of recommendations to fetch (default 10)
+        in: query
+        name: limit
+        type: integer
+      - description: 'Optional: Filter recommendations by sub-category ID'
+        in: query
+        name: sub_category_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.QuizRecommendationsResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/middleware.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get My Quiz Recommendations
+      tags:
+      - users
 schemes:
 - http
 - https
+securityDefinitions:
+  ApiKeyAuth:
+    description: Type 'Bearer YOUR_JWT_TOKEN' to authorize.
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"
