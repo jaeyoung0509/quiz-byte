@@ -10,24 +10,22 @@ import (
 	"quiz-byte/internal/util"
 	"strings"
 	"time"
-
-	"github.com/jmoiron/sqlx"
 )
 
 const stringDelimiter = "|||"
 
 // QuizDatabaseAdapter implements domain.QuizRepository using sqlx.DB
 type QuizDatabaseAdapter struct {
-	db *sqlx.DB
+	db DBTX
 }
 
 // NewQuizDatabaseAdapter creates a new instance of QuizDatabaseAdapter
-func NewQuizDatabaseAdapter(db *sqlx.DB) domain.QuizRepository {
+func NewQuizDatabaseAdapter(db DBTX) domain.QuizRepository {
 	return &QuizDatabaseAdapter{db: db}
 }
 
 // GetRandomQuiz implements domain.QuizRepository
-func (a *QuizDatabaseAdapter) GetRandomQuiz() (*domain.Quiz, error) {
+func (a *QuizDatabaseAdapter) GetRandomQuiz(ctx context.Context) (*domain.Quiz, error) {
 	var modelQuiz models.Quiz
 	query := `SELECT 
 		id "id",
@@ -44,8 +42,7 @@ func (a *QuizDatabaseAdapter) GetRandomQuiz() (*domain.Quiz, error) {
 	ORDER BY DBMS_RANDOM.VALUE 
 	FETCH FIRST 1 ROWS ONLY`
 
-	// Oracle에서는 RowsAffected가 항상 0을 반환하므로, Get을 직접 사용
-	err := a.db.Get(&modelQuiz, query)
+	err := a.db.GetContext(ctx, &modelQuiz, query)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -56,7 +53,7 @@ func (a *QuizDatabaseAdapter) GetRandomQuiz() (*domain.Quiz, error) {
 }
 
 // GetQuizByID implements domain.QuizRepository
-func (a *QuizDatabaseAdapter) GetQuizByID(id string) (*domain.Quiz, error) {
+func (a *QuizDatabaseAdapter) GetQuizByID(ctx context.Context, id string) (*domain.Quiz, error) {
 	var modelQuiz models.Quiz
 	query := `SELECT 
 		id "id",
@@ -72,26 +69,10 @@ func (a *QuizDatabaseAdapter) GetQuizByID(id string) (*domain.Quiz, error) {
 	WHERE id = :1 
 	AND deleted_at IS NULL`
 
-	nstmt, err := a.db.Prepare(query)
-	if err != nil {
-		return nil, fmt.Errorf("failed to prepare statement for GetQuizByID: %w", err)
-	}
-	defer nstmt.Close()
-	err = nstmt.QueryRow(id).Scan(
-		&modelQuiz.ID,
-		&modelQuiz.Question,
-		&modelQuiz.ModelAnswers,
-		&modelQuiz.Keywords,
-		&modelQuiz.Difficulty,
-		&modelQuiz.SubCategoryID,
-		&modelQuiz.CreatedAt,
-		&modelQuiz.UpdatedAt,
-		&modelQuiz.DeletedAt,
-	)
-
+	err := a.db.GetContext(ctx, &modelQuiz, query, id)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, nil
+			return nil, nil // Not found
 		}
 		return nil, fmt.Errorf("failed to get quiz by ID %s: %w", id, err)
 	}
@@ -115,7 +96,7 @@ func (a *QuizDatabaseAdapter) SaveQuiz(ctx context.Context, quiz *domain.Quiz) e
 		:1, :2, :3, :4, :5, :6, :7, :8
 	)`
 
-	_, err := a.db.ExecContext(ctx, query,
+	_, err := a.db.ExecContext(ctx, query, // Already using ExecContext, ensure ctx is passed
 		modelQuiz.ID,
 		modelQuiz.Question,
 		modelQuiz.ModelAnswers,
@@ -136,7 +117,7 @@ func (a *QuizDatabaseAdapter) SaveQuiz(ctx context.Context, quiz *domain.Quiz) e
 }
 
 // UpdateQuiz implements domain.QuizRepository
-func (a *QuizDatabaseAdapter) UpdateQuiz(quiz *domain.Quiz) error {
+func (a *QuizDatabaseAdapter) UpdateQuiz(ctx context.Context, quiz *domain.Quiz) error {
 	modelQuiz := toModelQuiz(quiz)
 	if modelQuiz == nil {
 		return fmt.Errorf("cannot update nil quiz")
@@ -156,7 +137,7 @@ func (a *QuizDatabaseAdapter) UpdateQuiz(quiz *domain.Quiz) error {
 	WHERE id = :7 
 	AND deleted_at IS NULL`
 
-	result, err := a.db.Exec(query,
+	result, err := a.db.ExecContext(ctx, query,
 		modelQuiz.Question,
 		modelQuiz.ModelAnswers,
 		modelQuiz.Keywords,
@@ -181,7 +162,7 @@ func (a *QuizDatabaseAdapter) UpdateQuiz(quiz *domain.Quiz) error {
 }
 
 // SaveAnswer implements domain.QuizRepository
-func (a *QuizDatabaseAdapter) SaveAnswer(answer *domain.Answer) error {
+func (a *QuizDatabaseAdapter) SaveAnswer(ctx context.Context, answer *domain.Answer) error {
 	modelAnswer := toModelAnswer(answer)
 	if modelAnswer == nil {
 		return fmt.Errorf("cannot save nil answer")
@@ -198,7 +179,7 @@ func (a *QuizDatabaseAdapter) SaveAnswer(answer *domain.Answer) error {
         :1, :2, :3, :4, :5, :6, :7, :8, :9, :10, :11, :12
     )`
 
-	_, err := a.db.Exec(query,
+	_, err := a.db.ExecContext(ctx, query,
 		modelAnswer.ID,
 		modelAnswer.QuizID,
 		modelAnswer.UserAnswer,
@@ -221,7 +202,7 @@ func (a *QuizDatabaseAdapter) SaveAnswer(answer *domain.Answer) error {
 }
 
 // GetSimilarQuiz implements domain.QuizRepository
-func (a *QuizDatabaseAdapter) GetSimilarQuiz(quizID string) (*domain.Quiz, error) {
+func (a *QuizDatabaseAdapter) GetSimilarQuiz(ctx context.Context, quizID string) (*domain.Quiz, error) {
 	current := struct {
 		Difficulty    int    `db:"difficulty"`
 		SubCategoryID string `db:"sub_category_id"`
@@ -233,16 +214,10 @@ func (a *QuizDatabaseAdapter) GetSimilarQuiz(quizID string) (*domain.Quiz, error
 	WHERE id = :1 
 	AND deleted_at IS NULL`
 
-	nstmt, err := a.db.Prepare(queryCurrent)
-	if err != nil {
-		return nil, fmt.Errorf("failed to prepare statement for GetSimilarQuiz (current): %w", err)
-	}
-	defer nstmt.Close()
-	err = nstmt.QueryRow(quizID).Scan(&current.Difficulty, &current.SubCategoryID)
-
+	err := a.db.GetContext(ctx, &current, queryCurrent, quizID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, nil
+			return nil, nil // Current quiz not found
 		}
 		return nil, fmt.Errorf("failed to get current quiz for similarity check: %w", err)
 	}
@@ -266,26 +241,10 @@ func (a *QuizDatabaseAdapter) GetSimilarQuiz(quizID string) (*domain.Quiz, error
 	ORDER BY DBMS_RANDOM.VALUE 
 	FETCH FIRST 1 ROWS ONLY`
 
-	nstmtSimilar, err := a.db.Prepare(querySimilar)
-	if err != nil {
-		return nil, fmt.Errorf("failed to prepare statement for GetSimilarQuiz (similar): %w", err)
-	}
-	defer nstmtSimilar.Close()
-	err = nstmtSimilar.QueryRow(quizID, current.SubCategoryID, current.Difficulty).Scan(
-		&similarQuizModel.ID,
-		&similarQuizModel.Question,
-		&similarQuizModel.ModelAnswers,
-		&similarQuizModel.Keywords,
-		&similarQuizModel.Difficulty,
-		&similarQuizModel.SubCategoryID,
-		&similarQuizModel.CreatedAt,
-		&similarQuizModel.UpdatedAt,
-		&similarQuizModel.DeletedAt,
-	)
-
+	err = a.db.GetContext(ctx, &similarQuizModel, querySimilar, quizID, current.SubCategoryID, current.Difficulty)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, nil
+			return nil, nil // No similar quiz found
 		}
 		return nil, fmt.Errorf("failed to get similar quiz: %w", err)
 	}
@@ -296,31 +255,28 @@ func (a *QuizDatabaseAdapter) GetSimilarQuiz(quizID string) (*domain.Quiz, error
 func (a *QuizDatabaseAdapter) GetAllSubCategories(ctx context.Context) ([]string, error) {
 	var subCategoryIDs []string
 	query := `SELECT DISTINCT sub_category_id FROM quizzes WHERE sub_category_id IS NOT NULL AND deleted_at IS NULL ORDER BY sub_category_id ASC`
-	err := a.db.SelectContext(ctx, &subCategoryIDs, query)
+	err := a.db.SelectContext(ctx, &subCategoryIDs, query) // Already using SelectContext
 	if err != nil {
-		// sqlx.SelectContext returns an empty slice if no rows are found.
-		// Explicit sql.ErrNoRows check is not strictly necessary here for that case.
 		return nil, fmt.Errorf("failed to query sub categories: %w", err)
 	}
-	// Ensure non-nil empty slice for no results, though SelectContext should handle this.
-	if subCategoryIDs == nil {
+	if subCategoryIDs == nil { // Should not happen with SelectContext but good for safety
 		return []string{}, nil
 	}
 	return subCategoryIDs, nil
 }
 
 // SaveQuizEvaluation implements domain.QuizRepository
-func (a *QuizDatabaseAdapter) SaveQuizEvaluation(evaluation *domain.QuizEvaluation) error {
+func (a *QuizDatabaseAdapter) SaveQuizEvaluation(ctx context.Context, evaluation *domain.QuizEvaluation) error {
 	return fmt.Errorf("SaveQuizEvaluation not yet implemented with SQLx")
 }
 
 // GetQuizEvaluation implements domain.QuizRepository
-func (a *QuizDatabaseAdapter) GetQuizEvaluation(quizID string) (*domain.QuizEvaluation, error) {
+func (a *QuizDatabaseAdapter) GetQuizEvaluation(ctx context.Context, quizID string) (*domain.QuizEvaluation, error) {
 	return nil, fmt.Errorf("GetQuizEvaluation not yet implemented with SQLx")
 }
 
 // GetRandomQuizBySubCategory implements domain.QuizRepository
-func (a *QuizDatabaseAdapter) GetRandomQuizBySubCategory(subCategoryID string) (*domain.Quiz, error) {
+func (a *QuizDatabaseAdapter) GetRandomQuizBySubCategory(ctx context.Context, subCategoryID string) (*domain.Quiz, error) {
 	var modelQuiz models.Quiz
 	query := `SELECT 
 		id "id",
@@ -338,26 +294,10 @@ func (a *QuizDatabaseAdapter) GetRandomQuizBySubCategory(subCategoryID string) (
 	ORDER BY DBMS_RANDOM.VALUE 
 	FETCH FIRST 1 ROWS ONLY`
 
-	nstmt, err := a.db.Prepare(query)
-	if err != nil {
-		return nil, fmt.Errorf("failed to prepare statement for GetRandomQuizBySubCategory: %w", err)
-	}
-	defer nstmt.Close()
-	err = nstmt.QueryRow(subCategoryID).Scan(
-		&modelQuiz.ID,
-		&modelQuiz.Question,
-		&modelQuiz.ModelAnswers,
-		&modelQuiz.Keywords,
-		&modelQuiz.Difficulty,
-		&modelQuiz.SubCategoryID,
-		&modelQuiz.CreatedAt,
-		&modelQuiz.UpdatedAt,
-		&modelQuiz.DeletedAt,
-	)
-
+	err := a.db.GetContext(ctx, &modelQuiz, query, subCategoryID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, nil
+			return nil, nil // No quiz found
 		}
 		return nil, fmt.Errorf("failed to get random quiz for sub-category ID %s: %w", subCategoryID, err)
 	}
@@ -365,7 +305,8 @@ func (a *QuizDatabaseAdapter) GetRandomQuizBySubCategory(subCategoryID string) (
 }
 
 // GetQuizzesByCriteria implements domain.QuizRepository
-func (a *QuizDatabaseAdapter) GetQuizzesByCriteria(subCategoryID string, count int) ([]*domain.Quiz, error) {
+func (a *QuizDatabaseAdapter) GetQuizzesByCriteria(ctx context.Context, subCategoryID string, count int) ([]*domain.Quiz, error) {
+	var modelQuizzes []models.Quiz
 	query := `SELECT 
 		id "id",
 		question "question",
@@ -382,65 +323,34 @@ func (a *QuizDatabaseAdapter) GetQuizzesByCriteria(subCategoryID string, count i
 	ORDER BY DBMS_RANDOM.VALUE 
 	FETCH FIRST :2 ROWS ONLY`
 
-	nstmt, err := a.db.Prepare(query)
+	err := a.db.SelectContext(ctx, &modelQuizzes, query, subCategoryID, count)
 	if err != nil {
-		return nil, fmt.Errorf("failed to prepare statement for GetQuizzesByCriteria: %w", err)
+		if err == sql.ErrNoRows {
+			return []*domain.Quiz{}, nil
+		}
+		return nil, fmt.Errorf("failed to get quizzes by criteria: %w", err)
 	}
-	defer nstmt.Close()
-
-	rows, err := nstmt.Query(subCategoryID, count)
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute query for GetQuizzesByCriteria: %w", err)
-	}
-	defer rows.Close()
 
 	var quizzes []*domain.Quiz
-	for rows.Next() {
-		var modelQuiz models.Quiz
-		err := rows.Scan(
-			&modelQuiz.ID,
-			&modelQuiz.Question,
-			&modelQuiz.ModelAnswers,
-			&modelQuiz.Keywords,
-			&modelQuiz.Difficulty,
-			&modelQuiz.SubCategoryID,
-			&modelQuiz.CreatedAt,
-			&modelQuiz.UpdatedAt,
-			&modelQuiz.DeletedAt,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan quiz row: %w", err)
-		}
-
-		quiz, err := toDomainQuiz(&modelQuiz)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert model to domain quiz: %w", err)
+	for _, modelQuiz := range modelQuizzes {
+		quiz, convertErr := toDomainQuiz(&modelQuiz)
+		if convertErr != nil {
+			return nil, fmt.Errorf("failed to convert model to domain quiz: %w", convertErr)
 		}
 		quizzes = append(quizzes, quiz)
 	}
-
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error during rows iteration: %w", err)
-	}
-
 	return quizzes, nil
 }
 
 // GetSubCategoryIDByName returns the ID of a subcategory by its name
-func (a *QuizDatabaseAdapter) GetSubCategoryIDByName(name string) (string, error) {
+func (a *QuizDatabaseAdapter) GetSubCategoryIDByName(ctx context.Context, name string) (string, error) {
 	var subCategoryID string
-	query := `SELECT id FROM sub_categories WHERE UPPER(name) = UPPER(:1)`
+	query := `SELECT id FROM sub_categories WHERE UPPER(name) = UPPER(:1) AND deleted_at IS NULL`
 
-	nstmt, err := a.db.Prepare(query)
-	if err != nil {
-		return "", fmt.Errorf("failed to prepare statement for GetSubCategoryIDByName: %w", err)
-	}
-	defer nstmt.Close()
-
-	err = nstmt.QueryRow(name).Scan(&subCategoryID)
+	err := a.db.GetContext(ctx, &subCategoryID, query, name)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return "", nil // Return empty string when not found
+			return "", nil // Return empty string when not found, not an error
 		}
 		return "", fmt.Errorf("failed to get subcategory ID for name %s: %w", name, err)
 	}
@@ -467,7 +377,7 @@ func (a *QuizDatabaseAdapter) GetQuizzesBySubCategory(ctx context.Context, subCa
 	ORDER BY created_at DESC` // Or any other order you prefer
 
 	// Using SelectContext for context propagation
-	err := a.db.SelectContext(ctx, &modelQuizzes, query, subCategoryID)
+	err := a.db.SelectContext(ctx, &modelQuizzes, query, subCategoryID) // Already using SelectContext
 	if err != nil {
 		// sqlx.Select already returns an empty slice if no rows are found,
 		// so explicit sql.ErrNoRows check might not be strictly necessary

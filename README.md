@@ -163,6 +163,34 @@ embedding:
     model: nomic-embed-text
 ```
 
+## Command-Line Tools
+
+This section describes various command-line tools available in the project.
+
+### Initial Data Seeder
+
+This tool is used to populate the database with an initial set of categories, sub-categories, and quizzes. This is useful for setting up a new environment or for testing purposes.
+
+**Location of the seeder command:**
+`cmd/seed_initial_data/main.go`
+
+**Location of the seed data file:**
+`configs/seed_data/initial_english_quizzes.json`
+
+**How to run the seeder:**
+
+1.  Ensure your database is running and accessible as per the `config.yaml` settings.
+2.  Make sure database migrations have been applied:
+    ```bash
+    go run cmd/migrate/main.go
+    ```
+3.  Run the seeder command from the root of the project:
+    ```bash
+    go run cmd/seed_initial_data/main.go
+    ```
+
+The command will log its progress to the console. It is designed to be idempotent for categories and sub-categories: it will not create duplicate categories (by name) or duplicate sub-categories (by name, within the same parent category). Quizzes are always added as new items under their respective sub-categories each time the seeder processes that sub-category; it does not check for duplicate quizzes by content.
+
 ## API Endpoints
 
 ### Authentication
