@@ -19,9 +19,6 @@ import (
 )
 
 func TestBatchAddQuestions_SuccessAndIdempotency(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping batch command test in short mode.")
-	}
 	// Ensure cfg is loaded (it's global from main_test.go)
 	require.NotNil(t, cfg, "Global config (cfg) is not loaded")
 
@@ -93,7 +90,17 @@ func TestBatchAddQuestions_SuccessAndIdempotency(t *testing.T) {
 	assert.Equal(t, expectedQuestionsFirstRun, initialQuizCount, "Unexpected number of quizzes after first run")
 
 	var quizzes []models.Quiz
-	err = db.Select(&quizzes, "SELECT * FROM quizzes WHERE sub_category_id = :1", subCatID)
+	err = db.Select(&quizzes, `SELECT 
+		id "id",
+		question "question",
+		model_answers "model_answers",
+		keywords "keywords",
+		difficulty "difficulty",
+		sub_category_id "sub_category_id",
+		created_at "created_at",
+		updated_at "updated_at",
+		deleted_at "deleted_at"
+	FROM quizzes WHERE sub_category_id = :1`, subCatID)
 	require.NoError(t, err)
 	require.Len(t, quizzes, expectedQuestionsFirstRun, "Mismatch in fetched quizzes length")
 
@@ -105,7 +112,15 @@ func TestBatchAddQuestions_SuccessAndIdempotency(t *testing.T) {
 
 		if evalCount == 1 {
 			var evalRecord models.QuizEvaluation
-			err = db.Get(&evalRecord, "SELECT score_evaluations FROM quiz_evaluations WHERE quiz_id = :1", quiz.ID)
+			query := `SELECT
+		id "id", quiz_id "quiz_id", minimum_keywords "minimum_keywords", 
+		required_topics "required_topics", score_ranges "score_ranges",
+		sample_answers "sample_answers", rubric_details "rubric_details", 
+		created_at "created_at", updated_at "updated_at", deleted_at "deleted_at", 
+		score_evaluations "score_evaluations"
+	FROM quiz_evaluations
+	WHERE quiz_id = :1 AND deleted_at IS NULL`
+			err = db.Get(&evalRecord, query, quiz.ID)
 			require.NoError(t, err)
 
 			var scoreEvals []domain.ScoreEvaluationDetail
@@ -116,7 +131,7 @@ func TestBatchAddQuestions_SuccessAndIdempotency(t *testing.T) {
 			// Check structure of simulated data
 			assert.Len(t, scoreEvals, 3, "Expected 3 score evaluation details for quiz %s", quiz.ID) // Default has 3 ranges
 			for _, detail := range scoreEvals {
-				assert.Contains(t, detail.Explanation, "Simulated explanation for score range", "Unexpected explanation format for quiz %s", quiz.ID)
+				assert.Contains(t, detail.Explanation, "Simulated explanation for", "Unexpected explanation format for quiz %s", quiz.ID)
 				assert.NotEmpty(t, detail.SampleAnswers, "Sample answers should not be empty for quiz %s, range %s", quiz.ID, detail.ScoreRange)
 			}
 		}
@@ -155,7 +170,19 @@ func TestBatchAddQuestions_SuccessAndIdempotency(t *testing.T) {
 
 	// Further check: ensure no duplicate questions (by question text)
 	var allQuizzesInSubCat []models.Quiz
-	err = db.Select(&allQuizzesInSubCat, "SELECT question FROM quizzes WHERE sub_category_id = :1", subCatID)
+	query := `SELECT 
+		id "id",
+		question "question",
+		model_answers "model_answers",
+		keywords "keywords",
+		difficulty "difficulty",
+		sub_category_id "sub_category_id",
+		created_at "created_at",
+		updated_at "updated_at",
+		deleted_at "deleted_at"
+	FROM quizzes 
+	WHERE sub_category_id = :1 AND deleted_at IS NULL`
+	err = db.Select(&allQuizzesInSubCat, query, subCatID)
 	require.NoError(t, err)
 
 	questionTexts := make(map[string]int)

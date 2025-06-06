@@ -97,7 +97,8 @@ func (a *QuizDatabaseAdapter) SaveQuiz(ctx context.Context, quiz *domain.Quiz) e
 		:1, :2, :3, :4, :5, :6, :7, :8
 	)`
 
-	_, err := a.db.ExecContext(ctx, query, // Already using ExecContext, ensure ctx is passed
+	executor := GetExecutor(ctx, a.db)
+	_, err := executor.ExecContext(ctx, query,
 		modelQuiz.ID,
 		modelQuiz.Question,
 		modelQuiz.ModelAnswers,
@@ -255,7 +256,7 @@ func (a *QuizDatabaseAdapter) GetSimilarQuiz(ctx context.Context, quizID string)
 // GetAllSubCategories implements domain.QuizRepository
 func (a *QuizDatabaseAdapter) GetAllSubCategories(ctx context.Context) ([]string, error) {
 	var subCategoryIDs []string
-	query := `SELECT DISTINCT sub_category_id "sub_category_id" FROM quizzes WHERE sub_category_id IS NOT NULL AND deleted_at IS NULL ORDER BY sub_category_id ASC`
+	query := `SELECT id FROM sub_categories WHERE deleted_at IS NULL ORDER BY id ASC`
 	err := a.db.SelectContext(ctx, &subCategoryIDs, query) // Already using SelectContext
 	if err != nil {
 		return nil, fmt.Errorf("failed to query sub categories: %w", err)
@@ -291,13 +292,20 @@ func (a *QuizDatabaseAdapter) SaveQuizEvaluation(ctx context.Context, evaluation
 		id, quiz_id, minimum_keywords, required_topics, score_ranges,
 		sample_answers, rubric_details, created_at, updated_at, score_evaluations
 	) VALUES (
-		:id, :quiz_id, :minimum_keywords, :required_topics, :score_ranges,
-		:sample_answers, :rubric_details, :created_at, :updated_at, :score_evaluations
+		:1, :2, :3, :4, :5,
+		:6, :7, :8, :9, :10
 	)`
-	_, err = a.db.NamedExecContext(ctx, query, modelEval)
+
+	executor := GetExecutor(ctx, a.db)
+	_, err = executor.ExecContext(ctx, query,
+		modelEval.ID, modelEval.QuizID, modelEval.MinimumKeywords,
+		modelEval.RequiredTopics, modelEval.ScoreRanges,
+		modelEval.SampleAnswers, modelEval.RubricDetails,
+		modelEval.CreatedAt, modelEval.UpdatedAt, modelEval.ScoreEvaluations)
 	if err != nil {
 		return fmt.Errorf("failed to save quiz evaluation for quiz_id %s: %w", modelEval.QuizID, err)
 	}
+
 	return nil
 }
 

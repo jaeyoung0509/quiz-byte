@@ -54,6 +54,10 @@ func main() {
 	defer db.Close()
 	logger.Get().Info("Successfully connected to Oracle database.")
 
+	// Initialize Transaction Manager
+	txManager := repository.NewTransactionManagerAdapter(db)
+	logger.Get().Info("Initialized transaction manager.")
+
 	// Initialize Repositories
 	quizRepo := repository.NewQuizDatabaseAdapter(db)
 	categoryRepo := repository.NewCategoryDatabaseAdapter(db) // Assuming this constructor exists
@@ -109,7 +113,7 @@ func main() {
 	logger.Get().Info("Initialized QuizGenerator (Gemini).")
 
 	// Initialize BatchService
-	batchSvc := service.NewBatchService(quizRepo, categoryRepo, embedService, quizGenerator, cfg, logger.Get())
+	batchSvc := service.NewBatchService(quizRepo, categoryRepo, embedService, quizGenerator, txManager, cfg, logger.Get())
 	logger.Get().Info("Initialized Batch Service.")
 
 	// Create a context for the batch process

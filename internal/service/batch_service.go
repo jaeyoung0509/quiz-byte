@@ -18,6 +18,7 @@ type batchService struct {
 	categoryRepo     domain.CategoryRepository
 	embeddingService domain.EmbeddingService
 	quizGenSvc       domain.QuizGenerationService // Renamed from llmClient
+	txManager        domain.TransactionManager
 	cfg              *config.Config
 	logger           *zap.Logger
 }
@@ -28,6 +29,7 @@ func NewBatchService(
 	categoryRepo domain.CategoryRepository,
 	embeddingService domain.EmbeddingService,
 	quizGenSvc domain.QuizGenerationService, // Renamed from llmClient
+	txManager domain.TransactionManager,
 	cfg *config.Config,
 	logger *zap.Logger,
 ) domain.BatchService {
@@ -36,6 +38,7 @@ func NewBatchService(
 		categoryRepo:     categoryRepo,
 		embeddingService: embeddingService,
 		quizGenSvc:       quizGenSvc, // Renamed from llmClient
+		txManager:        txManager,
 		cfg:              cfg,
 		logger:           logger,
 	}
@@ -44,6 +47,15 @@ func NewBatchService(
 // GenerateNewQuizzesAndSave implements the logic to generate and save new quizzes.
 func (s *batchService) GenerateNewQuizzesAndSave(ctx context.Context) error {
 	s.logger.Info("Starting batch quiz generation process", zap.Time("start_time", time.Now()))
+
+	// 전체 배치 프로세스를 트랜잭션으로 감싸기
+	return s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
+		return s.generateAndSaveQuizzesInTransaction(txCtx)
+	})
+}
+
+// generateAndSaveQuizzesInTransaction 트랜잭션 내에서 실행되는 실제 배치 로직
+func (s *batchService) generateAndSaveQuizzesInTransaction(ctx context.Context) error {
 
 	var existingEmbeddingsCache map[string][]float32
 

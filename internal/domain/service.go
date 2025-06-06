@@ -5,6 +5,11 @@ import (
 	"quiz-byte/internal/dto" // Added for QuizRecommendationItem
 )
 
+// TransactionManager는 트랜잭션을 관리하는 도메인 인터페이스
+type TransactionManager interface {
+	WithTransaction(ctx context.Context, fn func(ctx context.Context) error) error
+}
+
 // QuizService defines the core business operations for quizzes
 type QuizService interface {
 	// GetRandomQuiz returns a random quiz from the specified subcategory
