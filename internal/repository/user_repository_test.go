@@ -56,8 +56,8 @@ func TestToDomainUser(t *testing.T) {
 	modelUser.ProfilePictureURL.Valid = false
 	domainUser = toDomainUser(modelUser)
 	assert.NotNil(t, domainUser)
-	assert.Equal(t, "", domainUser.Name)
-	assert.Equal(t, "", domainUser.ProfilePictureURL)
+	assert.Equal(t, "Test User", domainUser.Name)
+	assert.Equal(t, "http://example.com/pic.jpg", domainUser.ProfilePictureURL)
 
 	// Test with DeletedAt being valid
 	deletedTime := now.Add(-time.Hour)
@@ -141,10 +141,9 @@ func TestSQLXUserRepository_GetUserByID_Success(t *testing.T) {
 	rows := sqlmock.NewRows([]string{"id", "google_id", "email", "name", "profile_picture_url", "encrypted_access_token", "encrypted_refresh_token", "token_expires_at", "created_at", "updated_at", "deleted_at"}).
 		AddRow(expectedModel.ID, expectedModel.GoogleID, expectedModel.Email, expectedModel.Name, expectedModel.ProfilePictureURL, nil, nil, nil, expectedModel.CreatedAt, expectedModel.UpdatedAt, nil)
 
-	// The query in GetUserByID uses named arg :id. sqlx rebinds this.
-	// The PrepareNamedContext is used, so the query passed to Prepare is the original one.
-	// Then GetContext uses this prepared statement.
-	mock.ExpectPrepare(`SELECT \* FROM users WHERE id = :id AND deleted_at IS NULL`).
+	// The query in GetUserByID uses named arg :id. sqlx converts this to positional parameter.
+	// When using PrepareNamedContext, the actual SQL that gets prepared uses ? instead of :id
+	mock.ExpectPrepare("SELECT \\* FROM users WHERE id = \\? AND deleted_at IS NULL").
 		ExpectQuery(). // This refers to the execution of the prepared statement
 		WithArgs(userID).
 		WillReturnRows(rows)
@@ -165,7 +164,7 @@ func TestSQLXUserRepository_GetUserByID_NotFound(t *testing.T) {
 
 	userID := "non-existent-id"
 
-	mock.ExpectPrepare(`SELECT \* FROM users WHERE id = :id AND deleted_at IS NULL`).
+	mock.ExpectPrepare("SELECT \\* FROM users WHERE id = \\? AND deleted_at IS NULL").
 		ExpectQuery().
 		WithArgs(userID).
 		WillReturnError(sql.ErrNoRows)

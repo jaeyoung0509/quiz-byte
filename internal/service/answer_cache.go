@@ -43,9 +43,9 @@ type AnswerCacheService interface {
 
 // answerCacheServiceImpl implements AnswerCacheService
 type answerCacheServiceImpl struct {
-	cache                      domain.Cache
-	repo                       domain.QuizRepository
-	answerEvaluationTTL        time.Duration // Added
+	cache                        domain.Cache
+	repo                         domain.QuizRepository
+	answerEvaluationTTL          time.Duration // Added
 	embeddingSimilarityThreshold float64       // Added
 }
 
@@ -57,9 +57,9 @@ func NewAnswerCacheService(
 	embeddingSimilarityThreshold float64, // Added
 ) AnswerCacheService {
 	return &answerCacheServiceImpl{
-		cache:                      cache,
-		repo:                       repo,
-		answerEvaluationTTL:        answerEvaluationTTL,
+		cache:                        cache,
+		repo:                         repo,
+		answerEvaluationTTL:          answerEvaluationTTL,
 		embeddingSimilarityThreshold: embeddingSimilarityThreshold,
 	}
 }

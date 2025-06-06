@@ -43,7 +43,6 @@ func toDomainUserQuizAttempt(modelAttempt *models.UserQuizAttempt) *domain.UserQ
 		llmKeywordMatches = []string{} // Ensure it's not nil for domain model if that's a requirement
 	}
 
-
 	return &domain.UserQuizAttempt{
 		ID:                modelAttempt.ID,
 		UserID:            modelAttempt.UserID,
@@ -81,23 +80,22 @@ func fromDomainUserQuizAttempt(domainAttempt *domain.UserQuizAttempt) *models.Us
 		llmKeywordMatches = models.StringSlice{}
 	}
 
-
 	return &models.UserQuizAttempt{
-		ID:                 domainAttempt.ID,
-		UserID:             domainAttempt.UserID,
-		QuizID:             domainAttempt.QuizID,
-		UserAnswer:         util.StringToNullString(domainAttempt.UserAnswer),
-		LlmScore:           sql.NullFloat64{Float64: domainAttempt.LLMScore, Valid: domainAttempt.LLMScore != 0}, // Consider if 0 is a valid score or means null
-		LlmExplanation:     util.StringToNullString(domainAttempt.LLMExplanation),
-		LlmKeywordMatches:  llmKeywordMatches,
-		LlmCompleteness:    sql.NullFloat64{Float64: domainAttempt.LLMCompleteness, Valid: domainAttempt.LLMCompleteness != 0},
-		LlmRelevance:       sql.NullFloat64{Float64: domainAttempt.LLMRelevance, Valid: domainAttempt.LLMRelevance != 0},
-		LlmAccuracy:        sql.NullFloat64{Float64: domainAttempt.LLMAccuracy, Valid: domainAttempt.LLMAccuracy != 0},
-		IsCorrect:          domainAttempt.IsCorrect,
-		AttemptedAt:        domainAttempt.AttemptedAt,
-		CreatedAt:          domainAttempt.CreatedAt,
-		UpdatedAt:          domainAttempt.UpdatedAt,
-		DeletedAt:          deletedAt,
+		ID:                domainAttempt.ID,
+		UserID:            domainAttempt.UserID,
+		QuizID:            domainAttempt.QuizID,
+		UserAnswer:        util.StringToNullString(domainAttempt.UserAnswer),
+		LlmScore:          sql.NullFloat64{Float64: domainAttempt.LLMScore, Valid: true}, // Consider if 0 is a valid score or means null
+		LlmExplanation:    util.StringToNullString(domainAttempt.LLMExplanation),
+		LlmKeywordMatches: llmKeywordMatches,
+		LlmCompleteness:   sql.NullFloat64{Float64: domainAttempt.LLMCompleteness, Valid: true},
+		LlmRelevance:      sql.NullFloat64{Float64: domainAttempt.LLMRelevance, Valid: true},
+		LlmAccuracy:       sql.NullFloat64{Float64: domainAttempt.LLMAccuracy, Valid: true},
+		IsCorrect:         domainAttempt.IsCorrect,
+		AttemptedAt:       domainAttempt.AttemptedAt,
+		CreatedAt:         domainAttempt.CreatedAt,
+		UpdatedAt:         domainAttempt.UpdatedAt,
+		DeletedAt:         deletedAt,
 	}
 }
 
@@ -112,7 +110,6 @@ func (r *sqlxUserQuizAttemptRepository) CreateAttempt(ctx context.Context, domai
 		modelAttempt.CreatedAt = time.Now()
 	}
 	modelAttempt.UpdatedAt = time.Now()
-
 
 	query := `INSERT INTO user_quiz_attempts (id, user_id, quiz_id, user_answer, llm_score, llm_explanation, llm_keyword_matches, llm_completeness, llm_relevance, llm_accuracy, is_correct, attempted_at, created_at, updated_at, deleted_at)
 	          VALUES (:id, :user_id, :quiz_id, :user_answer, :llm_score, :llm_explanation, :llm_keyword_matches, :llm_completeness, :llm_relevance, :llm_accuracy, :is_correct, :attempted_at, :created_at, :updated_at, :deleted_at)`
@@ -137,7 +134,6 @@ func buildAttemptsQuery(baseQueryFields, baseQueryFrom, baseQueryWhere string, u
 	}
 	whereClauses = append(whereClauses, "uqa.user_id = :user_id")
 	whereClauses = append(whereClauses, "uqa.deleted_at IS NULL")
-
 
 	if filters.CategoryID != "" {
 		whereClauses = append(whereClauses, "sc.category_id = :category_id")
@@ -196,15 +192,14 @@ func buildAttemptsQuery(baseQueryFields, baseQueryFrom, baseQueryWhere string, u
 		offset = 0
 	}
 
-    args["limit"] = limit
-    args["offset"] = offset
+	args["limit"] = limit
+	args["offset"] = offset
 
 	resultsQuery := fmt.Sprintf("SELECT %s FROM %s %s ORDER BY %s OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY", baseQueryFields, baseQueryFrom, queryWhere, orderBy)
 	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s %s", baseQueryFrom, queryWhere)
 
 	return resultsQuery, countQuery, args
 }
-
 
 // GetAttemptsByUserID retrieves a paginated list of quiz attempts for a user, with filters.
 func (r *sqlxUserQuizAttemptRepository) GetAttemptsByUserID(ctx context.Context, userID string, filters dto.AttemptFilters, pagination dto.Pagination) ([]domain.UserQuizAttempt, int, error) {
@@ -266,10 +261,9 @@ func (r *sqlxUserQuizAttemptRepository) GetIncorrectAttemptsByUserID(ctx context
 	// if not already present in `baseQueryWhere` and `filters.IsCorrect` is nil.
 	baseQueryWhere := "uqa.is_correct = 0"
 
-
-    if filters.CategoryID != "" {
+	if filters.CategoryID != "" {
 		baseQueryFrom = "user_quiz_attempts uqa JOIN quizzes q ON uqa.quiz_id = q.id JOIN sub_categories sc ON q.sub_category_id = sc.id"
-    }
+	}
 
 	resultsQuery, countQuery, args := buildAttemptsQuery(baseQueryFields, baseQueryFrom, baseQueryWhere, userID, filters, pagination, true)
 

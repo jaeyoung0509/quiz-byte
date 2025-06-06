@@ -48,7 +48,7 @@ func TestAuthService_RefreshToken_UserNotFound(t *testing.T) {
 	mockUserRepo := new(MockUserRepository)
 	authCfg := config.AuthConfig{
 		JWT: config.JWTConfig{
-			SecretKey:       "testsecretkeydontuseinprod!!!!",
+			SecretKey:       "testsecretkeydontuseinproduction32bytes!",
 			AccessTokenTTL:  15 * time.Minute,
 			RefreshTokenTTL: 7 * 24 * time.Hour,
 		},
@@ -82,7 +82,7 @@ func TestAuthService_RefreshToken_RepoError(t *testing.T) {
 	mockUserRepo := new(MockUserRepository)
 	authCfg := config.AuthConfig{
 		JWT: config.JWTConfig{
-			SecretKey:       "testsecretkeydontuseinprod!!!!",
+			SecretKey:       "testsecretkeydontuseinproduction32bytes!",
 			AccessTokenTTL:  15 * time.Minute,
 			RefreshTokenTTL: 7 * 24 * time.Hour,
 		},
@@ -104,7 +104,7 @@ func TestAuthService_RefreshToken_RepoError(t *testing.T) {
 	assert.True(t, errors.As(err, &domainErr), "Error should be a domain.DomainError")
 	if domainErr != nil {
 		assert.Equal(t, domain.CodeInternal, domainErr.Code)
-		assert.ErrorIs(t, domainErr.Cause, expectedRepoError) // Check if the original error is wrapped
+		assert.ErrorIs(t, err, expectedRepoError) // Check if the original error is wrapped
 	}
 }
 
@@ -112,7 +112,7 @@ func TestAuthService_HandleGoogleCallback_CreateUser_RepoError(t *testing.T) {
 	mockUserRepo := new(MockUserRepository)
 	authCfg := config.AuthConfig{
 		JWT: config.JWTConfig{
-			SecretKey: "testsecretkeydontuseinprod!!!!", AccessTokenTTL: 15 * time.Minute, RefreshTokenTTL: 7 * 24 * time.Hour,
+			SecretKey: "testsecretkeydontuseinproduction32bytes!", AccessTokenTTL: 15 * time.Minute, RefreshTokenTTL: 7 * 24 * time.Hour,
 		},
 		GoogleOAuth: config.GoogleOAuthConfig{ /* fields can be dummy for this test if not directly used before repo call */ },
 	}

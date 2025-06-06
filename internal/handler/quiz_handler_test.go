@@ -126,8 +126,10 @@ func TestQuizHandler_CheckAnswer(t *testing.T) {
 		quizHandler = handler.NewQuizHandler(mockQuizSvc, mockUserSvc, mockAnonCacheSvc)
 	}
 
+	// Generate a valid ULID for QuizID
+	validQuizID := "01HGZ8VNRYXS8QKNJV5GRWPWDQ" // Valid ULID format for testing
 	commonCheckAnswerRequest := dto.CheckAnswerRequest{
-		QuizID:     "quiz123",
+		QuizID:     validQuizID,
 		UserAnswer: "My answer",
 	}
 	commonDomainResult := &dto.CheckAnswerResponse{
@@ -168,7 +170,9 @@ func TestQuizHandler_CheckAnswer(t *testing.T) {
 		}
 
 		// Create a fiber app and use the test handler
-		app := fiber.New()
+		app := fiber.New(fiber.Config{
+			ErrorHandler: middleware.ErrorHandler(),
+		})
 		app.Post("/quiz/check", func(c *fiber.Ctx) error {
 			c.Locals(middleware.UserIDKey, userID)
 			return quizHandler.CheckAnswer(c)
@@ -210,7 +214,9 @@ func TestQuizHandler_CheckAnswer(t *testing.T) {
 		}
 
 		// Create a fiber app without setting UserIDKey
-		app := fiber.New()
+		app := fiber.New(fiber.Config{
+			ErrorHandler: middleware.ErrorHandler(),
+		})
 		app.Post("/quiz/check", quizHandler.CheckAnswer)
 
 		reqBodyBytes, _ := json.Marshal(commonCheckAnswerRequest)

@@ -35,6 +35,16 @@ func TestGenerateNewQuizzesAndSave_Success_NewUniqueQuizzes(t *testing.T) {
 	// Mock expectations
 	mockQuizRepo.On("GetAllSubCategories", ctx).Return([]string{subCategoryID1}, nil).Once()
 	mockQuizRepo.On("GetQuizzesBySubCategory", ctx, subCategoryID1).Return([]*domain.Quiz{}, nil).Once() // No existing quizzes
+	mockQuizRepo.On("GetQuizEvaluation", ctx, mock.AnythingOfType("string")).Return(nil, nil).Once()
+	mockQuizGenSvc.On("GenerateScoreEvaluationsForQuiz", ctx, mock.AnythingOfType("*domain.Quiz"), mock.AnythingOfType("[]string")).
+		Return([]domain.ScoreEvaluationDetail{
+			{ScoreRange: "0.8-1.0", SampleAnswers: []string{"ans1"}, Explanation: "exp1"},
+			{ScoreRange: "0.6-0.8", SampleAnswers: []string{"ans2"}, Explanation: "exp2"},
+			{ScoreRange: "0.3-0.6", SampleAnswers: []string{"ans3"}, Explanation: "exp3"},
+			{ScoreRange: "0-0.3", SampleAnswers: []string{"ans4"}, Explanation: "exp4"},
+		}, nil).
+		Once()
+	mockQuizRepo.On("SaveQuizEvaluation", ctx, mock.AnythingOfType("*domain.QuizEvaluation")).Return(nil).Once()
 
 	generatedQuiz1 := &domain.NewQuizData{
 		Question:    "New Q1?",
@@ -123,6 +133,18 @@ func TestGenerateNewQuizzesAndSave_Success_SomeSimilarQuizzes(t *testing.T) {
 	// If we were mocking it:
 	// mockUtil.On("CosineSimilarity", embeddingGeneratedUnique, embeddingExistingQ1).Return(0.5, nil) // Low similarity
 	// mockUtil.On("CosineSimilarity", embeddingGeneratedSimilar, embeddingExistingQ1).Return(0.98, nil) // High similarity
+
+	// Mock QuizEvaluation generation for the unique quiz that will be saved
+	mockQuizRepo.On("GetQuizEvaluation", ctx, mock.AnythingOfType("string")).Return(nil, nil).Once()
+	mockQuizGenSvc.On("GenerateScoreEvaluationsForQuiz", ctx, mock.AnythingOfType("*domain.Quiz"), mock.AnythingOfType("[]string")).
+		Return([]domain.ScoreEvaluationDetail{
+			{ScoreRange: "0.8-1.0", SampleAnswers: []string{"ans1"}, Explanation: "exp1"},
+			{ScoreRange: "0.6-0.8", SampleAnswers: []string{"ans2"}, Explanation: "exp2"},
+			{ScoreRange: "0.3-0.6", SampleAnswers: []string{"ans3"}, Explanation: "exp3"},
+			{ScoreRange: "0-0.3", SampleAnswers: []string{"ans4"}, Explanation: "exp4"},
+		}, nil).
+		Once()
+	mockQuizRepo.On("SaveQuizEvaluation", ctx, mock.AnythingOfType("*domain.QuizEvaluation")).Return(nil).Once()
 
 	// Expect SaveQuiz to be called only for the unique one
 	mockQuizRepo.On("SaveQuiz", ctx, mock.MatchedBy(func(quiz *domain.Quiz) bool {

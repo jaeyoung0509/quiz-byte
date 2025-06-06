@@ -50,7 +50,7 @@ func (s *batchService) GenerateNewQuizzesAndSave(ctx context.Context) error {
 	subCategoryIDs, err := s.quizRepo.GetAllSubCategories(ctx)
 	if err != nil {
 		s.logger.Error("Failed to fetch subcategory IDs", zap.Error(err))
-		return fmt.Errorf("failed to fetch subcategory IDs: %w", err)
+		return domain.NewInternalError("failed to fetch subcategory IDs", err)
 	}
 
 	if len(subCategoryIDs) == 0 {

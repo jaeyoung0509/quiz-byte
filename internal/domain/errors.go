@@ -116,7 +116,8 @@ func NewValidationError(message string) error {
 }
 
 func NewInternalError(message string, err error) error {
-	return NewError(CodeInternal, message, fmt.Errorf("%w: %v", ErrInternal, err))
+	return NewError(CodeInternal, message, err)
+
 }
 
 func NewQuizNotFoundError(quizID string) error {

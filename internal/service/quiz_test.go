@@ -103,6 +103,9 @@ func TestCheckAnswer_With_AnswerCacheService(t *testing.T) { // Renamed test fun
 		quizForEval := &domain.Quiz{ID: req.QuizID, Question: "Q1", ModelAnswers: []string{"Model Ans"}, Keywords: []string{"k1"}}
 		mockRepo.On("GetQuizByID", ctx, req.QuizID).Return(quizForEval, nil).Once() // Added ctx
 
+		// Mock GetQuizEvaluation call that happens during LLM evaluation
+		mockRepo.On("GetQuizEvaluation", ctx, req.QuizID).Return(nil, nil).Once() // No QuizEvaluation found
+
 		llmEvalResult := &domain.Answer{Score: 0.77, Explanation: "Fresh LLM explanation"}
 		mockEvaluator.On("EvaluateAnswer", quizForEval.Question, quizForEval.ModelAnswers[0], req.UserAnswer, quizForEval.Keywords).Return(llmEvalResult, nil).Once()
 
@@ -149,6 +152,9 @@ func TestCheckAnswer_With_AnswerCacheService(t *testing.T) { // Renamed test fun
 		quizForEval := &domain.Quiz{ID: req.QuizID, Question: "Q_embed_fail", ModelAnswers: []string{"Model_embed_fail"}, Keywords: []string{"k_ef"}}
 		mockRepo.On("GetQuizByID", ctx, req.QuizID).Return(quizForEval, nil).Once() // Added ctx
 
+		// Mock GetQuizEvaluation call that happens during LLM evaluation
+		mockRepo.On("GetQuizEvaluation", ctx, req.QuizID).Return(nil, nil).Once() // No QuizEvaluation found
+
 		llmEvalResult := &domain.Answer{Score: 0.65, Explanation: "LLM fallback due to embedding fail"}
 		mockEvaluator.On("EvaluateAnswer", quizForEval.Question, quizForEval.ModelAnswers[0], req.UserAnswer, quizForEval.Keywords).Return(llmEvalResult, nil).Once()
 
@@ -185,6 +191,9 @@ func TestCheckAnswer_With_AnswerCacheService(t *testing.T) { // Renamed test fun
 		quizForEval := &domain.Quiz{ID: req.QuizID, Question: "Q_nil_ans_cache", ModelAnswers: []string{"Model_nil_ans_cache"}, Keywords: []string{"k_nac"}}
 		mockRepo.On("GetQuizByID", ctx, req.QuizID).Return(quizForEval, nil).Once() // Added ctx
 
+		// Mock GetQuizEvaluation call that happens during LLM evaluation
+		mockRepo.On("GetQuizEvaluation", ctx, req.QuizID).Return(nil, nil).Once() // No QuizEvaluation found
+
 		llmEvalResult := &domain.Answer{Score: 0.60, Explanation: "LLM fallback, nil AnswerCacheService"}
 		mockEvaluator.On("EvaluateAnswer", quizForEval.Question, quizForEval.ModelAnswers[0], req.UserAnswer, quizForEval.Keywords).Return(llmEvalResult, nil).Once()
 
@@ -217,6 +226,9 @@ func TestCheckAnswer_With_AnswerCacheService(t *testing.T) { // Renamed test fun
 
 		quizForEval := &domain.Quiz{ID: req.QuizID, Question: "Q_nil_embed_svc", ModelAnswers: []string{"Model_nil_embed_svc"}, Keywords: []string{"k_nes"}}
 		mockRepo.On("GetQuizByID", ctx, req.QuizID).Return(quizForEval, nil).Once() // Added ctx
+
+		// Mock GetQuizEvaluation call that happens during LLM evaluation
+		mockRepo.On("GetQuizEvaluation", ctx, req.QuizID).Return(nil, nil).Once() // No QuizEvaluation found
 
 		llmEvalResult := &domain.Answer{Score: 0.55, Explanation: "LLM fallback, nil EmbeddingService"}
 		mockEvaluator.On("EvaluateAnswer", quizForEval.Question, quizForEval.ModelAnswers[0], req.UserAnswer, quizForEval.Keywords).Return(llmEvalResult, nil).Once()
@@ -522,7 +534,7 @@ func TestGetBulkQuizzes_Caching(t *testing.T) {
 		assert.NoError(t, err)
 		expectedGobData := expectedBuffer.String()
 
-		mockRepo.On("GetSubCategoryIDByName", subCategoryName).Return(subCategoryID, nil).Once()
+		mockRepo.On("GetSubCategoryIDByName", ctx, subCategoryName).Return(subCategoryID, nil).Once()
 		mockCache.On("Get", ctx, cacheKey).Return(expectedGobData, nil).Once()
 
 		bulkReq := &dto.BulkQuizzesRequest{SubCategory: subCategoryName, Count: reqCount}

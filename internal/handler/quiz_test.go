@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"quiz-byte/internal/domain"
 	dto "quiz-byte/internal/dto"
+	"quiz-byte/internal/middleware"
 	"quiz-byte/internal/repository/models"
 	"quiz-byte/internal/util"
 	"testing"
@@ -236,7 +237,9 @@ func TestGetAllSubCategories(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			app := fiber.New()
+			app := fiber.New(fiber.Config{
+				ErrorHandler: middleware.ErrorHandler(),
+			})
 			mockQuizService := new(MockQuizService)
 			mockUserService := new(MockUserService)
 			handler := NewQuizHandler(mockQuizService, mockUserService, &MockAnonymousResultCacheService{})
@@ -274,7 +277,9 @@ func TestGetAllSubCategories(t *testing.T) {
 
 func TestGetRandomQuiz(t *testing.T) {
 	// Setup
-	app := fiber.New()
+	app := fiber.New(fiber.Config{
+		ErrorHandler: middleware.ErrorHandler(),
+	})
 	mockQuizService := new(MockQuizService)
 	mockUserService := new(MockUserService)
 	handler := NewQuizHandler(mockQuizService, mockUserService, &MockAnonymousResultCacheService{})
@@ -315,8 +320,13 @@ func TestGetRandomQuiz(t *testing.T) {
 			mockResponse:   nil,
 			mockError:      domain.NewInvalidCategoryError("invalid"), // Use the specific error type
 			expectedStatus: http.StatusBadRequest,
-			expectedBody: map[string]interface{}{ // Handler returns specific DTO
-				"error": "INVALID_CATEGORY", // Corrected to lowercase "error"
+			expectedBody: map[string]interface{}{
+				"code":    "INVALID_CATEGORY",
+				"message": "Invalid category: invalid",
+				"status":  float64(400), // JSON에서 숫자는 float64로 디코딩됩니다.
+				"details": map[string]interface{}{
+					"category": "invalid",
+				},
 			},
 		},
 	}
@@ -355,10 +365,13 @@ func TestGetRandomQuiz(t *testing.T) {
 
 func TestCheckAnswer(t *testing.T) {
 	// Setup
-	app := fiber.New()
+	app := fiber.New(fiber.Config{
+		ErrorHandler: middleware.ErrorHandler(),
+	})
 	mockQuizService := new(MockQuizService)
 	mockUserService := new(MockUserService)
-	handler := NewQuizHandler(mockQuizService, mockUserService, &MockAnonymousResultCacheService{})
+	mockCacheService := new(MockAnonymousResultCacheService)
+	handler := NewQuizHandler(mockQuizService, mockUserService, mockCacheService)
 
 	app.Post("/quiz/check", handler.CheckAnswer)
 
@@ -406,16 +419,31 @@ func TestCheckAnswer(t *testing.T) {
 			mockResponse:   nil,
 			mockError:      domain.NewQuizNotFoundError("999"), // Use specific error type
 			expectedStatus: http.StatusNotFound,
-			expectedBody: map[string]interface{}{ // Handler returns specific DTO
-				"error": "QUIZ_NOT_FOUND", // Corrected to lowercase "error"
+			expectedBody: map[string]interface{}{ // Handler returns ErrorResponse structure
+				"code":    "QUIZ_NOT_FOUND",
+				"message": "Quiz not found with ID: 999",
+				"status":  float64(404), // JSON unmarshals numbers as float64
+				"details": map[string]interface{}{
+					"quiz_id": "999",
+				},
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Setup mock
+			// Reset mocks for each test case
+			mockQuizService.ExpectedCalls = nil
+			mockCacheService.ExpectedCalls = nil
+
+			// Setup mock for quiz service
 			mockQuizService.On("CheckAnswer", tt.requestBody).Return(tt.mockResponse, tt.mockError)
+
+			// Setup mock for cache service (for anonymous users when successful)
+			// The handler calls Put when user is not authenticated and no error occurs
+			if tt.mockError == nil && tt.mockResponse != nil {
+				mockCacheService.On("Put", mock.Anything, mock.AnythingOfType("string"), tt.mockResponse).Return(nil)
+			}
 
 			// Create request
 			body, _ := json.Marshal(tt.requestBody)
@@ -426,21 +454,13 @@ func TestCheckAnswer(t *testing.T) {
 			// Assertions
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
-			// Only try to parse JSON body if it's not an error case, or specifically handle error JSON format
-			if tt.expectedStatus == http.StatusOK {
+			// Parse response body
+			bodyBytes, _ := io.ReadAll(resp.Body)
+			if len(bodyBytes) > 0 {
 				var responseBody map[string]interface{}
-				err := json.NewDecoder(resp.Body).Decode(&responseBody)
+				err := json.Unmarshal(bodyBytes, &responseBody)
 				assert.NoError(t, err)
 				assert.Equal(t, tt.expectedBody, responseBody)
-			} else {
-				// For error cases, we need to read the raw body instead of trying to parse it directly
-				bodyBytes, _ := io.ReadAll(resp.Body)
-				if len(bodyBytes) > 0 {
-					var errorBody map[string]interface{}
-					err := json.Unmarshal(bodyBytes, &errorBody)
-					assert.NoError(t, err)
-					assert.Equal(t, tt.expectedBody, errorBody)
-				}
 			}
 		})
 	}

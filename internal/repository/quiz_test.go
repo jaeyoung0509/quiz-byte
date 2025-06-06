@@ -280,8 +280,7 @@ func TestGetSimilarQuiz(t *testing.T) {
 	FROM quizzes
 	WHERE id = :1
 	AND deleted_at IS NULL`
-	mock.ExpectPrepare(regexp.QuoteMeta(originalQueryCurrent)).
-		ExpectQuery().
+	mock.ExpectQuery(regexp.QuoteMeta(originalQueryCurrent)).
 		WithArgs(currentQuizID).
 		WillReturnRows(sqlmock.NewRows([]string{"difficulty", "sub_category_id"}).AddRow(difficulty, subCatID))
 
@@ -318,8 +317,7 @@ func TestGetSimilarQuiz(t *testing.T) {
 	AND deleted_at IS NULL
 	ORDER BY DBMS_RANDOM.VALUE
 	FETCH FIRST 1 ROWS ONLY`
-	mock.ExpectPrepare(regexp.QuoteMeta(originalQuerySimilar)).
-		ExpectQuery().
+	mock.ExpectQuery(regexp.QuoteMeta(originalQuerySimilar)).
 		WithArgs(currentQuizID, subCatID, difficulty).
 		WillReturnRows(rowsSimilar)
 
@@ -342,8 +340,7 @@ func TestGetSimilarQuiz_CurrentQuizNotFound(t *testing.T) {
 	FROM quizzes
 	WHERE id = :1
 	AND deleted_at IS NULL`
-	mock.ExpectPrepare(regexp.QuoteMeta(originalQueryCurrent)).
-		ExpectQuery().
+	mock.ExpectQuery(regexp.QuoteMeta(originalQueryCurrent)).
 		WithArgs(currentQuizID).
 		WillReturnError(sql.ErrNoRows)
 
@@ -367,8 +364,7 @@ func TestGetSimilarQuiz_SimilarQuizNotFound(t *testing.T) {
 	FROM quizzes
 	WHERE id = :1
 	AND deleted_at IS NULL`
-	mock.ExpectPrepare(regexp.QuoteMeta(originalQueryCurrent)).
-		ExpectQuery().
+	mock.ExpectQuery(regexp.QuoteMeta(originalQueryCurrent)).
 		WithArgs(currentQuizID).
 		WillReturnRows(sqlmock.NewRows([]string{"difficulty", "sub_category_id"}).AddRow(difficulty, subCatID))
 
@@ -389,8 +385,7 @@ func TestGetSimilarQuiz_SimilarQuizNotFound(t *testing.T) {
 	AND deleted_at IS NULL
 	ORDER BY DBMS_RANDOM.VALUE
 	FETCH FIRST 1 ROWS ONLY`
-	mock.ExpectPrepare(regexp.QuoteMeta(originalQuerySimilar)).
-		ExpectQuery().
+	mock.ExpectQuery(regexp.QuoteMeta(originalQuerySimilar)).
 		WithArgs(currentQuizID, subCatID, difficulty).
 		WillReturnError(sql.ErrNoRows)
 

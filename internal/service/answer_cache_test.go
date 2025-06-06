@@ -296,7 +296,7 @@ func TestAnswerCacheServiceImpl_GetAnswerFromCache(t *testing.T) {
 
 		mockCache.On("HGetAll", ctx, hashCacheKey).Return(cacheReturnMap, nil).Once()
 		repoError := fmt.Errorf("repo GetQuizByID failed")
-		mockRepo.On("GetQuizByID", baseQuizID).Return(nil, repoError).Once()
+		mockRepo.On("GetQuizByID", ctx, baseQuizID).Return(nil, repoError).Once()
 
 		response, err := service.GetAnswerFromCache(ctx, baseQuizID, baseUserAnswerEmbedding, baseUserAnswerText)
 

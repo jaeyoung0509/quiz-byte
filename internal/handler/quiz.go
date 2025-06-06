@@ -20,10 +20,10 @@ const DefaultBulkQuizCount = 10
 
 // QuizHandler handles quiz-related HTTP requests following Clean Architecture principles
 type QuizHandler struct {
-	quizService               service.QuizService
-	userService               service.UserService
+	quizService                 service.QuizService
+	userService                 service.UserService
 	anonymousResultCacheService service.AnonymousResultCacheService // Added
-	validator                 *validation.Validator
+	validator                   *validation.Validator
 }
 
 // NewQuizHandler creates a new QuizHandler instance
@@ -33,10 +33,10 @@ func NewQuizHandler(
 	anonymousResultCacheService service.AnonymousResultCacheService, // Added
 ) *QuizHandler {
 	return &QuizHandler{
-		quizService:               quizService,
-		userService:               userService,
+		quizService:                 quizService,
+		userService:                 userService,
 		anonymousResultCacheService: anonymousResultCacheService, // Added
-		validator:                 validation.NewValidator(),
+		validator:                   validation.NewValidator(),
 	}
 }
 

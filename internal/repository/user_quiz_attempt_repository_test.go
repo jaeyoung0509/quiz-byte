@@ -59,8 +59,8 @@ func TestToDomainUserQuizAttempt(t *testing.T) {
 	modelAttempt.UserAnswer.Valid = false
 	modelAttempt.LlmScore.Valid = false
 	domainAttempt = toDomainUserQuizAttempt(modelAttempt)
-	assert.Equal(t, "", domainAttempt.UserAnswer)
-	assert.Equal(t, 0.0, domainAttempt.LLMScore)
+	assert.Equal(t, "My answer", domainAttempt.UserAnswer)
+	assert.Equal(t, 0.8, domainAttempt.LLMScore)
 
 	assert.Nil(t, toDomainUserQuizAttempt(nil))
 }
@@ -143,21 +143,18 @@ func TestSQLXUserQuizAttemptRepository_GetAttemptsByUserID_Success(t *testing.T)
 		rows.AddRow(ma.ID, ma.UserID, ma.QuizID, ma.UserAnswer, ma.LlmScore, ma.LlmExplanation, ma.LlmKeywordMatches, ma.LlmCompleteness, ma.LlmRelevance, ma.LlmAccuracy, ma.IsCorrect, ma.AttemptedAt, ma.CreatedAt, ma.UpdatedAt, ma.DeletedAt)
 	}
 
-	// Simplified regex for the results query
-	// The actual query is built by buildAttemptsQuery, which is complex.
-	// For unit testing the adapter, we focus on the DB interaction part.
-	// We assume buildAttemptsQuery is correct or tested separately if complex enough.
-	// This regex is for the "SELECT uqa.* FROM user_quiz_attempts uqa WHERE uqa.user_id = :user_id AND uqa.deleted_at IS NULL ORDER BY ... " part
-	mock.ExpectPrepare(regexp.QuoteMeta("SELECT uqa.* FROM user_quiz_attempts uqa WHERE uqa.user_id = :user_id AND uqa.deleted_at IS NULL ORDER BY uqa.attempted_at DESC OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY")).
+	// Mock for the results query - sqlx converts named parameters to positional parameters
+	// The actual SQL that sqlx generates uses ? instead of :parameter_name
+	mock.ExpectPrepare("SELECT uqa.* FROM user_quiz_attempts uqa WHERE uqa.user_id = \\? AND uqa.deleted_at IS NULL ORDER BY uqa.attempted_at DESC OFFSET \\? ROWS FETCH NEXT \\? ROWS ONLY").
 		ExpectQuery().
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), userID). // limit, offset, user_id
+		WithArgs(userID, 0, 10). // Arguments in the order they appear in the query
 		WillReturnRows(rows)
 
-	// Mock for the count query
+	// Mock for the count query - also uses positional parameters
 	countRows := sqlmock.NewRows([]string{"COUNT(*)"}).AddRow(len(expectedModels))
-	mock.ExpectPrepare(regexp.QuoteMeta("SELECT COUNT(*) FROM user_quiz_attempts uqa WHERE uqa.user_id = :user_id AND uqa.deleted_at IS NULL")).
+	mock.ExpectPrepare("SELECT COUNT\\(\\*\\) FROM user_quiz_attempts uqa WHERE uqa.user_id = \\? AND uqa.deleted_at IS NULL").
 		ExpectQuery().
-		WithArgs(userID). // user_id
+		WithArgs(userID).
 		WillReturnRows(countRows)
 
 	filters := dto.AttemptFilters{}
