@@ -1,73 +1,110 @@
 version: "3.8"
 
 services:
-  oracle-db:
-    image: gvenzl/oracle-xe:latest
-    container_name: quiz-oracle-db
-    environment:
-      - ORACLE_PASSWORD=oracle
-      - ORACLE_DATABASE=QUIZDB
+  # Main Quiz API Application
+  quiz-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: quiz-api
     ports:
-      - "1521:1521"
+      - "8080:8080"
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_SERVICE=${DB_SERVICE}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - LLAMA_SOLVER_URL=http://llama-qwen:8080
+      - LLAMA_GENERATOR_URL=http://llama-qwen:8080
+      - JWT_SECRET=${JWT_SECRET}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    depends_on:
+      - redis
+      - llama-qwen
+    restart: unless-stopped
+    networks:
+      - quiz-network
+
+  # Batch Add Questions Service
+  quiz-batch:
+    build:
+      context: .
+      dockerfile: Dockerfile.batch
+    container_name: quiz-batch
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_SERVICE=${DB_SERVICE}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - LLAMA_GENERATOR_URL=http://llama-qwen:8080
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    depends_on:
+      - redis
+      - llama-qwen
+    restart: "no" # Batch job - don't restart automatically
+    networks:
+      - quiz-network
+
+  # Llama.cpp with Qwen 0.5B model
+  llama-qwen:
+    image: ghcr.io/ggerganov/llama.cpp:server
+    container_name: quiz-llama-qwen
+    platform: linux/amd64
+    ports:
+      - "8081:8080"
     volumes:
-      - oracle-data:/opt/oracle/oradata
+      - ./models:/models
+    command: >
+      --model /models/qwen2.5-0.5b-instruct-q4_k_m.gguf
+      --host 0.0.0.0
+      --port 8080
+      --ctx-size 4096
+      --threads 4
+      --n-predict 512
+      --temp 0.7
+      --top-p 0.9
+      --repeat-penalty 1.1
+    environment:
+      - LLAMA_SERVER_HOST=0.0.0.0
+      - LLAMA_SERVER_PORT=8080
+    restart: unless-stopped
+    networks:
+      - quiz-network
     healthcheck:
-      test:
-        [
-          "CMD",
-          "sqlplus",
-          "-L",
-          "system/oracle@//localhost:1521/QUIZDB",
-          "AS",
-          "SYSDBA",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
-  # llama-solver:
-  #   image: ghcr.io/ggerganov/llama.cpp:server
-  #   container_name: quiz-llama-solver
-  #   platform: linux/amd64
-  #   ports:
-  #     - "8080:8080"
-  #   volumes:
-  #     - ./models:/models
-  #   command: --model /models/gemma-2b-it-q4_k_m.gguf --host 0.0.0.0 --port 8080
-  #   environment:
-  #     - LLAMA_SERVER_HOST=0.0.0.0
-  #     - LLAMA_SERVER_PORT=8080
-  #   depends_on:
-  #     oracle-db:
-  #       condition: service_healthy
-
-  # llama-generator:
-  #   image: ghcr.io/ggerganov/llama.cpp:server
-  #   container_name: quiz-llama-generator
-  #   platform: linux/amd64
-  #   ports:
-  #     - "8081:8080"
-  #   volumes:
-  #     - ./models:/models
-  #   command: --model /models/gemma-2b-it-q4_k_m.gguf --host 0.0.0.0 --port 8080
-  #   environment:
-  #     - LLAMA_SERVER_HOST=0.0.0.0
-  #     - LLAMA_SERVER_PORT=8080
-  #   depends_on:
-  #     oracle-db:
-  #       condition: service_healthy
-
+  # Redis Cache
   redis:
-    image: "redis:alpine"
+    image: "redis:7-alpine"
     container_name: quiz-redis
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    restart: unless-stopped
+    networks:
+      - quiz-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+networks:
+  quiz-network:
+    driver: bridge
 
 volumes:
-  oracle-data:
-    name: quiz-oracle-data
-  redis_data: # Define the redis_data volume
+  redis_data:
     name: quiz-redis-data

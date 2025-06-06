@@ -1,0 +1,41 @@
+# Stage 1: Build the Go application
+FROM golang:1.24-alpine AS builder
+
+WORKDIR /app
+
+# Install necessary packages
+RUN apk add --no-cache git ca-certificates tzdata
+
+# Copy go.mod and go.sum first to leverage Docker cache
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy the entire project
+COPY . .
+
+# Build the batch application
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags '-w -s' -o /app/batch-add-questions ./cmd/batch_add_questions/main.go
+
+# Stage 2: Create the runtime image
+FROM alpine:latest
+
+WORKDIR /app
+
+# Install ca-certificates for HTTPS requests
+RUN apk --no-cache add ca-certificates tzdata
+
+# Create a non-root user and group for security
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+# Copy the built binary from the builder stage
+COPY --from=builder /app/batch-add-questions /app/batch-add-questions
+
+# Copy configuration files
+COPY configs/ /app/configs/
+RUN chown -R appuser:appgroup /app/configs
+
+# Set the user for the container
+USER appuser
+
+# Command to run the application
+ENTRYPOINT ["/app/batch-add-questions"]
