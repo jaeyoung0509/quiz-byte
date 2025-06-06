@@ -181,8 +181,8 @@ func TestMain(m *testing.M) {
 	app = fiber.New(fiber.Config{
 		ReadTimeout:  cfg.Server.ReadTimeout,
 		WriteTimeout: cfg.Server.WriteTimeout,
+		ErrorHandler: middleware.ErrorHandler(),
 	})
-	app.Use(middleware.ErrorHandler()) // Global error handler
 
 	// Register Routes
 	// Auth routes
