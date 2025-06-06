@@ -91,15 +91,15 @@ func TestBatchAddQuestions_SuccessAndIdempotency(t *testing.T) {
 
 	var quizzes []models.Quiz
 	err = db.Select(&quizzes, `SELECT 
-		id "id",
-		question "question",
-		model_answers "model_answers",
-		keywords "keywords",
-		difficulty "difficulty",
-		sub_category_id "sub_category_id",
-		created_at "created_at",
-		updated_at "updated_at",
-		deleted_at "deleted_at"
+		id "ID",
+		question "QUESTION",
+		model_answers "MODEL_ANSWERS",
+		keywords "KEYWORDS",
+		difficulty "DIFFICULTY",
+		sub_category_id "SUB_CATEGORY_ID",
+		created_at "CREATED_AT",
+		updated_at "UPDATED_AT",
+		deleted_at "DELETED_AT"
 	FROM quizzes WHERE sub_category_id = :1`, subCatID)
 	require.NoError(t, err)
 	require.Len(t, quizzes, expectedQuestionsFirstRun, "Mismatch in fetched quizzes length")
@@ -113,11 +113,11 @@ func TestBatchAddQuestions_SuccessAndIdempotency(t *testing.T) {
 		if evalCount == 1 {
 			var evalRecord models.QuizEvaluation
 			query := `SELECT
-		id "id", quiz_id "quiz_id", minimum_keywords "minimum_keywords", 
-		required_topics "required_topics", score_ranges "score_ranges",
-		sample_answers "sample_answers", rubric_details "rubric_details", 
-		created_at "created_at", updated_at "updated_at", deleted_at "deleted_at", 
-		score_evaluations "score_evaluations"
+		id "ID", quiz_id "QUIZ_ID", minimum_keywords "MINIMUM_KEYWORDS", 
+		required_topics "REQUIRED_TOPICS", score_ranges "SCORE_RANGES",
+		sample_answers "SAMPLE_ANSWERS", rubric_details "RUBRIC_DETAILS", 
+		created_at "CREATED_AT", updated_at "UPDATED_AT", deleted_at "DELETED_AT", 
+		score_evaluations "SCORE_EVALUATIONS"
 	FROM quiz_evaluations
 	WHERE quiz_id = :1 AND deleted_at IS NULL`
 			err = db.Get(&evalRecord, query, quiz.ID)
@@ -125,8 +125,10 @@ func TestBatchAddQuestions_SuccessAndIdempotency(t *testing.T) {
 
 			var scoreEvals []domain.ScoreEvaluationDetail
 			// score_evaluations in DB is TEXT, assuming it's a JSON string
-			err = json.Unmarshal([]byte(evalRecord.ScoreEvaluations), &scoreEvals)
-			require.NoError(t, err, "Failed to unmarshal score_evaluations JSON for quiz %s. JSON: %s", quiz.ID, evalRecord.ScoreEvaluations)
+			if evalRecord.ScoreEvaluations.Valid && evalRecord.ScoreEvaluations.String != "" {
+				err = json.Unmarshal([]byte(evalRecord.ScoreEvaluations.String), &scoreEvals)
+				require.NoError(t, err, "Failed to unmarshal score_evaluations JSON for quiz %s. JSON: %s", quiz.ID, evalRecord.ScoreEvaluations.String)
+			}
 
 			// Check structure of simulated data
 			assert.Len(t, scoreEvals, 3, "Expected 3 score evaluation details for quiz %s", quiz.ID) // Default has 3 ranges
@@ -171,15 +173,15 @@ func TestBatchAddQuestions_SuccessAndIdempotency(t *testing.T) {
 	// Further check: ensure no duplicate questions (by question text)
 	var allQuizzesInSubCat []models.Quiz
 	query := `SELECT 
-		id "id",
-		question "question",
-		model_answers "model_answers",
-		keywords "keywords",
-		difficulty "difficulty",
-		sub_category_id "sub_category_id",
-		created_at "created_at",
-		updated_at "updated_at",
-		deleted_at "deleted_at"
+		id "ID",
+		question "QUESTION",
+		model_answers "MODEL_ANSWERS",
+		keywords "KEYWORDS",
+		difficulty "DIFFICULTY",
+		sub_category_id "SUB_CATEGORY_ID",
+		created_at "CREATED_AT",
+		updated_at "UPDATED_AT",
+		deleted_at "DELETED_AT"
 	FROM quizzes 
 	WHERE sub_category_id = :1 AND deleted_at IS NULL`
 	err = db.Select(&allQuizzesInSubCat, query, subCatID)

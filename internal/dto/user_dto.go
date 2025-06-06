@@ -64,36 +64,36 @@ type Pagination struct {
 
 // PaginationInfo defines pagination details for responses.
 type PaginationInfo struct {
-	TotalItems  int `json:"total_items"`
-	Limit       int `json:"limit"`
-	Offset      int `json:"offset"`
-	CurrentPage int `json:"current_page"`
-	TotalPages  int `json:"total_pages"`
+	TotalItems  int64 `json:"total_items"`
+	Limit       int   `json:"limit"`
+	Offset      int   `json:"offset"`
+	CurrentPage int   `json:"current_page"`
+	TotalPages  int   `json:"total_pages"`
 }
 
 // AttemptFilters defines parameters for filtering lists of quiz attempts.
 // These are typically query parameters.
 type AttemptFilters struct {
-	CategoryID  string `query:"category_id"`  // Can be main or sub-category ID
-	StartDate   string `query:"start_date"`   // Format: YYYY-MM-DD
-	EndDate     string `query:"end_date"`     // Format: YYYY-MM-DD
-	IsCorrect   *bool  `query:"is_correct"`   // Pointer for tri-state: true, false, or omit for no filter
-	SortBy      string `query:"sort_by"`      // e.g., "attempted_at", "score"
-	SortOrder   string `query:"sort_order"`   // "ASC" or "DESC"
+	CategoryID string `query:"category_id"` // Can be main or sub-category ID
+	StartDate  string `query:"start_date"`  // Format: YYYY-MM-DD
+	EndDate    string `query:"end_date"`    // Format: YYYY-MM-DD
+	IsCorrect  *bool  `query:"is_correct"`  // Pointer for tri-state: true, false, or omit for no filter
+	SortBy     string `query:"sort_by"`     // e.g., "attempted_at", "score"
+	SortOrder  string `query:"sort_order"`  // "ASC" or "DESC"
 }
 
 // --- User Quiz Attempts DTOs ---
 
 // UserQuizAttemptItem represents a single quiz attempt in a list.
 type UserQuizAttemptItem struct {
-	AttemptID         string    `json:"attempt_id"`
-	QuizID            string    `json:"quiz_id"`
-	QuizQuestion      string    `json:"quiz_question"`
-	UserAnswer        string    `json:"user_answer"`
-	LlmScore          float64   `json:"llm_score"`
-	LlmExplanation    string    `json:"llm_explanation,omitempty"`
-	IsCorrect         bool      `json:"is_correct"`
-	AttemptedAt       time.Time `json:"attempted_at"`
+	AttemptID      string    `json:"attempt_id"`
+	QuizID         string    `json:"quiz_id"`
+	QuizQuestion   string    `json:"quiz_question"`
+	UserAnswer     string    `json:"user_answer"`
+	LlmScore       float64   `json:"llm_score"`
+	LlmExplanation string    `json:"llm_explanation,omitempty"`
+	IsCorrect      bool      `json:"is_correct"`
+	AttemptedAt    time.Time `json:"attempted_at"`
 	// Add more LLM fields if needed: LlmKeywordMatches, LlmCompleteness, etc.
 }
 
@@ -107,14 +107,14 @@ type UserQuizAttemptsResponse struct {
 
 // UserIncorrectAnswerItem represents a single incorrect answer for the user.
 type UserIncorrectAnswerItem struct {
-	AttemptID         string    `json:"attempt_id"`
-	QuizID            string    `json:"quiz_id"`
-	QuizQuestion      string    `json:"quiz_question"`
-	UserAnswer        string    `json:"user_answer"`
-	CorrectAnswer     string    `json:"correct_answer"` // Model answer from the quiz
-	LlmScore          float64   `json:"llm_score"`      // User's score on their attempt
-	LlmExplanation    string    `json:"llm_explanation,omitempty"` // LLM's explanation for user's answer
-	AttemptedAt       time.Time `json:"attempted_at"`
+	AttemptID      string    `json:"attempt_id"`
+	QuizID         string    `json:"quiz_id"`
+	QuizQuestion   string    `json:"quiz_question"`
+	UserAnswer     string    `json:"user_answer"`
+	CorrectAnswer  string    `json:"correct_answer"`            // Model answer from the quiz
+	LlmScore       float64   `json:"llm_score"`                 // User's score on their attempt
+	LlmExplanation string    `json:"llm_explanation,omitempty"` // LLM's explanation for user's answer
+	AttemptedAt    time.Time `json:"attempted_at"`
 	// QuizExplanation string `json:"quiz_explanation,omitempty"` // If quizzes have a general explanation
 }
 

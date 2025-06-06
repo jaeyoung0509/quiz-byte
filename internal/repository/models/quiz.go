@@ -58,67 +58,67 @@ func (s *StringSlice) Scan(value interface{}) error {
 
 // Category 모델
 type Category struct {
-	ID          string       `db:"id"`
-	Name        string       `db:"name"`
-	Description string       `db:"description"`
-	CreatedAt   time.Time    `db:"created_at"`
-	UpdatedAt   time.Time    `db:"updated_at"`
-	DeletedAt   sql.NullTime `db:"deleted_at"`
+	ID          string       `db:"ID"`
+	Name        string       `db:"NAME"`
+	Description string       `db:"DESCRIPTION"`
+	CreatedAt   time.Time    `db:"CREATED_AT"`
+	UpdatedAt   time.Time    `db:"UPDATED_AT"`
+	DeletedAt   sql.NullTime `db:"DELETED_AT"`
 }
 
 // SubCategory 모델
 type SubCategory struct {
-	ID          string       `db:"id"`
-	CategoryID  string       `db:"category_id"`
-	Name        string       `db:"name"`
-	Description string       `db:"description"`
-	CreatedAt   time.Time    `db:"created_at"`
-	UpdatedAt   time.Time    `db:"updated_at"`
-	DeletedAt   sql.NullTime `db:"deleted_at"`
+	ID          string       `db:"ID"`
+	CategoryID  string       `db:"CATEGORY_ID"`
+	Name        string       `db:"NAME"`
+	Description string       `db:"DESCRIPTION"`
+	CreatedAt   time.Time    `db:"CREATED_AT"`
+	UpdatedAt   time.Time    `db:"UPDATED_AT"`
+	DeletedAt   sql.NullTime `db:"DELETED_AT"`
 }
 
 // Quiz 모델
 type Quiz struct {
-	ID            string       `db:"id"`
-	Question      string       `db:"question"`
-	ModelAnswers  string       `db:"model_answers"`
-	Keywords      string       `db:"keywords"`
-	Difficulty    int          `db:"difficulty"`
-	SubCategoryID string       `db:"sub_category_id"`
-	CreatedAt     time.Time    `db:"created_at"`
-	UpdatedAt     time.Time    `db:"updated_at"`
-	DeletedAt     sql.NullTime `db:"deleted_at"`
+	ID            string       `db:"ID"`
+	Question      string       `db:"QUESTION"`
+	ModelAnswers  string       `db:"MODEL_ANSWERS"`
+	Keywords      string       `db:"KEYWORDS"`
+	Difficulty    int          `db:"DIFFICULTY"`
+	SubCategoryID string       `db:"SUB_CATEGORY_ID"`
+	CreatedAt     time.Time    `db:"CREATED_AT"`
+	UpdatedAt     time.Time    `db:"UPDATED_AT"`
+	DeletedAt     sql.NullTime `db:"DELETED_AT"`
 }
 
 // Answer 모델
 type Answer struct {
-	ID             string       `db:"id"`
-	QuizID         string       `db:"quiz_id"`
-	UserAnswer     string       `db:"user_answer"`
-	Score          float64      `db:"score"`
-	Explanation    string       `db:"explanation"`
-	KeywordMatches StringSlice  `db:"keyword_matches"`
-	Completeness   float64      `db:"completeness"`
-	Relevance      float64      `db:"relevance"`
-	Accuracy       float64      `db:"accuracy"`
-	AnsweredAt     time.Time    `db:"answered_at"`
-	CreatedAt      time.Time    `db:"created_at"`
-	UpdatedAt      time.Time    `db:"updated_at"`
-	DeletedAt      sql.NullTime `db:"deleted_at"`
+	ID             string       `db:"ID"`
+	QuizID         string       `db:"QUIZ_ID"`
+	UserAnswer     string       `db:"USER_ANSWER"`
+	Score          float64      `db:"SCORE"`
+	Explanation    string       `db:"EXPLANATION"`
+	KeywordMatches StringSlice  `db:"KEYWORD_MATCHES"`
+	Completeness   float64      `db:"COMPLETENESS"`
+	Relevance      float64      `db:"RELEVANCE"`
+	Accuracy       float64      `db:"ACCURACY"`
+	AnsweredAt     time.Time    `db:"ANSWERED_AT"`
+	CreatedAt      time.Time    `db:"CREATED_AT"`
+	UpdatedAt      time.Time    `db:"UPDATED_AT"`
+	DeletedAt      sql.NullTime `db:"DELETED_AT"`
 }
 
 // QuizEvaluation 모델 (sqlx)
 type QuizEvaluation struct {
-	ID              string       `db:"id"`
-	QuizID          string       `db:"quiz_id"`
-	MinimumKeywords int          `db:"minimum_keywords"`
-	RequiredTopics  string       `db:"required_topics"` // StringSlice 사용 가정
-	ScoreRanges     string       `db:"score_ranges"`    // StringSlice 사용
-	SampleAnswers   string       `db:"sample_answers"`  // StringSlice 사용
-	RubricDetails   string       `db:"rubric_details"`
-	CreatedAt       time.Time    `db:"created_at"`
-	UpdatedAt       time.Time    `db:"updated_at"`
-	DeletedAt       sql.NullTime `db:"deleted_at"`
+	ID              string         `db:"ID"`
+	QuizID          string         `db:"QUIZ_ID"`
+	MinimumKeywords int            `db:"MINIMUM_KEYWORDS"`
+	RequiredTopics  sql.NullString `db:"REQUIRED_TOPICS"` // NULL 허용
+	ScoreRanges     sql.NullString `db:"SCORE_RANGES"`    // NULL 허용
+	SampleAnswers   sql.NullString `db:"SAMPLE_ANSWERS"`  // NULL 허용
+	RubricDetails   sql.NullString `db:"RUBRIC_DETAILS"`  // NULL 허용
+	CreatedAt       time.Time      `db:"CREATED_AT"`
+	UpdatedAt       time.Time      `db:"UPDATED_AT"`
+	DeletedAt       sql.NullTime   `db:"DELETED_AT"`
 	// 점수대별 상세 평가 정보를 JSON 문자열로 저장
-	ScoreEvaluations string `db:"score_evaluations"` // JSON string representing []ScoreEvaluationDetail
+	ScoreEvaluations sql.NullString `db:"SCORE_EVALUATIONS"` // JSON string representing []ScoreEvaluationDetail, NULL 허용
 }

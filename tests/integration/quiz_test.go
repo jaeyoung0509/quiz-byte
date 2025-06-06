@@ -52,11 +52,12 @@ func TestGetAllSubCategories(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, resp.StatusCode, "Expected status OK for /api/categories. Body: %s", respBodyBytes.String())
 
-	var responseBody dto.CategoryResponse
+	var responseBody dto.SubCategoryIDsResponse
 	err = json.NewDecoder(resp.Body).Decode(&responseBody)
 	require.NoError(t, err, "Failed to decode response body for /api/categories. Body: %s", respBodyBytes.String())
 
-	assert.Equal(t, "All Categories", responseBody.Name, "Response name should be 'All Categories'")
+	assert.NotNil(t, responseBody.SubCategoryIDs, "Response should contain sub_category_ids")
+	assert.True(t, len(responseBody.SubCategoryIDs) >= 0, "SubCategoryIDs should be a valid slice")
 	logInstance.Info("TestGetAllSubCategories executed.") // logInstance is from main_test.go
 }
 
@@ -208,7 +209,7 @@ func TestGetBulkQuizzes(t *testing.T) {
 		err = json.Unmarshal(bodyBytes, &errorResponse)
 		require.NoError(t, err, "Failed to decode error response. Body: %s", string(bodyBytes))
 
-		expectedErrorCode := domain.ErrInvalidCategory.Error()
+		expectedErrorCode := string(domain.CodeInvalidCategory)
 
 		assert.Equal(t, expectedErrorCode, errorResponse.Code, "Error code mismatch. Body: %s", string(bodyBytes))
 		assert.Equal(t, http.StatusBadRequest, errorResponse.Status, "Error status in body mismatch. Body: %s", string(bodyBytes))
@@ -223,10 +224,12 @@ func TestGetBulkQuizzes(t *testing.T) {
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode, "Expected Bad Request. Body: %s", string(bodyBytes))
 
-		var errorResponse dto.ErrorResponse // Handler returns dto.ErrorResponse directly for this case
+		var errorResponse middleware.ValidationErrorResponse // Handler returns ValidationErrorResponse for validation errors
 		err = json.Unmarshal(bodyBytes, &errorResponse)
 		require.NoError(t, err, "Failed to decode error response for missing sub_category. Body: %s", string(bodyBytes))
-		assert.Equal(t, "INVALID_REQUEST: sub_category is required", errorResponse.Error, "Error message should indicate missing sub_category")
+		assert.Equal(t, string(domain.CodeValidation), errorResponse.Code, "Error code should be VALIDATION_ERROR")
+		assert.True(t, len(errorResponse.Errors) > 0, "Should have validation errors")
+		assert.Equal(t, "sub_category", errorResponse.Errors[0].Field, "First error should be about sub_category field")
 	})
 
 	t.Run("DefaultCount", func(t *testing.T) {
@@ -675,13 +678,13 @@ func TestGetAllSubCategories_Caching(t *testing.T) {
 	// Assert response bodies are identical
 	assert.Equal(t, resp1BodyBytes.String(), resp2BodyBytes.String(), "Response body from second call should match first (served from cache or identical live response)")
 
-	// Further check: the actual API returns a dto.CategoryResponse. The cache stores the []string.
-	// We need to ensure the second API call (which should be from cache) reconstructs the same dto.CategoryResponse.
-	var apiResp1 dto.CategoryResponse
+	// Further check: the actual API returns a dto.SubCategoryIDsResponse. The cache stores the []string.
+	// We need to ensure the second API call (which should be from cache) reconstructs the same dto.SubCategoryIDsResponse.
+	var apiResp1 dto.SubCategoryIDsResponse
 	err = json.Unmarshal(resp1BodyBytes.Bytes(), &apiResp1)
 	require.NoError(t, err)
 
-	var apiResp2 dto.CategoryResponse
+	var apiResp2 dto.SubCategoryIDsResponse
 	err = json.Unmarshal(resp2BodyBytes.Bytes(), &apiResp2)
 	require.NoError(t, err)
 

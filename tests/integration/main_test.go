@@ -194,6 +194,7 @@ func TestMain(m *testing.M) {
 	// User routes
 	userRouterGroup := app.Group("/users", middleware.Protected(authService)) // Protected group
 	userRouterGroup.Get("/me", userHandler.GetMyProfile)
+	userRouterGroup.Get("/me/attempts", userHandler.GetMyAttempts)
 
 	// Quiz routes
 	apiGroup := app.Group("/api")
@@ -272,7 +273,7 @@ func seedPrerequisites(db *sqlx.DB) error {
 	for name, desc := range uniqueCategories {
 		categoryID := util.NewULID()
 		var cat models.Category
-		err := db.Get(&cat, `SELECT id "id", name "name", description "description", created_at "created_at", updated_at "updated_at"
+		err := db.Get(&cat, `SELECT id "ID", name "NAME", description "DESCRIPTION", created_at "CREATED_AT", updated_at "UPDATED_AT"
 			FROM categories WHERE name = :1`, name)
 		if err != nil {
 			if err == sql.ErrNoRows {
@@ -308,7 +309,7 @@ func seedPrerequisites(db *sqlx.DB) error {
 
 		subCategoryID := util.NewULID()
 		var subCat models.SubCategory
-		err := db.Get(&subCat, `SELECT id "id", name "name", category_id "category_id", description "description", created_at "created_at", updated_at "updated_at"
+		err := db.Get(&subCat, `SELECT id "ID", name "NAME", category_id "CATEGORY_ID", description "DESCRIPTION", created_at "CREATED_AT", updated_at "UPDATED_AT"
 			FROM sub_categories WHERE name = :1 AND category_id = :2`, subCategoryName, categoryID)
 		if err != nil {
 			if err == sql.ErrNoRows {

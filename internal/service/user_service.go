@@ -151,7 +151,7 @@ func (s *userServiceImpl) GetUserQuizAttempts(ctx context.Context, userID string
 	return &dto.UserQuizAttemptsResponse{
 		Attempts: attemptItems,
 		PaginationInfo: dto.PaginationInfo{
-			TotalItems:  total,
+			TotalItems:  int64(total),
 			Limit:       pagination.Limit,
 			Offset:      pagination.Offset,
 			CurrentPage: currentPage,
@@ -230,7 +230,7 @@ func (s *userServiceImpl) GetUserIncorrectAnswers(ctx context.Context, userID st
 	return &dto.UserIncorrectAnswersResponse{
 		IncorrectAnswers: incorrectAnswerItems,
 		PaginationInfo: dto.PaginationInfo{
-			TotalItems:  total,
+			TotalItems:  int64(total),
 			Limit:       pagination.Limit,
 			Offset:      pagination.Offset,
 			CurrentPage: currentPage,

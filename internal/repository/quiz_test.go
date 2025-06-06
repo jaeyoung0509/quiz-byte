@@ -429,10 +429,10 @@ func TestToModelQuizEvaluationAndBack(t *testing.T) {
 	// ... (rest of assertions from original test)
 
 	var unmarshaledDetails []domain.ScoreEvaluationDetail
-	if modelEval.ScoreEvaluations == "" {
+	if !modelEval.ScoreEvaluations.Valid {
 		t.Fatalf("modelEval.ScoreEvaluations is empty, expected JSON string")
 	}
-	err = json.Unmarshal([]byte(modelEval.ScoreEvaluations), &unmarshaledDetails)
+	err = json.Unmarshal([]byte(modelEval.ScoreEvaluations.String), &unmarshaledDetails)
 	if err != nil {
 		t.Fatalf("Failed to unmarshal modelEval.ScoreEvaluations: %v. JSON was: %s", err, modelEval.ScoreEvaluations)
 	}
@@ -477,7 +477,7 @@ func TestToDomainQuizEvaluation_EmptyScoreEvaluationsJSON(t *testing.T) {
 	modelEval := &models.QuizEvaluation{
 		ID:               "eval1",
 		QuizID:           "quiz1",
-		ScoreEvaluations: "",
+		ScoreEvaluations: sql.NullString{},
 	}
 	domainEval, err := toDomainQuizEvaluation(modelEval)
 	assert.NoError(t, err)
@@ -489,7 +489,7 @@ func TestToDomainQuizEvaluation_MalformedScoreEvaluationsJSON(t *testing.T) {
 	modelEval := &models.QuizEvaluation{
 		ID:               "eval1",
 		QuizID:           "quiz1",
-		ScoreEvaluations: "{not_a_valid_json",
+		ScoreEvaluations: sql.NullString{String: "{not_a_valid_json", Valid: true},
 	}
 	_, err := toDomainQuizEvaluation(modelEval)
 	assert.Error(t, err)

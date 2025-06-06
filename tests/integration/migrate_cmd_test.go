@@ -52,87 +52,77 @@ func runMigrateCommand(t *testing.T, args ...string) (string, error) {
 	return logOutput, err
 }
 
-// Helper function to get the current migration version and dirty status
-// Returns version as string, dirty as bool, and error
-func getMigrationVersionDB(t *testing.T) (string, bool, error) {
-	var version sql.NullInt64 // Use sql.NullInt64 for version that can be NULL
-	var dirty sql.NullBool    // Use sql.NullBool for dirty status
-
-	// In Oracle, schema_migrations table name might be case-sensitive if created with quotes.
-	// Assuming it's uppercase as is common.
-	// The query might differ slightly based on exact schema_migrations table structure used by the migrate library.
-	// This is a common structure for github.com/golang-migrate/migrate.
-	err := db.QueryRow("SELECT version, dirty FROM schema_migrations FETCH FIRST 1 ROWS ONLY").Scan(&version, &dirty)
+// Helper function to get the current migration status
+// Returns latest migration id and count of applied migrations
+func getMigrationStatusDB(t *testing.T) (string, int, error) {
+	var count int
+	err := db.Get(&count, "SELECT COUNT(*) FROM gorp_migrations")
 	if err != nil {
-		if err == sql.ErrNoRows {
-			// No rows typically means version 0, no migrations applied, or table missing (after full down)
-			return "0", false, nil
+		// If table doesn't exist (e.g., after clean), return zero state
+		if strings.Contains(err.Error(), "ORA-00942") || err == sql.ErrNoRows {
+			return "0", 0, nil
 		}
-		return "", false, fmt.Errorf("failed to query schema_migrations: %w", err)
+		return "", 0, fmt.Errorf("failed to query gorp_migrations count: %w", err)
 	}
 
-	if !version.Valid { // Should not happen if a migration ran, but handle defensively
-		return "0", dirty.Bool, nil // Treat NULL version as 0
+	if count == 0 {
+		return "0", 0, nil
 	}
 
-	return fmt.Sprintf("%d", version.Int64), dirty.Bool, nil
+	// Get the latest migration id (assuming migrations are applied in order)
+	var latestId string
+	err = db.Get(&latestId, "SELECT id FROM gorp_migrations ORDER BY applied_at DESC FETCH FIRST 1 ROWS ONLY")
+	if err != nil {
+		return "", count, fmt.Errorf("failed to query latest migration: %w", err)
+	}
+
+	return latestId, count, nil
 }
 
 func TestMigrateCommand(t *testing.T) {
 	// Initial state: initDatabase in main_test.go already runs migrations up.
 	// So, we start by bringing all migrations down.
-	t.Log("Running migrate down --all to reset...")
-	output, err := runMigrateCommand(t, "down", "--all") // Assuming --all is supported by the custom migrate cmd
-	require.NoError(t, err, "migrate down --all failed. Output: %s", output)
-	assert.Contains(t, output, "Successfully rolled back all migrations", "Expected success message for down --all")
+	t.Log("Running migrate clean to reset...")
+	output, err := runMigrateCommand(t, "clean")
+	require.NoError(t, err, "migrate clean failed. Output: %s", output)
+	assert.Contains(t, output, "Cleaned all tables", "Expected success message for clean")
 
-	currentVersion, dirty, err := getMigrationVersionDB(t)
-	require.NoError(t, err, "Failed to get migration version after down --all")
-	assert.False(t, dirty, "DB should not be dirty after down --all")
-	// After full down, version table might be empty or version 0.
-	// If table is dropped and recreated by migrate, ErrNoRows is possible, handled by getMigrationVersionDB.
-	assert.Equal(t, "0", currentVersion, "Version should be 0 after down --all")
+	latestId, count, err := getMigrationStatusDB(t)
+	require.NoError(t, err, "Failed to get migration status after clean")
+	assert.Equal(t, 0, count, "Migration count should be 0 after clean")
+	assert.Equal(t, "0", latestId, "Latest migration id should be 0 after clean")
 
 	// Test `up`
 	t.Log("Running migrate up...")
 	output, err = runMigrateCommand(t, "up")
 	require.NoError(t, err, "migrate up failed. Output: %s", output)
-	assert.Contains(t, output, "Migrations applied successfully!", "Expected success message for up")
+	assert.Contains(t, output, "Applied", "Expected success message for up")
 
-	latestVersion, dirty, err := getMigrationVersionDB(t)
+	latestIdAfterUp, countAfterUp, err := getMigrationStatusDB(t)
 	require.NoError(t, err)
-	assert.False(t, dirty, "DB should not be dirty after up")
-	// We need to know the "latest known migration version". This is hard to get dynamically
-	// without parsing migration files. For now, assert it's > 0.
-	// A more robust test would check against a specific expected version.
-	assert.True(t, latestVersion != "0", "Version should be > 0 after first up. Got: %s", latestVersion)
-	initialLatestVersion := latestVersion // Store for later comparison
+	assert.True(t, countAfterUp > 0, "Migration count should be > 0 after up. Got: %d", countAfterUp)
+	assert.True(t, latestIdAfterUp != "0", "Latest migration id should be > 0 after first up. Got: %s", latestIdAfterUp)
+	initialCount := countAfterUp
 
 	// Test `down` (single step)
 	t.Log("Running migrate down (single step)...")
 	output, err = runMigrateCommand(t, "down")
 	require.NoError(t, err, "migrate down (single) failed. Output: %s", output)
-	// Message might be "Successfully rolled back 1 migration(s)"
-	assert.Contains(t, output, "Successfully rolled back", "Expected success message for single down")
+	assert.Contains(t, output, "Rolled back", "Expected success message for single down")
 
-	versionAfterSingleDown, dirty, err := getMigrationVersionDB(t)
+	_, countAfterDown, err := getMigrationStatusDB(t)
 	require.NoError(t, err)
-	assert.False(t, dirty, "DB should not be dirty after single down")
-	assert.NotEqual(t, initialLatestVersion, versionAfterSingleDown, "Version should have changed after single down")
-	// Simple check: version should be less. This assumes numeric, sequential versions.
-	// This might not hold if versions are timestamp-based and not perfectly sequential numbers.
-	// For now, we'll rely on NotEqual. A better check would be to parse file names.
+	assert.True(t, countAfterDown < initialCount, "Migration count should decrease after down. Initial: %d, After: %d", initialCount, countAfterDown)
 
 	// Test `up` again (to reach latest)
 	t.Log("Running migrate up again...")
 	output, err = runMigrateCommand(t, "up")
 	require.NoError(t, err, "migrate up (second time) failed. Output: %s", output)
-	assert.Contains(t, output, "Migrations applied successfully!", "Expected success message for second up")
+	assert.Contains(t, output, "Applied", "Expected success message for second up")
 
-	finalVersion, dirty, err := getMigrationVersionDB(t)
+	_, finalCount, err := getMigrationStatusDB(t)
 	require.NoError(t, err)
-	assert.False(t, dirty, "DB should not be dirty after second up")
-	assert.Equal(t, initialLatestVersion, finalVersion, "Version should be back to the initial latest version after up again")
+	assert.Equal(t, initialCount, finalCount, "Migration count should be back to the initial count after up again. Initial: %d, Final: %d", initialCount, finalCount)
 
 	// Optional: Verify schema changes (light check)
 	// Example: Check if 'users' table exists after full 'up'

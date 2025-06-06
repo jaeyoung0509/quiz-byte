@@ -28,10 +28,21 @@ import (
 // findMatchingScoreExplanation finds the explanation for a given score from pre-defined score evaluations.
 func findMatchingScoreExplanation(score float64, details []domain.ScoreEvaluationDetail, allRanges []string) (string, bool) {
 	if details == nil || len(details) == 0 {
+		logger.Get().Debug("No score evaluation details provided")
 		return "", false
 	}
 
-	for _, detail := range details {
+	logger.Get().Debug("Finding matching score explanation",
+		zap.Float64("score", score),
+		zap.Int("details_count", len(details)),
+		zap.Strings("all_ranges", allRanges))
+
+	for i, detail := range details {
+		logger.Get().Debug("Checking score range",
+			zap.Int("index", i),
+			zap.String("range", detail.ScoreRange),
+			zap.String("explanation", detail.Explanation))
+
 		parts := strings.Split(detail.ScoreRange, "-")
 		if len(parts) != 2 {
 			logger.Get().Warn("Invalid score range format in ScoreEvaluationDetail", zap.String("range", detail.ScoreRange))
@@ -48,25 +59,55 @@ func findMatchingScoreExplanation(score float64, details []domain.ScoreEvaluatio
 			continue
 		}
 
+		// Determine if this is the highest scoring range (should have inclusive upper bounds)
 		isLastRange := false
-		if len(allRanges) > 0 && detail.ScoreRange == allRanges[len(allRanges)-1] {
-			isLastRange = true
+		if len(allRanges) > 0 {
+			highestMaxScore := -1.0
+			highestRange := ""
+
+			// Find the range with the highest maximum score
+			for _, rangeStr := range allRanges {
+				parts := strings.Split(rangeStr, "-")
+				if len(parts) == 2 {
+					if maxVal, err := strconv.ParseFloat(parts[1], 64); err == nil {
+						if maxVal > highestMaxScore {
+							highestMaxScore = maxVal
+							highestRange = rangeStr
+						}
+					}
+				}
+			}
+
+			// If this detail's range is the highest scoring range, treat it as the last range
+			if detail.ScoreRange == highestRange {
+				isLastRange = true
+			}
 		}
+
+		logger.Get().Debug("Score range details",
+			zap.Float64("min_score", minScore),
+			zap.Float64("max_score", maxScore),
+			zap.Bool("is_last_range", isLastRange))
 
 		if isLastRange { // Last range is inclusive: [min, max]
 			if score >= minScore && score <= maxScore {
 				if detail.Explanation != "" {
+					logger.Get().Debug("Found matching explanation (last range, inclusive)",
+						zap.String("explanation", detail.Explanation))
 					return detail.Explanation, true
 				}
 			}
 		} else { // Other ranges are inclusive start, exclusive end: [min, max)
 			if score >= minScore && score < maxScore {
 				if detail.Explanation != "" {
+					logger.Get().Debug("Found matching explanation (regular range)",
+						zap.String("explanation", detail.Explanation))
 					return detail.Explanation, true
 				}
 			}
 		}
 	}
+	logger.Get().Debug("No matching score explanation found")
 	return "", false
 }
 

@@ -1,10 +1,12 @@
 package middleware
 
 import (
+	"fmt"
+	"quiz-byte/internal/logger"  // Uncomment if logging is added here
 	"quiz-byte/internal/service" // For AuthService
 	"strings"
-	"quiz-byte/internal/logger" // Uncomment if logging is added here
-	"go.uber.org/zap"           // Uncomment if logging is added here
+
+	"go.uber.org/zap" // Uncomment if logging is added here
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -51,7 +53,7 @@ func Protected(authService service.AuthService) fiber.Handler {
 			// logger.Get().Debug("JWT Validation Error", zap.Error(err), zap.String("token", tokenString))
 			return c.Status(fiber.StatusUnauthorized).JSON(ErrorResponse{
 				Code:    "INVALID_TOKEN",
-				Message: "Token is invalid or expired",
+				Message: err.Error(), // Include the actual error message
 				Status:  fiber.StatusUnauthorized,
 			})
 		}
@@ -60,7 +62,7 @@ func Protected(authService service.AuthService) fiber.Handler {
 		if claims.TokenType != "access" { // "access" is the constant used in auth_service
 			return c.Status(fiber.StatusForbidden).JSON(ErrorResponse{ // 403 Forbidden might be more appropriate than 401 for wrong token type
 				Code:    "INVALID_TOKEN_TYPE",
-				Message: "Invalid token type provided; expected access token",
+				Message: fmt.Sprintf("Invalid token type: expected access, got %s", claims.TokenType),
 				Status:  fiber.StatusForbidden,
 			})
 		}

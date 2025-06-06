@@ -49,7 +49,7 @@ func getFirstQuizIDForSubCategory(t *testing.T, subCategoryName string) string {
 
 	// Fetch the first quiz for that subcategory
 	// Using positional bindvar :1 for Oracle compatibility with sqlx's Get
-	err := db.Get(&quiz, "SELECT id, question, sub_category_id FROM quizzes WHERE sub_category_id = :1 FETCH FIRST 1 ROWS ONLY", subCatID)
+	err := db.Get(&quiz, `SELECT id "ID", question "QUESTION", sub_category_id "SUB_CATEGORY_ID" FROM quizzes WHERE sub_category_id = :1 FETCH FIRST 1 ROWS ONLY`, subCatID)
 	require.NoError(t, err, "Failed to get a quiz from DB for testing using sub_category_id: %s", subCatID)
 	require.NotEmpty(t, quiz.ID, "Quiz ID fetched from DB is empty")
 	return quiz.ID

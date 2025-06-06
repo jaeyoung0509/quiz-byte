@@ -52,14 +52,14 @@ func fromDomainUser(domainUser *domain.User) *models.User {
 		deletedAt = util.TimeToNullTime(*domainUser.DeletedAt)
 	}
 	return &models.User{
-		ID:                  domainUser.ID,
-		GoogleID:            domainUser.GoogleID,
-		Email:               domainUser.Email,
-		Name:                util.StringToNullString(domainUser.Name),
-		ProfilePictureURL:   util.StringToNullString(domainUser.ProfilePictureURL),
-		CreatedAt:           domainUser.CreatedAt,
-		UpdatedAt:           domainUser.UpdatedAt,
-		DeletedAt:           deletedAt,
+		ID:                domainUser.ID,
+		GoogleID:          domainUser.GoogleID,
+		Email:             domainUser.Email,
+		Name:              util.StringToNullString(domainUser.Name),
+		ProfilePictureURL: util.StringToNullString(domainUser.ProfilePictureURL),
+		CreatedAt:         domainUser.CreatedAt,
+		UpdatedAt:         domainUser.UpdatedAt,
+		DeletedAt:         deletedAt,
 		// EncryptedAccessToken, EncryptedRefreshToken, TokenExpiresAt are not part of domain.User
 		// They will be their zero values (sql.NullString, sql.NullTime)
 	}
@@ -78,12 +78,19 @@ func (r *sqlxUserRepository) CreateUser(ctx context.Context, domainUser *domain.
 		modelUser.UpdatedAt = time.Now()
 	}
 
-
 	query := `INSERT INTO users (id, google_id, email, name, profile_picture_url, created_at, updated_at, deleted_at)
-	          VALUES (:id, :google_id, :email, :name, :profile_picture_url, :created_at, :updated_at, :deleted_at)`
+	          VALUES (:1, :2, :3, :4, :5, :6, :7, :8)`
 	// Note: Removed token fields from insert as they are not in domain.User
 
-	_, err := r.db.NamedExecContext(ctx, query, modelUser)
+	_, err := r.db.ExecContext(ctx, query,
+		modelUser.ID,
+		modelUser.GoogleID,
+		modelUser.Email,
+		modelUser.Name,
+		modelUser.ProfilePictureURL,
+		modelUser.CreatedAt,
+		modelUser.UpdatedAt,
+		modelUser.DeletedAt)
 	if err != nil {
 		return fmt.Errorf("failed to create user: %w", err)
 	}
@@ -93,16 +100,9 @@ func (r *sqlxUserRepository) CreateUser(ctx context.Context, domainUser *domain.
 // GetUserByGoogleID retrieves a user by their Google ID.
 func (r *sqlxUserRepository) GetUserByGoogleID(ctx context.Context, googleID string) (*domain.User, error) {
 	var modelUser models.User
-	query := `SELECT * FROM users WHERE google_id = :google_id AND deleted_at IS NULL`
+	query := `SELECT id, google_id, email, name, profile_picture_url, encrypted_access_token, encrypted_refresh_token, token_expires_at, created_at, updated_at, deleted_at FROM users WHERE google_id = :1 AND deleted_at IS NULL`
 
-	stmt, err := r.db.PrepareNamedContext(ctx, query)
-	if err != nil {
-		return nil, fmt.Errorf("failed to prepare query for GetUserByGoogleID: %w", err)
-	}
-	defer stmt.Close()
-
-	args := map[string]interface{}{"google_id": googleID}
-	err = stmt.GetContext(ctx, &modelUser, args)
+	err := r.db.GetContext(ctx, &modelUser, query, googleID)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -116,16 +116,9 @@ func (r *sqlxUserRepository) GetUserByGoogleID(ctx context.Context, googleID str
 // GetUserByID retrieves a user by their internal ID.
 func (r *sqlxUserRepository) GetUserByID(ctx context.Context, userID string) (*domain.User, error) {
 	var modelUser models.User
-	query := `SELECT * FROM users WHERE id = :id AND deleted_at IS NULL`
+	query := `SELECT id, google_id, email, name, profile_picture_url, encrypted_access_token, encrypted_refresh_token, token_expires_at, created_at, updated_at, deleted_at FROM users WHERE id = :1 AND deleted_at IS NULL`
 
-	stmt, err := r.db.PrepareNamedContext(ctx, query)
-	if err != nil {
-		return nil, fmt.Errorf("failed to prepare query for GetUserByID: %w", err)
-	}
-	defer stmt.Close()
-
-	args := map[string]interface{}{"id": userID}
-	err = stmt.GetContext(ctx, &modelUser, args)
+	err := r.db.GetContext(ctx, &modelUser, query, userID)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -143,19 +136,25 @@ func (r *sqlxUserRepository) UpdateUser(ctx context.Context, domainUser *domain.
 	modelUser.UpdatedAt = time.Now() // Ensure UpdatedAt is set
 
 	query := `UPDATE users SET
-				email = :email,
-	            name = :name,
-	            profile_picture_url = :profile_picture_url,
-	            updated_at = :updated_at,
-				deleted_at = :deleted_at
-	          WHERE id = :id AND deleted_at IS NULL`
+				email = :1,
+	            name = :2,
+	            profile_picture_url = :3,
+	            updated_at = :4,
+				deleted_at = :5
+	          WHERE id = :6 AND deleted_at IS NULL`
 	// Note: Removed token fields from update as they are not in domain.User.
 	// Added deleted_at in SET clause for potential soft delete updates through this method if needed,
 	// though typically soft deletes have dedicated methods. If domainUser.DeletedAt is nil,
 	// modelUser.DeletedAt will be sql.NullTime{Valid:false}, preserving existing DB value if not changing.
 	// If domainUser.DeletedAt is set, it will update the DB field.
 
-	result, err := r.db.NamedExecContext(ctx, query, modelUser)
+	result, err := r.db.ExecContext(ctx, query,
+		modelUser.Email,
+		modelUser.Name,
+		modelUser.ProfilePictureURL,
+		modelUser.UpdatedAt,
+		modelUser.DeletedAt,
+		modelUser.ID)
 	if err != nil {
 		return fmt.Errorf("failed to update user: %w", err)
 	}

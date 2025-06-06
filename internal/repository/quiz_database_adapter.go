@@ -29,15 +29,15 @@ func NewQuizDatabaseAdapter(db DBTX) domain.QuizRepository {
 func (a *QuizDatabaseAdapter) GetRandomQuiz(ctx context.Context) (*domain.Quiz, error) {
 	var modelQuiz models.Quiz
 	query := `SELECT 
-		id "id",
-		question "question",
-		model_answers "model_answers",
-		keywords "keywords",
-		difficulty "difficulty",
-		sub_category_id "sub_category_id",
-		created_at "created_at",
-		updated_at "updated_at",
-		deleted_at "deleted_at"
+		id "ID",
+		question "QUESTION",
+		model_answers "MODEL_ANSWERS",
+		keywords "KEYWORDS",
+		difficulty "DIFFICULTY",
+		sub_category_id "SUB_CATEGORY_ID",
+		created_at "CREATED_AT",
+		updated_at "UPDATED_AT",
+		deleted_at "DELETED_AT"
 	FROM quizzes 
 	WHERE deleted_at IS NULL 
 	ORDER BY DBMS_RANDOM.VALUE 
@@ -57,15 +57,15 @@ func (a *QuizDatabaseAdapter) GetRandomQuiz(ctx context.Context) (*domain.Quiz, 
 func (a *QuizDatabaseAdapter) GetQuizByID(ctx context.Context, id string) (*domain.Quiz, error) {
 	var modelQuiz models.Quiz
 	query := `SELECT 
-		id "id",
-		question "question",
-		model_answers "model_answers",
-		keywords "keywords",
-		difficulty "difficulty",
-		sub_category_id "sub_category_id",
-		created_at "created_at",
-		updated_at "updated_at",
-		deleted_at "deleted_at"
+		id "ID",
+		question "QUESTION",
+		model_answers "MODEL_ANSWERS",
+		keywords "KEYWORDS",
+		difficulty "DIFFICULTY",
+		sub_category_id "SUB_CATEGORY_ID",
+		created_at "CREATED_AT",
+		updated_at "UPDATED_AT",
+		deleted_at "DELETED_AT"
 	FROM quizzes 
 	WHERE id = :1 
 	AND deleted_at IS NULL`
@@ -206,12 +206,12 @@ func (a *QuizDatabaseAdapter) SaveAnswer(ctx context.Context, answer *domain.Ans
 // GetSimilarQuiz implements domain.QuizRepository
 func (a *QuizDatabaseAdapter) GetSimilarQuiz(ctx context.Context, quizID string) (*domain.Quiz, error) {
 	current := struct {
-		Difficulty    int    `db:"difficulty"`
-		SubCategoryID string `db:"sub_category_id"`
+		Difficulty    int    `db:"DIFFICULTY"`
+		SubCategoryID string `db:"SUB_CATEGORY_ID"`
 	}{}
 	queryCurrent := `SELECT 
-		difficulty "difficulty", 
-		sub_category_id "sub_category_id" 
+		difficulty "DIFFICULTY", 
+		sub_category_id "SUB_CATEGORY_ID" 
 	FROM quizzes 
 	WHERE id = :1 
 	AND deleted_at IS NULL`
@@ -226,15 +226,15 @@ func (a *QuizDatabaseAdapter) GetSimilarQuiz(ctx context.Context, quizID string)
 
 	var similarQuizModel models.Quiz
 	querySimilar := `SELECT 
-		id "id",
-		question "question",
-		model_answers "model_answers",
-		keywords "keywords",
-		difficulty "difficulty",
-		sub_category_id "sub_category_id",
-		created_at "created_at",
-		updated_at "updated_at",
-		deleted_at "deleted_at"
+		id "ID",
+		question "QUESTION",
+		model_answers "MODEL_ANSWERS",
+		keywords "KEYWORDS",
+		difficulty "DIFFICULTY",
+		sub_category_id "SUB_CATEGORY_ID",
+		created_at "CREATED_AT",
+		updated_at "UPDATED_AT",
+		deleted_at "DELETED_AT"
 	FROM quizzes
 	WHERE id != :1 
 	AND sub_category_id = :2 
@@ -313,11 +313,11 @@ func (a *QuizDatabaseAdapter) SaveQuizEvaluation(ctx context.Context, evaluation
 func (a *QuizDatabaseAdapter) GetQuizEvaluation(ctx context.Context, quizID string) (*domain.QuizEvaluation, error) {
 	var modelEval models.QuizEvaluation
 	query := `SELECT
-		id "id", quiz_id "quiz_id", minimum_keywords "minimum_keywords", 
-		required_topics "required_topics", score_ranges "score_ranges",
-		sample_answers "sample_answers", rubric_details "rubric_details", 
-		created_at "created_at", updated_at "updated_at", deleted_at "deleted_at", 
-		score_evaluations "score_evaluations"
+		id "ID", quiz_id "QUIZ_ID", minimum_keywords "MINIMUM_KEYWORDS", 
+		required_topics "REQUIRED_TOPICS", score_ranges "SCORE_RANGES",
+		sample_answers "SAMPLE_ANSWERS", rubric_details "RUBRIC_DETAILS", 
+		created_at "CREATED_AT", updated_at "UPDATED_AT", deleted_at "DELETED_AT", 
+		score_evaluations "SCORE_EVALUATIONS"
 	FROM quiz_evaluations
 	WHERE quiz_id = :1 AND deleted_at IS NULL`
 
@@ -339,15 +339,15 @@ func (a *QuizDatabaseAdapter) GetQuizEvaluation(ctx context.Context, quizID stri
 func (a *QuizDatabaseAdapter) GetRandomQuizBySubCategory(ctx context.Context, subCategoryID string) (*domain.Quiz, error) {
 	var modelQuiz models.Quiz
 	query := `SELECT 
-		id "id",
-		question "question",
-		model_answers "model_answers",
-		keywords "keywords",
-		difficulty "difficulty",
-		sub_category_id "sub_category_id",
-		created_at "created_at",
-		updated_at "updated_at",
-		deleted_at "deleted_at"
+		id "ID",
+		question "QUESTION",
+		model_answers "MODEL_ANSWERS",
+		keywords "KEYWORDS",
+		difficulty "DIFFICULTY",
+		sub_category_id "SUB_CATEGORY_ID",
+		created_at "CREATED_AT",
+		updated_at "UPDATED_AT",
+		deleted_at "DELETED_AT"
 	FROM quizzes
 	WHERE sub_category_id = :1 
 	AND deleted_at IS NULL
@@ -368,15 +368,15 @@ func (a *QuizDatabaseAdapter) GetRandomQuizBySubCategory(ctx context.Context, su
 func (a *QuizDatabaseAdapter) GetQuizzesByCriteria(ctx context.Context, subCategoryID string, count int) ([]*domain.Quiz, error) {
 	var modelQuizzes []models.Quiz
 	query := `SELECT 
-		id "id",
-		question "question",
-		model_answers "model_answers",
-		keywords "keywords",
-		difficulty "difficulty",
-		sub_category_id "sub_category_id",
-		created_at "created_at",
-		updated_at "updated_at",
-		deleted_at "deleted_at"
+		id "ID",
+		question "QUESTION",
+		model_answers "MODEL_ANSWERS",
+		keywords "KEYWORDS",
+		difficulty "DIFFICULTY",
+		sub_category_id "SUB_CATEGORY_ID",
+		created_at "CREATED_AT",
+		updated_at "UPDATED_AT",
+		deleted_at "DELETED_AT"
 	FROM quizzes 
 	WHERE sub_category_id = :1 
 	AND deleted_at IS NULL 
@@ -405,7 +405,7 @@ func (a *QuizDatabaseAdapter) GetQuizzesByCriteria(ctx context.Context, subCateg
 // GetSubCategoryIDByName returns the ID of a subcategory by its name
 func (a *QuizDatabaseAdapter) GetSubCategoryIDByName(ctx context.Context, name string) (string, error) {
 	var subCategoryID string
-	query := `SELECT id "id" FROM sub_categories WHERE UPPER(name) = UPPER(:1) AND deleted_at IS NULL`
+	query := `SELECT id "ID" FROM sub_categories WHERE UPPER(name) = UPPER(:1) AND deleted_at IS NULL`
 
 	err := a.db.GetContext(ctx, &subCategoryID, query, name)
 	if err != nil {
@@ -422,15 +422,15 @@ func (a *QuizDatabaseAdapter) GetSubCategoryIDByName(ctx context.Context, name s
 func (a *QuizDatabaseAdapter) GetQuizzesBySubCategory(ctx context.Context, subCategoryID string) ([]*domain.Quiz, error) {
 	var modelQuizzes []*models.Quiz
 	query := `SELECT
-		id "id",
-		question "question",
-		model_answers "model_answers",
-		keywords "keywords",
-		difficulty "difficulty",
-		sub_category_id "sub_category_id",
-		created_at "created_at",
-		updated_at "updated_at",
-		deleted_at "deleted_at"
+		id "ID",
+		question "QUESTION",
+		model_answers "MODEL_ANSWERS",
+		keywords "KEYWORDS",
+		difficulty "DIFFICULTY",
+		sub_category_id "SUB_CATEGORY_ID",
+		created_at "CREATED_AT",
+		updated_at "UPDATED_AT",
+		deleted_at "DELETED_AT"
 	FROM quizzes
 	WHERE sub_category_id = :1
 	AND deleted_at IS NULL
@@ -522,15 +522,38 @@ func toModelQuizEvaluation(d *domain.QuizEvaluation) (*models.QuizEvaluation, er
 		return nil, fmt.Errorf("failed to marshal ScoreEvaluations: %w", err)
 	}
 
+	// SQL NullString 필드들을 적절히 설정
+	var requiredTopics, scoreRanges, sampleAnswers, rubricDetails, scoreEvaluations sql.NullString
+
+	if len(d.RequiredTopics) > 0 {
+		requiredTopics = sql.NullString{String: strings.Join(d.RequiredTopics, stringDelimiter), Valid: true}
+	}
+
+	if len(d.ScoreRanges) > 0 {
+		scoreRanges = sql.NullString{String: strings.Join(d.ScoreRanges, stringDelimiter), Valid: true}
+	}
+
+	if len(d.SampleAnswers) > 0 {
+		sampleAnswers = sql.NullString{String: strings.Join(d.SampleAnswers, stringDelimiter), Valid: true}
+	}
+
+	if d.RubricDetails != "" {
+		rubricDetails = sql.NullString{String: d.RubricDetails, Valid: true}
+	}
+
+	if len(scoreEvaluationsJSON) > 0 {
+		scoreEvaluations = sql.NullString{String: string(scoreEvaluationsJSON), Valid: true}
+	}
+
 	return &models.QuizEvaluation{
 		ID:               d.ID,
 		QuizID:           d.QuizID,
 		MinimumKeywords:  d.MinimumKeywords,
-		RequiredTopics:   strings.Join(d.RequiredTopics, stringDelimiter),
-		ScoreRanges:      strings.Join(d.ScoreRanges, stringDelimiter),
-		SampleAnswers:    strings.Join(d.SampleAnswers, stringDelimiter),
-		RubricDetails:    d.RubricDetails,
-		ScoreEvaluations: string(scoreEvaluationsJSON),
+		RequiredTopics:   requiredTopics,
+		ScoreRanges:      scoreRanges,
+		SampleAnswers:    sampleAnswers,
+		RubricDetails:    rubricDetails,
+		ScoreEvaluations: scoreEvaluations,
 		CreatedAt:        d.CreatedAt,
 		UpdatedAt:        d.UpdatedAt,
 	}, nil
@@ -542,20 +565,40 @@ func toDomainQuizEvaluation(m *models.QuizEvaluation) (*domain.QuizEvaluation, e
 	}
 
 	var scoreEvaluations []domain.ScoreEvaluationDetail
-	if m.ScoreEvaluations != "" {
-		if err := json.Unmarshal([]byte(m.ScoreEvaluations), &scoreEvaluations); err != nil {
+	if m.ScoreEvaluations.Valid && m.ScoreEvaluations.String != "" {
+		if err := json.Unmarshal([]byte(m.ScoreEvaluations.String), &scoreEvaluations); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal ScoreEvaluations: %w", err)
 		}
+	}
+
+	// NULL 값 처리를 위한 안전한 문자열 분할
+	var requiredTopics, scoreRanges, sampleAnswers []string
+
+	if m.RequiredTopics.Valid && m.RequiredTopics.String != "" {
+		requiredTopics = strings.Split(m.RequiredTopics.String, stringDelimiter)
+	}
+
+	if m.ScoreRanges.Valid && m.ScoreRanges.String != "" {
+		scoreRanges = strings.Split(m.ScoreRanges.String, stringDelimiter)
+	}
+
+	if m.SampleAnswers.Valid && m.SampleAnswers.String != "" {
+		sampleAnswers = strings.Split(m.SampleAnswers.String, stringDelimiter)
+	}
+
+	rubricDetails := ""
+	if m.RubricDetails.Valid {
+		rubricDetails = m.RubricDetails.String
 	}
 
 	return &domain.QuizEvaluation{
 		ID:               m.ID,
 		QuizID:           m.QuizID,
 		MinimumKeywords:  m.MinimumKeywords,
-		RequiredTopics:   strings.Split(m.RequiredTopics, stringDelimiter),
-		ScoreRanges:      strings.Split(m.ScoreRanges, stringDelimiter),
-		SampleAnswers:    strings.Split(m.SampleAnswers, stringDelimiter),
-		RubricDetails:    m.RubricDetails,
+		RequiredTopics:   requiredTopics,
+		ScoreRanges:      scoreRanges,
+		SampleAnswers:    sampleAnswers,
+		RubricDetails:    rubricDetails,
 		ScoreEvaluations: scoreEvaluations,
 		CreatedAt:        m.CreatedAt,
 		UpdatedAt:        m.UpdatedAt,

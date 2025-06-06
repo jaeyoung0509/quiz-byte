@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"quiz-byte/internal/domain"
 	"quiz-byte/internal/dto" // For DTOs like AttemptFilters, Pagination
@@ -111,10 +110,38 @@ func (r *sqlxUserQuizAttemptRepository) CreateAttempt(ctx context.Context, domai
 	}
 	modelAttempt.UpdatedAt = time.Now()
 
-	query := `INSERT INTO user_quiz_attempts (id, user_id, quiz_id, user_answer, llm_score, llm_explanation, llm_keyword_matches, llm_completeness, llm_relevance, llm_accuracy, is_correct, attempted_at, created_at, updated_at, deleted_at)
-	          VALUES (:id, :user_id, :quiz_id, :user_answer, :llm_score, :llm_explanation, :llm_keyword_matches, :llm_completeness, :llm_relevance, :llm_accuracy, :is_correct, :attempted_at, :created_at, :updated_at, :deleted_at)`
+	query := `INSERT INTO user_quiz_attempts (ID, USER_ID, QUIZ_ID, USER_ANSWER, LLM_SCORE, LLM_EXPLANATION, LLM_KEYWORD_MATCHES, LLM_COMPLETENESS, LLM_RELEVANCE, LLM_ACCURACY, IS_CORRECT, ATTEMPTED_AT, CREATED_AT, UPDATED_AT, DELETED_AT)
+	          VALUES (:1, :2, :3, :4, :5, :6, :7, :8, :9, :10, :11, :12, :13, :14, :15)`
 
-	_, err := r.db.NamedExecContext(ctx, query, modelAttempt)
+	// Convert StringSlice to string manually for Oracle compatibility
+	var keywordMatchesStr string
+	if modelAttempt.LlmKeywordMatches != nil {
+		keywordMatchesVal, err := modelAttempt.LlmKeywordMatches.Value()
+		if err != nil {
+			return fmt.Errorf("failed to convert keyword matches to string: %w", err)
+		}
+		if val, ok := keywordMatchesVal.(string); ok {
+			keywordMatchesStr = val
+		}
+	}
+
+	_, err := r.db.ExecContext(ctx, query,
+		modelAttempt.ID,
+		modelAttempt.UserID,
+		modelAttempt.QuizID,
+		modelAttempt.UserAnswer,
+		modelAttempt.LlmScore,
+		modelAttempt.LlmExplanation,
+		keywordMatchesStr, // Use converted string instead of StringSlice
+		modelAttempt.LlmCompleteness,
+		modelAttempt.LlmRelevance,
+		modelAttempt.LlmAccuracy,
+		modelAttempt.IsCorrect,
+		modelAttempt.AttemptedAt,
+		modelAttempt.CreatedAt,
+		modelAttempt.UpdatedAt,
+		modelAttempt.DeletedAt,
+	)
 	if err != nil {
 		return fmt.Errorf("failed to create user quiz attempt: %w", err)
 	}
@@ -122,44 +149,52 @@ func (r *sqlxUserQuizAttemptRepository) CreateAttempt(ctx context.Context, domai
 }
 
 // buildAttemptsQuery constructs the SELECT query for fetching attempts based on filters and pagination.
-// It returns the query string for fetching results, the query string for counting total results, and the arguments map.
-// This function remains unchanged as it operates on model level and DTOs.
-func buildAttemptsQuery(baseQueryFields, baseQueryFrom, baseQueryWhere string, userID string, filters dto.AttemptFilters, pagination dto.Pagination, forIncorrectOnly bool) (string, string, map[string]interface{}) {
-	args := make(map[string]interface{})
-	args["user_id"] = userID
-
+// It returns the query string for fetching results, the query string for counting total results, and the ordered arguments slice.
+// Updated for Oracle compatibility using positional parameters.
+func buildAttemptsQuery(baseQueryFields, baseQueryFrom, baseQueryWhere string, userID string, filters dto.AttemptFilters, pagination dto.Pagination, forIncorrectOnly bool) (string, string, []interface{}) {
+	var args []interface{}
 	var whereClauses []string
+	argIndex := 1
+
 	if baseQueryWhere != "" {
 		whereClauses = append(whereClauses, baseQueryWhere)
 	}
-	whereClauses = append(whereClauses, "uqa.user_id = :user_id")
+
+	whereClauses = append(whereClauses, fmt.Sprintf("uqa.user_id = :%d", argIndex))
+	args = append(args, userID)
+	argIndex++
+
 	whereClauses = append(whereClauses, "uqa.deleted_at IS NULL")
 
 	if filters.CategoryID != "" {
-		whereClauses = append(whereClauses, "sc.category_id = :category_id")
-		args["category_id"] = filters.CategoryID
+		whereClauses = append(whereClauses, fmt.Sprintf("sc.category_id = :%d", argIndex))
+		args = append(args, filters.CategoryID)
+		argIndex++
 	}
 
 	if filters.StartDate != "" {
-		whereClauses = append(whereClauses, "uqa.attempted_at >= :start_date")
-		args["start_date"] = filters.StartDate
+		whereClauses = append(whereClauses, fmt.Sprintf("uqa.attempted_at >= :%d", argIndex))
+		args = append(args, filters.StartDate)
+		argIndex++
 	}
 	if filters.EndDate != "" {
 		parsedEndDate, err := time.Parse("2006-01-02", filters.EndDate)
 		if err == nil {
-			whereClauses = append(whereClauses, "uqa.attempted_at <= :end_date")
-			args["end_date"] = parsedEndDate.Add(24*time.Hour - 1*time.Nanosecond)
+			whereClauses = append(whereClauses, fmt.Sprintf("uqa.attempted_at <= :%d", argIndex))
+			args = append(args, parsedEndDate.Add(24*time.Hour-1*time.Nanosecond))
 		} else {
-			whereClauses = append(whereClauses, "uqa.attempted_at <= :end_date_str")
-			args["end_date_str"] = filters.EndDate
+			whereClauses = append(whereClauses, fmt.Sprintf("uqa.attempted_at <= :%d", argIndex))
+			args = append(args, filters.EndDate)
 		}
+		argIndex++
 	}
 
 	if filters.IsCorrect != nil {
-		whereClauses = append(whereClauses, "uqa.is_correct = :is_correct")
-		args["is_correct"] = *filters.IsCorrect
+		whereClauses = append(whereClauses, fmt.Sprintf("uqa.is_correct = :%d", argIndex))
+		args = append(args, *filters.IsCorrect)
+		argIndex++
 	} else if forIncorrectOnly {
-		if !strings.Contains(baseQueryWhere, "is_correct = 0") && !strings.Contains(baseQueryWhere, "is_correct = :is_correct") {
+		if !strings.Contains(baseQueryWhere, "is_correct = 0") && !strings.Contains(baseQueryWhere, "is_correct") {
 			whereClauses = append(whereClauses, "uqa.is_correct = 0")
 		}
 	}
@@ -192,10 +227,9 @@ func buildAttemptsQuery(baseQueryFields, baseQueryFrom, baseQueryWhere string, u
 		offset = 0
 	}
 
-	args["limit"] = limit
-	args["offset"] = offset
-
-	resultsQuery := fmt.Sprintf("SELECT %s FROM %s %s ORDER BY %s OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY", baseQueryFields, baseQueryFrom, queryWhere, orderBy)
+	// Oracle compatibility: Use ROW_NUMBER() approach with positional parameters only
+	innerQuery := fmt.Sprintf("SELECT %s, ROW_NUMBER() OVER (ORDER BY %s) as rn FROM %s %s", baseQueryFields, orderBy, baseQueryFrom, queryWhere)
+	resultsQuery := fmt.Sprintf("SELECT * FROM (%s) WHERE rn > %d AND rn <= %d", innerQuery, offset, offset+limit)
 	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s %s", baseQueryFrom, queryWhere)
 
 	return resultsQuery, countQuery, args
@@ -214,18 +248,40 @@ func (r *sqlxUserQuizAttemptRepository) GetAttemptsByUserID(ctx context.Context,
 	resultsQuery, countQuery, args := buildAttemptsQuery(baseQueryFields, baseQueryFrom, baseQueryWhere, userID, filters, pagination, false)
 
 	var modelAttempts []models.UserQuizAttempt
-	nstmt, err := r.db.PrepareNamedContext(ctx, resultsQuery)
+	rows, err := r.db.QueryContext(ctx, resultsQuery, args...)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to prepare query for GetAttemptsByUserID results: %w. Query: %s, Args: %+v", err, resultsQuery, args)
+		return nil, 0, fmt.Errorf("failed to execute query for GetAttemptsByUserID results: %w. Query: %s, Args: %+v", err, resultsQuery, args)
 	}
-	defer nstmt.Close()
-	err = nstmt.SelectContext(ctx, &modelAttempts, args)
+	defer rows.Close()
 
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return []domain.UserQuizAttempt{}, 0, nil
+	for rows.Next() {
+		var ma models.UserQuizAttempt
+		var rn int // Row number column from ROW_NUMBER()
+		if err := rows.Scan(
+			&ma.ID,
+			&ma.UserID,
+			&ma.QuizID,
+			&ma.UserAnswer,
+			&ma.LlmScore,
+			&ma.LlmExplanation,
+			&ma.LlmKeywordMatches,
+			&ma.LlmCompleteness,
+			&ma.LlmRelevance,
+			&ma.LlmAccuracy,
+			&ma.IsCorrect,
+			&ma.AttemptedAt,
+			&ma.CreatedAt,
+			&ma.UpdatedAt,
+			&ma.DeletedAt,
+			&rn, // Row number column
+		); err != nil {
+			return nil, 0, fmt.Errorf("failed to scan user quiz attempt: %w", err)
 		}
-		return nil, 0, fmt.Errorf("failed to get user quiz attempts: %w. Query: %s, Args: %+v", err, resultsQuery, args)
+		modelAttempts = append(modelAttempts, ma)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("failed to iterate user quiz attempts: %w", err)
 	}
 
 	domainAttempts := make([]domain.UserQuizAttempt, len(modelAttempts))
@@ -238,15 +294,20 @@ func (r *sqlxUserQuizAttemptRepository) GetAttemptsByUserID(ctx context.Context,
 	}
 
 	var total int
-	nstmtCount, err := r.db.PrepareNamedContext(ctx, countQuery)
+	countRows, err := r.db.QueryContext(ctx, countQuery, args...)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to prepare query for GetAttemptsByUserID count: %w. Query: %s, Args: %+v", err, countQuery, args)
+		return nil, 0, fmt.Errorf("failed to execute count query for GetAttemptsByUserID: %w. Query: %s, Args: %+v", err, countQuery, args)
 	}
-	defer nstmtCount.Close()
-	err = nstmtCount.GetContext(ctx, &total, args)
+	defer countRows.Close()
 
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to count user quiz attempts: %w. Query: %s, Args: %+v", err, countQuery, args)
+	if countRows.Next() {
+		if err := countRows.Scan(&total); err != nil {
+			return nil, 0, fmt.Errorf("failed to scan count result: %w", err)
+		}
+	}
+
+	if err := countRows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("failed to get count: %w", err)
 	}
 
 	return domainAttempts, total, nil
@@ -268,18 +329,40 @@ func (r *sqlxUserQuizAttemptRepository) GetIncorrectAttemptsByUserID(ctx context
 	resultsQuery, countQuery, args := buildAttemptsQuery(baseQueryFields, baseQueryFrom, baseQueryWhere, userID, filters, pagination, true)
 
 	var modelAttempts []models.UserQuizAttempt
-	nstmt, err := r.db.PrepareNamedContext(ctx, resultsQuery)
+	rows, err := r.db.QueryContext(ctx, resultsQuery, args...)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to prepare query for GetIncorrectAttemptsByUserID results: %w. Query: %s, Args: %+v", err, resultsQuery, args)
+		return nil, 0, fmt.Errorf("failed to execute query for GetIncorrectAttemptsByUserID results: %w. Query: %s, Args: %+v", err, resultsQuery, args)
 	}
-	defer nstmt.Close()
-	err = nstmt.SelectContext(ctx, &modelAttempts, args)
+	defer rows.Close()
 
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return []domain.UserQuizAttempt{}, 0, nil
+	for rows.Next() {
+		var ma models.UserQuizAttempt
+		var rn int // Row number column from ROW_NUMBER()
+		if err := rows.Scan(
+			&ma.ID,
+			&ma.UserID,
+			&ma.QuizID,
+			&ma.UserAnswer,
+			&ma.LlmScore,
+			&ma.LlmExplanation,
+			&ma.LlmKeywordMatches,
+			&ma.LlmCompleteness,
+			&ma.LlmRelevance,
+			&ma.LlmAccuracy,
+			&ma.IsCorrect,
+			&ma.AttemptedAt,
+			&ma.CreatedAt,
+			&ma.UpdatedAt,
+			&ma.DeletedAt,
+			&rn, // Row number column
+		); err != nil {
+			return nil, 0, fmt.Errorf("failed to scan user quiz attempt: %w", err)
 		}
-		return nil, 0, fmt.Errorf("failed to get incorrect user quiz attempts: %w. Query: %s, Args: %+v", err, resultsQuery, args)
+		modelAttempts = append(modelAttempts, ma)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("failed to iterate user quiz attempts: %w", err)
 	}
 
 	domainAttempts := make([]domain.UserQuizAttempt, len(modelAttempts))
@@ -291,14 +374,20 @@ func (r *sqlxUserQuizAttemptRepository) GetIncorrectAttemptsByUserID(ctx context
 	}
 
 	var total int
-	nstmtCount, err := r.db.PrepareNamedContext(ctx, countQuery)
+	countRows, err := r.db.QueryContext(ctx, countQuery, args...)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to prepare query for GetIncorrectAttemptsByUserID count: %w. Query: %s, Args: %+v", err, countQuery, args)
+		return nil, 0, fmt.Errorf("failed to execute count query for GetIncorrectAttemptsByUserID: %w. Query: %s, Args: %+v", err, countQuery, args)
 	}
-	defer nstmtCount.Close()
-	err = nstmtCount.GetContext(ctx, &total, args)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to count incorrect user quiz attempts: %w. Query: %s, Args: %+v", err, countQuery, args)
+	defer countRows.Close()
+
+	if countRows.Next() {
+		if err := countRows.Scan(&total); err != nil {
+			return nil, 0, fmt.Errorf("failed to scan count result: %w", err)
+		}
+	}
+
+	if err := countRows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("failed to get count: %w", err)
 	}
 
 	return domainAttempts, total, nil

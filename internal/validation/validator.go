@@ -82,10 +82,10 @@ func isValidULID(s string) bool {
 
 // isValidSubCategory checks if the sub-category format is valid
 func isValidSubCategory(s string) bool {
-	// Allow alphanumeric, hyphens, and underscores, 1-50 characters
+	// Allow alphanumeric, spaces, hyphens, and underscores, 1-50 characters
 	if len(s) == 0 || len(s) > 50 {
 		return false
 	}
-	validSubCategory := regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+	validSubCategory := regexp.MustCompile(`^[a-zA-Z0-9_\s-]+$`)
 	return validSubCategory.MatchString(s)
 }
