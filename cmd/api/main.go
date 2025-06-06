@@ -39,7 +39,7 @@ import (
 	"syscall"
 	"time"
 
-	_ "quiz-byte/cmd/api/docs"
+	_ "quiz-byte/docs"
 
 	"github.com/gofiber/swagger"
 	"github.com/tmc/langchaingo/llms/ollama"
@@ -158,9 +158,9 @@ func main() {
 	quizService := service.NewQuizService(
 		quizRepository,
 		evaluatorService,
-		cacheAdapter,    // This is the domain.Cache for QuizService's own cache needs (e.g. category list)
+		cacheAdapter, // This is the domain.Cache for QuizService's own cache needs (e.g. category list)
 		embeddingService,
-		answerCacheSvc,  // Pass the initialized AnswerCacheService
+		answerCacheSvc, // Pass the initialized AnswerCacheService
 		categoryListTTL,
 		quizListTTL,
 	)
@@ -182,7 +182,7 @@ func main() {
 
 	// Initialize handlers
 	quizHandler := handler.NewQuizHandler(quizService, userService, anonymousResultCacheSvc) // Added anonymousResultCacheSvc
-	authHandler := handler.NewAuthHandler(authService) // Remove cfg
+	authHandler := handler.NewAuthHandler(authService)                                       // Remove cfg
 	userHandler := handler.NewUserHandler(userService)
 
 	// Initialize validation middleware
@@ -194,13 +194,13 @@ func main() {
 		WriteTimeout: cfg.Server.WriteTimeout, // Use from config
 		IdleTimeout:  20 * time.Second,        // Keep as is or add to config
 		BodyLimit:    10 * 1024 * 1024,        // Keep as is or add to config
+		ErrorHandler: middleware.ErrorHandler(),
 	})
 
 	// Add request logging middleware (remains the same)
 	app.Use(requestLogger())
 	app.Use(cors.New(cors.Config{AllowOrigins: "*", AllowMethods: "GET,POST,PUT,DELETE,OPTIONS", AllowHeaders: "Origin,Content-Type,Accept,Authorization", MaxAge: 300}))
 	app.Use(recover.New())
-	app.Use(middleware.ErrorHandler()) // Global error handler
 
 	// Swagger handler (remains the same)
 	app.Get("/swagger/*", swagger.HandlerDefault)
