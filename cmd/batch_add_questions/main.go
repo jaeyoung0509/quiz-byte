@@ -5,8 +5,10 @@ import (
 	"fmt" // For initial error printing before logger is up
 	"time"
 
+	"quiz-byte/internal/adapter"
 	"quiz-byte/internal/adapter/embedding"
 	"quiz-byte/internal/adapter/quizgen" // Changed from llm to quizgen
+	"quiz-byte/internal/cache"
 	"quiz-byte/internal/config"
 	"quiz-byte/internal/database"
 	"quiz-byte/internal/domain"
@@ -57,6 +59,20 @@ func main() {
 	categoryRepo := repository.NewCategoryDatabaseAdapter(db) // Assuming this constructor exists
 	logger.Get().Info("Initialized repositories.")
 
+	// Initialize Cache Adapter
+	var cacheAdapter domain.Cache
+	if cfg.Redis.Address != "" {
+		redisClient, err := cache.NewRedisClient(cfg.Redis)
+		if err != nil {
+			logger.Get().Fatal("Failed to initialize Redis Client", zap.Error(err))
+		}
+		cacheAdapter = adapter.NewRedisCacheAdapter(redisClient)
+		logger.Get().Info("Redis Cache initialized successfully.")
+	} else {
+		logger.Get().Warn("Redis cache is not configured. Running without cache.")
+		cacheAdapter = nil
+	}
+
 	// Initialize EmbeddingService
 	var embedService domain.EmbeddingService
 	switch cfg.Embedding.Source {
@@ -65,12 +81,18 @@ func main() {
 			logger.Get().Fatal("OpenAI API key is not configured.")
 		}
 		embeddingCacheTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.Embedding, 24*time.Hour)
-		embedService, err = embedding.NewOpenAIEmbeddingService(cfg.Embedding.OpenAI.APIKey, cfg.Embedding.OpenAI.Model, nil, embeddingCacheTTL)
+		embedService, err = embedding.NewOpenAIEmbeddingService(cfg.Embedding.OpenAI.APIKey, cfg.Embedding.OpenAI.Model, cacheAdapter, embeddingCacheTTL)
 		if err != nil {
 			logger.Get().Fatal("Failed to initialize OpenAI Embedding Service", zap.Error(err))
 		}
 		logger.Get().Info("Initialized OpenAI Embedding Service.")
-	// Add other cases for "ollama" or other sources if needed
+	case "ollama":
+		embeddingCacheTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.Embedding, 24*time.Hour)
+		embedService, err = embedding.NewOllamaEmbeddingService(cfg.Embedding.Ollama.ServerURL, cfg.Embedding.Ollama.Model, cacheAdapter, embeddingCacheTTL)
+		if err != nil {
+			logger.Get().Fatal("Failed to initialize Ollama Embedding Service", zap.Error(err))
+		}
+		logger.Get().Info("Ollama Embedding Service initialized successfully.")
 	default:
 		logger.Get().Fatal("Unsupported embedding source specified in configuration", zap.String("source", cfg.Embedding.Source))
 	}
@@ -80,7 +102,7 @@ func main() {
 		logger.Get().Fatal("Gemini API key is not configured.")
 	}
 	// Initialize the new QuizGenerator
-	quizGenerator, err := quizgen.NewGeminiQuizGenerator(cfg.LLMProviders.Gemini.APIKey, cfg.LLMProviders.Gemini.Model, logger.Get(), nil, cfg)
+	quizGenerator, err := quizgen.NewGeminiQuizGenerator(cfg.LLMProviders.Gemini.APIKey, cfg.LLMProviders.Gemini.Model, logger.Get(), cacheAdapter, cfg)
 	if err != nil {
 		logger.Get().Fatal("Failed to initialize QuizGenerator", zap.Error(err))
 	}

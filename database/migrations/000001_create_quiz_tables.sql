@@ -53,6 +53,7 @@ CREATE TABLE quiz_evaluations (
     score_ranges CLOB,
     sample_answers CLOB,
     rubric_details CLOB,
+    score_evaluations CLOB,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP,
     deleted_at TIMESTAMP WITH TIME ZONE,

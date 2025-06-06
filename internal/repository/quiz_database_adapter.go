@@ -255,7 +255,7 @@ func (a *QuizDatabaseAdapter) GetSimilarQuiz(ctx context.Context, quizID string)
 // GetAllSubCategories implements domain.QuizRepository
 func (a *QuizDatabaseAdapter) GetAllSubCategories(ctx context.Context) ([]string, error) {
 	var subCategoryIDs []string
-	query := `SELECT DISTINCT sub_category_id FROM quizzes WHERE sub_category_id IS NOT NULL AND deleted_at IS NULL ORDER BY sub_category_id ASC`
+	query := `SELECT DISTINCT sub_category_id "sub_category_id" FROM quizzes WHERE sub_category_id IS NOT NULL AND deleted_at IS NULL ORDER BY sub_category_id ASC`
 	err := a.db.SelectContext(ctx, &subCategoryIDs, query) // Already using SelectContext
 	if err != nil {
 		return nil, fmt.Errorf("failed to query sub categories: %w", err)
@@ -305,8 +305,11 @@ func (a *QuizDatabaseAdapter) SaveQuizEvaluation(ctx context.Context, evaluation
 func (a *QuizDatabaseAdapter) GetQuizEvaluation(ctx context.Context, quizID string) (*domain.QuizEvaluation, error) {
 	var modelEval models.QuizEvaluation
 	query := `SELECT
-		id, quiz_id, minimum_keywords, required_topics, score_ranges,
-		sample_answers, rubric_details, created_at, updated_at, deleted_at, score_evaluations
+		id "id", quiz_id "quiz_id", minimum_keywords "minimum_keywords", 
+		required_topics "required_topics", score_ranges "score_ranges",
+		sample_answers "sample_answers", rubric_details "rubric_details", 
+		created_at "created_at", updated_at "updated_at", deleted_at "deleted_at", 
+		score_evaluations "score_evaluations"
 	FROM quiz_evaluations
 	WHERE quiz_id = :1 AND deleted_at IS NULL`
 
@@ -394,7 +397,7 @@ func (a *QuizDatabaseAdapter) GetQuizzesByCriteria(ctx context.Context, subCateg
 // GetSubCategoryIDByName returns the ID of a subcategory by its name
 func (a *QuizDatabaseAdapter) GetSubCategoryIDByName(ctx context.Context, name string) (string, error) {
 	var subCategoryID string
-	query := `SELECT id FROM sub_categories WHERE UPPER(name) = UPPER(:1) AND deleted_at IS NULL`
+	query := `SELECT id "id" FROM sub_categories WHERE UPPER(name) = UPPER(:1) AND deleted_at IS NULL`
 
 	err := a.db.GetContext(ctx, &subCategoryID, query, name)
 	if err != nil {
