@@ -64,6 +64,7 @@ CREATE TABLE quiz_evaluations (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP,
     deleted_at TIMESTAMP WITH TIME ZONE,
+    score_evaluations CLOB, -- StringSlice 타입을 위한 CLOB
     CONSTRAINT fk_quiz_evaluations_quiz FOREIGN KEY (quiz_id) REFERENCES quizzes(id)
 );
 
