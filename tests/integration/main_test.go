@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"quiz-byte/internal/adapter"
 	"quiz-byte/internal/adapter/embedding"
 	"quiz-byte/internal/adapter/evaluator"
@@ -227,29 +226,11 @@ func TestMain(m *testing.M) {
 func initDatabase(cfg *config.Config) error { // cfg parameter added
 	logInstance.Info("Initializing database schema using migrations...")
 
-	migrateDB, err := dblogic.NewMigrateOracleDB(cfg.GetDSN())
+	// Use the new public migration functions from database package
+	err := dblogic.InitializeDatabaseForTests(db)
 	if err != nil {
-		logInstance.Error("Failed to create migrate database instance", zap.Error(err))
-		return fmt.Errorf("failed to create migrate database instance: %w", err)
-	}
-	defer migrateDB.Close()
-
-	wd, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to get working directory: %w", err)
-	}
-
-	// Adjusted path to be relative to the current file (tests/integration)
-	// Assuming migrations are in /database/migrations from the repo root
-	// ../../database/migrations means up two levels from tests/integration/
-	migrationsDir := "../../database/migrations"
-	absPath := filepath.Join(wd, migrationsDir)
-
-	logInstance.Info("Using migrations directory", zap.String("path", absPath))
-
-	if err := dblogic.RunMigrations(migrateDB, absPath); err != nil {
-		logInstance.Error("Failed to run migrations", zap.Error(err))
-		return fmt.Errorf("failed to run migrations: %w", err)
+		logInstance.Error("Failed to initialize database for tests", zap.Error(err))
+		return fmt.Errorf("failed to initialize database for tests: %w", err)
 	}
 
 	logInstance.Info("Database schema initialized successfully via migrations")
