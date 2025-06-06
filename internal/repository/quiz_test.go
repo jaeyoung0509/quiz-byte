@@ -45,7 +45,7 @@ func TestGetQuizByID(t *testing.T) {
 		SubCategoryID: util.NewULID(),
 		CreatedAt:     now,
 		UpdatedAt:     now,
-		DeletedAt:     nil,
+		DeletedAt:     sql.NullTime{},
 	}
 
 	rows := sqlmock.NewRows([]string{"id", "question", "model_answers", "keywords", "difficulty", "sub_category_id", "created_at", "updated_at", "deleted_at"}).
@@ -132,7 +132,7 @@ func TestGetRandomQuizBySubCategory(t *testing.T) {
 		SubCategoryID: testSubCatID,
 		CreatedAt:     now,
 		UpdatedAt:     now,
-		DeletedAt:     nil,
+		DeletedAt:     sql.NullTime{},
 	}
 
 	rows := sqlmock.NewRows([]string{"id", "question", "model_answers", "keywords", "difficulty", "sub_category_id", "created_at", "updated_at", "deleted_at"}).
@@ -166,7 +166,7 @@ func TestGetRandomQuiz(t *testing.T) {
 		SubCategoryID: util.NewULID(),
 		CreatedAt:     now,
 		UpdatedAt:     now,
-		DeletedAt:     nil,
+		DeletedAt:     sql.NullTime{},
 	}
 
 	rows := sqlmock.NewRows([]string{"id", "question", "model_answers", "keywords", "difficulty", "sub_category_id", "created_at", "updated_at", "deleted_at"}).
@@ -295,7 +295,7 @@ func TestGetSimilarQuiz(t *testing.T) {
 		SubCategoryID: subCatID,
 		CreatedAt:     now,
 		UpdatedAt:     now,
-		DeletedAt:     nil,
+		DeletedAt:     sql.NullTime{},
 	}
 	rowsSimilar := sqlmock.NewRows([]string{"id", "question", "model_answers", "keywords", "difficulty", "sub_category_id", "created_at", "updated_at", "deleted_at"}).
 		AddRow(expectedSimilarModelQuiz.ID, expectedSimilarModelQuiz.Question, expectedSimilarModelQuiz.ModelAnswers, expectedSimilarModelQuiz.Keywords, expectedSimilarModelQuiz.Difficulty, expectedSimilarModelQuiz.SubCategoryID, expectedSimilarModelQuiz.CreatedAt, expectedSimilarModelQuiz.UpdatedAt, expectedSimilarModelQuiz.DeletedAt)
