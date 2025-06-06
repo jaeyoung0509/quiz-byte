@@ -4,7 +4,6 @@ import (
 	"context" // Added context
 	"database/sql"
 	"encoding/json" // For TestToModelQuizEvaluationAndBack
-	"errors"      // For TestQuizDatabaseAdapter_GetQuizByID_NotFound
 	"regexp"
 	"testing"
 	"time"
@@ -54,8 +53,7 @@ func TestGetQuizByID(t *testing.T) {
 
 	originalSQL := `SELECT id "id", question "question", model_answers "model_answers", keywords "keywords", difficulty "difficulty", sub_category_id "sub_category_id", created_at "created_at", updated_at "updated_at", deleted_at "deleted_at" FROM quizzes WHERE id = :1 AND deleted_at IS NULL`
 
-	mock.ExpectPrepare(regexp.QuoteMeta(originalSQL)).
-		ExpectQuery().
+	mock.ExpectQuery(regexp.QuoteMeta(originalSQL)).
 		WithArgs(testULID).
 		WillReturnRows(rows)
 
@@ -142,8 +140,7 @@ func TestGetRandomQuizBySubCategory(t *testing.T) {
 
 	originalSQL := `SELECT id "id", question "question", model_answers "model_answers", keywords "keywords", difficulty "difficulty", sub_category_id "sub_category_id", created_at "created_at", updated_at "updated_at", deleted_at "deleted_at" FROM quizzes WHERE sub_category_id = :1 AND deleted_at IS NULL ORDER BY DBMS_RANDOM.VALUE FETCH FIRST 1 ROWS ONLY`
 
-	mock.ExpectPrepare(regexp.QuoteMeta(originalSQL)).
-		ExpectQuery().
+	mock.ExpectQuery(regexp.QuoteMeta(originalSQL)).
 		WithArgs(testSubCatID).
 		WillReturnRows(rows)
 
@@ -211,8 +208,7 @@ func TestGetQuizByID_NotFound(t *testing.T) {
 
 	originalSQL := `SELECT id "id", question "question", model_answers "model_answers", keywords "keywords", difficulty "difficulty", sub_category_id "sub_category_id", created_at "created_at", updated_at "updated_at", deleted_at "deleted_at" FROM quizzes WHERE id = :1 AND deleted_at IS NULL`
 
-	mock.ExpectPrepare(regexp.QuoteMeta(originalSQL)).
-		ExpectQuery().
+	mock.ExpectQuery(regexp.QuoteMeta(originalSQL)).
 		WithArgs(testULID).
 		WillReturnError(sql.ErrNoRows)
 
@@ -410,15 +406,15 @@ func TestGetSimilarQuiz_SimilarQuizNotFound(t *testing.T) {
 func TestToModelQuizEvaluationAndBack(t *testing.T) {
 	now := time.Now().Truncate(time.Second) // Truncate for consistent comparison
 	domainEval := &domain.QuizEvaluation{
-		ID:            "eval1",
-		QuizID:        "quiz1",
+		ID:              "eval1",
+		QuizID:          "quiz1",
 		MinimumKeywords: 2,
-		RequiredTopics: []string{"Go", "Structs"},
-		ScoreRanges:    []string{"0-0.5", "0.5-1.0"},
-		SampleAnswers:  []string{"Sample Ans 1"},
-		RubricDetails:  "Some rubric details",
-		CreatedAt:      now,
-		UpdatedAt:      now,
+		RequiredTopics:  []string{"Go", "Structs"},
+		ScoreRanges:     []string{"0-0.5", "0.5-1.0"},
+		SampleAnswers:   []string{"Sample Ans 1"},
+		RubricDetails:   "Some rubric details",
+		CreatedAt:       now,
+		UpdatedAt:       now,
 		ScoreEvaluations: []domain.ScoreEvaluationDetail{
 			{ScoreRange: "0-0.5", SampleAnswers: []string{"Bad answer"}, Explanation: "This was not good."},
 			{ScoreRange: "0.5-1.0", SampleAnswers: []string{"Good answer!"}, Explanation: "Excellent work!"},
@@ -449,7 +445,6 @@ func TestToModelQuizEvaluationAndBack(t *testing.T) {
 	if len(unmarshaledDetails) > 0 && len(domainEval.ScoreEvaluations) > 0 {
 		assert.Equal(t, domainEval.ScoreEvaluations[0].Explanation, unmarshaledDetails[0].Explanation)
 	}
-
 
 	modelEval.CreatedAt = domainEval.CreatedAt
 	modelEval.UpdatedAt = domainEval.UpdatedAt

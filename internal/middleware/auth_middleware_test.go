@@ -3,168 +3,143 @@ package middleware_test
 import (
 	"context"
 	"errors"
+	"net/http"
 	"net/http/httptest"
-	// Adjust the import path if auth.Claims is located elsewhere, e.g., internal/auth/claims
-	"quiz-byte/internal/domain/auth"
-	"quiz-byte/internal/middleware"
-	"quiz-byte/internal/service" // For the AuthService interface
 	"testing"
 	"time"
 
+	"quiz-byte/internal/domain"
+	"quiz-byte/internal/dto"
+	"quiz-byte/internal/middleware"
+
 	"github.com/gofiber/fiber/v2"
-	"github.com/golang-jwt/jwt/v5" // For jwt.RegisteredClaims
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
-	// "go.uber.org/mock/gomock" // Not using generated mocks directly in this step
+	"github.com/stretchr/testify/mock"
 )
 
-// Manual MockAuthService for testing middleware.AuthService interface
-type ManualMockAuthService struct {
-	ValidateJWTFunc func(ctx context.Context, tokenString string) (*auth.Claims, error)
+// MockAuthService implements the AuthService interface for testing
+type MockAuthService struct {
+	mock.Mock
 }
 
-func (m *ManualMockAuthService) GenerateJWT(userID, tokenType string) (string, error) {
-	panic("not implemented in mock")
+func (m *MockAuthService) GetGoogleLoginURL(state string) string {
+	args := m.Called(state)
+	return args.String(0)
 }
 
-func (m *ManualMockAuthService) ValidateJWT(ctx context.Context, tokenString string) (*auth.Claims, error) {
-	if m.ValidateJWTFunc != nil {
-		return m.ValidateJWTFunc(ctx, tokenString)
+func (m *MockAuthService) HandleGoogleCallback(ctx context.Context, code string, receivedState string, expectedState string) (string, string, *dto.AuthenticatedUser, error) {
+	args := m.Called(ctx, code, receivedState, expectedState)
+	return args.String(0), args.String(1), args.Get(2).(*dto.AuthenticatedUser), args.Error(3)
+}
+
+func (m *MockAuthService) CreateJWT(ctx context.Context, user *domain.User, ttl time.Duration, tokenType string) (string, error) {
+	args := m.Called(ctx, user, ttl, tokenType)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockAuthService) DecryptToken(encryptedToken string) (string, error) {
+	args := m.Called(encryptedToken)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockAuthService) EncryptToken(token string) (string, error) {
+	args := m.Called(token)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockAuthService) RefreshToken(ctx context.Context, refreshTokenString string) (string, string, error) {
+	args := m.Called(ctx, refreshTokenString)
+	return args.String(0), args.String(1), args.Error(2)
+}
+
+func (m *MockAuthService) ValidateJWT(ctx context.Context, token string) (*dto.AuthClaims, error) {
+	args := m.Called(ctx, token)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
 	}
-	return nil, errors.New("ValidateJWTFunc not set on mock")
+	return args.Get(0).(*dto.AuthClaims), args.Error(1)
 }
 
-func (m *ManualMockAuthService) GenerateAndStoreTokens(ctx context.Context, userID string, prevRefreshTokenID string) (accessToken string, refreshToken string, err error) {
-	panic("not implemented in mock")
-}
-
-func (m *ManualMockAuthService) ValidateAndRefreshTokens(ctx context.Context, oldAccessTokenString string, oldRefreshTokenString string) (newAccessToken string, newRefreshToken string, err error) {
-	panic("not implemented in mock")
-}
-
-func (m *ManualMockAuthService) RevokeToken(ctx context.Context, tokenID string, tokenType string) error {
-	panic("not implemented in mock")
-}
-
-func (m *ManualMockAuthService) GetUserIDFromToken(ctx context.Context, tokenString string) (string, error) {
-	panic("not implemented in mock")
-}
-
-
-func TestOptionalAuth(t *testing.T) {
-
-	mockAuthSvc := &ManualMockAuthService{}
-
-	tests := []struct {
-		name                string
-		authHeader          string
-		setupMock           func(mockSvc *ManualMockAuthService)
-		expectedStatus      int
-		expectedUserIDLocal interface{}
-		expectNextCalled    bool
-	}{
-		{
-			name:           "No Auth Header",
-			authHeader:     "",
-			setupMock:      func(mockSvc *ManualMockAuthService) {},
-			expectedStatus: fiber.StatusOK,
-			expectedUserIDLocal: nil,
-			expectNextCalled: true,
-		},
-		{
-			name:       "Valid Access Token",
-			authHeader: "Bearer valid_access_token",
-			setupMock: func(mockSvc *ManualMockAuthService) {
-				mockSvc.ValidateJWTFunc = func(ctx context.Context, tokenString string) (*auth.Claims, error) {
-					assert.Equal(t, "valid_access_token", tokenString)
-					return &auth.Claims{UserID: "user123", TokenType: "access", RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(time.Now().Add(1 * time.Hour))}}, nil
-				}
-			},
-			expectedStatus: fiber.StatusOK,
-			expectedUserIDLocal: "user123",
-			expectNextCalled: true,
-		},
-		{
-			name:       "Invalid Token (validation error)",
-			authHeader: "Bearer invalid_token",
-			setupMock: func(mockSvc *ManualMockAuthService) {
-				mockSvc.ValidateJWTFunc = func(ctx context.Context, tokenString string) (*auth.Claims, error) {
-					assert.Equal(t, "invalid_token", tokenString)
-					return nil, errors.New("invalid token")
-				}
-			},
-			expectedStatus: fiber.StatusOK,
-			expectedUserIDLocal: nil,
-			expectNextCalled: true,
-		},
-		{
-			name:       "Valid Refresh Token instead of Access",
-			authHeader: "Bearer valid_refresh_token",
-			setupMock: func(mockSvc *ManualMockAuthService) {
-				mockSvc.ValidateJWTFunc = func(ctx context.Context, tokenString string) (*auth.Claims, error) {
-					assert.Equal(t, "valid_refresh_token", tokenString)
-					// TokenType is "refresh"
-					return &auth.Claims{UserID: "user456", TokenType: "refresh", RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(time.Now().Add(1 * time.Hour))}}, nil
-				}
-			},
-			expectedStatus: fiber.StatusOK,
-			expectedUserIDLocal: nil,
-			expectNextCalled: true,
-		},
-		{
-			name:           "Malformed Auth Header - No Bearer",
-			authHeader:     "Basic some_token",
-			setupMock:      func(mockSvc *ManualMockAuthService) {},
-			expectedStatus: fiber.StatusOK,
-			expectedUserIDLocal: nil,
-			expectNextCalled: true,
-		},
-		{
-			name:       "Malformed Auth Header - Bearer No Token",
-			authHeader: "Bearer ",
-			setupMock:      func(mockSvc *ManualMockAuthService) {},
-			expectedStatus: fiber.StatusOK,
-			expectedUserIDLocal: nil,
-			expectNextCalled: true,
-		},
-		{
-			name:       "Empty Token String",
-			authHeader: "Bearer ", // Covered by "Malformed Auth Header - Bearer No Token" effectively
-			setupMock:      func(mockSvc *ManualMockAuthService) {},
-			expectedStatus: fiber.StatusOK,
-			expectedUserIDLocal: nil,
-			expectNextCalled: true,
+func TestJWTAuthMiddleware_ValidToken(t *testing.T) {
+	mockAuthService := new(MockAuthService)
+	claims := &dto.AuthClaims{
+		UserID:    "test-user-id",
+		TokenType: "access",
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
 		},
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			app := fiber.New() // Create new app for each test to reset state
-			tc.setupMock(mockAuthSvc)
+	mockAuthService.On("ValidateJWT", mock.Anything, "valid-token").Return(claims, nil)
 
-			nextHandlerCalled := false
-			var userIDLocalValue interface{}
+	app := fiber.New()
+	app.Use(middleware.Protected(mockAuthService))
+	app.Get("/test", func(c *fiber.Ctx) error {
+		userID := c.Locals(middleware.UserIDKey)
+		assert.Equal(t, "test-user-id", userID)
+		return c.JSON(fiber.Map{"status": "ok"})
+	})
 
-			// Setup route with middleware and a handler to capture locals and check if called
-			app.Get("/test_optional_auth", middleware.OptionalAuth(mockAuthSvc), func(c *fiber.Ctx) error {
-				nextHandlerCalled = true
-				userIDLocalValue = c.Locals(middleware.UserIDKey)
-				return c.SendStatus(fiber.StatusOK)
-			})
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
 
-			req := httptest.NewRequest("GET", "/test_optional_auth", nil)
-			if tc.authHeader != "" {
-				req.Header.Set("Authorization", tc.authHeader)
-			}
+	resp, err := app.Test(req)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	mockAuthService.AssertExpectations(t)
+}
 
-			resp, err := app.Test(req, -1)
+func TestJWTAuthMiddleware_InvalidToken(t *testing.T) {
+	mockAuthService := new(MockAuthService)
+	mockAuthService.On("ValidateJWT", mock.Anything, "invalid-token").Return(nil, errors.New("invalid token"))
 
-			assert.NoError(t, err, "app.Test should not return an error")
-			if err == nil { // Only assert status if no app.Test error
-				assert.Equal(t, tc.expectedStatus, resp.StatusCode, "HTTP status code mismatch")
-			}
+	app := fiber.New()
+	app.Use(middleware.Protected(mockAuthService))
+	app.Get("/test", func(c *fiber.Ctx) error {
+		return c.JSON(fiber.Map{"status": "ok"})
+	})
 
-			assert.True(t, nextHandlerCalled, "Next handler was not called")
-			assert.Equal(t, tc.expectedUserIDLocal, userIDLocalValue, "UserID in Ctx.Locals mismatch")
-		})
-	}
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set("Authorization", "Bearer invalid-token")
+
+	resp, err := app.Test(req)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	mockAuthService.AssertExpectations(t)
+}
+
+func TestJWTAuthMiddleware_MissingToken(t *testing.T) {
+	mockAuthService := new(MockAuthService)
+
+	app := fiber.New()
+	app.Use(middleware.Protected(mockAuthService))
+	app.Get("/test", func(c *fiber.Ctx) error {
+		return c.JSON(fiber.Map{"status": "ok"})
+	})
+
+	req := httptest.NewRequest("GET", "/test", nil)
+
+	resp, err := app.Test(req)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	mockAuthService.AssertNotCalled(t, "ValidateJWT")
+}
+
+func TestJWTAuthMiddleware_InvalidAuthorizationHeader(t *testing.T) {
+	mockAuthService := new(MockAuthService)
+
+	app := fiber.New()
+	app.Use(middleware.Protected(mockAuthService))
+	app.Get("/test", func(c *fiber.Ctx) error {
+		return c.JSON(fiber.Map{"status": "ok"})
+	})
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set("Authorization", "InvalidFormat token")
+
+	resp, err := app.Test(req)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	mockAuthService.AssertNotCalled(t, "ValidateJWT")
 }

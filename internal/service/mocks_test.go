@@ -6,8 +6,10 @@ import (
 	"time" // Import time if any mock methods use it
 
 	"quiz-byte/internal/domain"
-	"quiz-byte/internal/dto" // Import dto if used by any mock method signatures
+	"quiz-byte/internal/dto"  // Import dto if used by any mock method signatures
+	"quiz-byte/internal/port" // Added for AnswerEvaluator
 
+	// Added for AnswerEvaluator
 	"github.com/stretchr/testify/mock"
 )
 
@@ -37,8 +39,8 @@ func (m *MockQuizRepository) SaveQuiz(ctx context.Context, quiz *domain.Quiz) er
 	return args.Error(0)
 }
 
-func (m *MockQuizRepository) GetQuizByID(id string) (*domain.Quiz, error) {
-	args := m.Called(id)
+func (m *MockQuizRepository) GetQuizByID(ctx context.Context, id string) (*domain.Quiz, error) {
+	args := m.Called(ctx, id)
 	// Handle cases where Get(0) might be nil if the mock is set up to return nil for the quiz
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -46,32 +48,32 @@ func (m *MockQuizRepository) GetQuizByID(id string) (*domain.Quiz, error) {
 	return args.Get(0).(*domain.Quiz), args.Error(1)
 }
 
-func (m *MockQuizRepository) GetRandomQuiz() (*domain.Quiz, error) {
-	args := m.Called()
+func (m *MockQuizRepository) GetRandomQuiz(ctx context.Context) (*domain.Quiz, error) {
+	args := m.Called(ctx)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*domain.Quiz), args.Error(1)
 }
 
-func (m *MockQuizRepository) GetRandomQuizBySubCategory(subCategory string) (*domain.Quiz, error) {
-	args := m.Called(subCategory)
+func (m *MockQuizRepository) GetRandomQuizBySubCategory(ctx context.Context, subCategory string) (*domain.Quiz, error) {
+	args := m.Called(ctx, subCategory)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*domain.Quiz), args.Error(1)
 }
 
-func (m *MockQuizRepository) GetQuizEvaluation(quizID string) (*domain.QuizEvaluation, error) {
-	args := m.Called(quizID)
+func (m *MockQuizRepository) GetQuizEvaluation(ctx context.Context, quizID string) (*domain.QuizEvaluation, error) {
+	args := m.Called(ctx, quizID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*domain.QuizEvaluation), args.Error(1)
 }
 
-func (m *MockQuizRepository) SaveQuizEvaluation(evaluation *domain.QuizEvaluation) error {
-	args := m.Called(evaluation)
+func (m *MockQuizRepository) SaveQuizEvaluation(ctx context.Context, evaluation *domain.QuizEvaluation) error {
+	args := m.Called(ctx, evaluation)
 	return args.Error(0)
 }
 
@@ -83,34 +85,34 @@ func (m *MockQuizRepository) GetUnattemptedQuizzesWithDetails(ctx context.Contex
 	return args.Get(0).([]dto.QuizRecommendationItem), args.Error(1)
 }
 
-func (m *MockQuizRepository) GetSimilarQuiz(quizID string) (*domain.Quiz, error) {
-	args := m.Called(quizID)
+func (m *MockQuizRepository) GetSimilarQuiz(ctx context.Context, quizID string) (*domain.Quiz, error) {
+	args := m.Called(ctx, quizID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*domain.Quiz), args.Error(1)
 }
 
-func (m *MockQuizRepository) SaveAnswer(answer *domain.Answer) error {
-	args := m.Called(answer)
+func (m *MockQuizRepository) SaveAnswer(ctx context.Context, answer *domain.Answer) error {
+	args := m.Called(ctx, answer)
 	return args.Error(0)
 }
 
-func (m *MockQuizRepository) GetQuizzesByCriteria(SubCategoryID string, limit int) ([]*domain.Quiz, error) {
-	args := m.Called(SubCategoryID, limit)
+func (m *MockQuizRepository) GetQuizzesByCriteria(ctx context.Context, SubCategoryID string, limit int) ([]*domain.Quiz, error) {
+	args := m.Called(ctx, SubCategoryID, limit)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).([]*domain.Quiz), args.Error(1)
 }
 
-func (m *MockQuizRepository) GetSubCategoryIDByName(name string) (string, error) {
-	args := m.Called(name)
+func (m *MockQuizRepository) GetSubCategoryIDByName(ctx context.Context, name string) (string, error) {
+	args := m.Called(ctx, name)
 	return args.String(0), args.Error(1)
 }
 
-func (m *MockQuizRepository) UpdateQuiz(quiz *domain.Quiz) error {
-	args := m.Called(quiz)
+func (m *MockQuizRepository) UpdateQuiz(ctx context.Context, quiz *domain.Quiz) error {
+	args := m.Called(ctx, quiz)
 	return args.Error(0)
 }
 
@@ -119,30 +121,46 @@ type MockCategoryRepository struct {
 	mock.Mock
 }
 
-func (m *MockCategoryRepository) GetAllCategories() ([]*domain.Category, error) {
-	args := m.Called()
+func (m *MockCategoryRepository) GetAllCategories(ctx context.Context) ([]*domain.Category, error) {
+	args := m.Called(ctx)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).([]*domain.Category), args.Error(1)
 }
 
-func (m *MockCategoryRepository) GetSubCategories(categoryID string) ([]*domain.SubCategory, error) {
-	args := m.Called(categoryID)
+func (m *MockCategoryRepository) GetSubCategories(ctx context.Context, categoryID string) ([]*domain.SubCategory, error) {
+	args := m.Called(ctx, categoryID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).([]*domain.SubCategory), args.Error(1)
 }
 
-func (m *MockCategoryRepository) SaveCategory(category *domain.Category) error {
-	args := m.Called(category)
+func (m *MockCategoryRepository) SaveCategory(ctx context.Context, category *domain.Category) error {
+	args := m.Called(ctx, category)
 	return args.Error(0)
 }
 
-func (m *MockCategoryRepository) SaveSubCategory(subCategory *domain.SubCategory) error {
-	args := m.Called(subCategory)
+func (m *MockCategoryRepository) SaveSubCategory(ctx context.Context, subCategory *domain.SubCategory) error {
+	args := m.Called(ctx, subCategory)
 	return args.Error(0)
+}
+
+func (m *MockCategoryRepository) GetByName(ctx context.Context, name string) (*domain.Category, error) {
+	args := m.Called(ctx, name)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Category), args.Error(1)
+}
+
+func (m *MockCategoryRepository) GetByNameAndCategoryID(ctx context.Context, name string, categoryID string) (*domain.SubCategory, error) {
+	args := m.Called(ctx, name, categoryID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.SubCategory), args.Error(1)
 }
 
 // --- MockEmbeddingService ---
@@ -174,6 +192,14 @@ func (m *MockQuizGenerationService) GenerateQuizCandidates(
 		return nil, args.Error(1)
 	}
 	return args.Get(0).([]*domain.NewQuizData), args.Error(1)
+}
+
+func (m *MockQuizGenerationService) GenerateScoreEvaluationsForQuiz(ctx context.Context, quiz *domain.Quiz, scoreRanges []string) ([]domain.ScoreEvaluationDetail, error) {
+	args := m.Called(ctx, quiz, scoreRanges)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]domain.ScoreEvaluationDetail), args.Error(1)
 }
 
 // --- MockAnswerEvaluator ---
@@ -249,7 +275,7 @@ var _ domain.QuizRepository = (*MockQuizRepository)(nil)
 var _ domain.CategoryRepository = (*MockCategoryRepository)(nil)
 var _ domain.EmbeddingService = (*MockEmbeddingService)(nil)
 var _ domain.QuizGenerationService = (*MockQuizGenerationService)(nil)
-var _ domain.AnswerEvaluator = (*MockAnswerEvaluator)(nil)
+var _ port.AnswerEvaluator = (*MockAnswerEvaluator)(nil)
 var _ domain.Cache = (*MockCache)(nil) // For the general MockCache
 
 // MockAnswerCacheService (moved from quiz_test.go)

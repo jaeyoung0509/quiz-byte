@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"quiz-byte/internal/config"
 	"quiz-byte/internal/domain"
 	"quiz-byte/internal/dto"
 	"quiz-byte/internal/util" // For ULID or other utils if needed
@@ -29,7 +28,7 @@ type UserService interface {
 }
 
 type userServiceImpl struct {
-	userRepo    domain.UserRepository           // Changed
+	userRepo    domain.UserRepository            // Changed
 	attemptRepo domain.UserQuizAttemptRepository // Changed
 	quizRepo    domain.QuizRepository
 	// appConfig   *config.Config // Removed
@@ -37,7 +36,7 @@ type userServiceImpl struct {
 
 // NewUserService creates a new instance of UserService.
 func NewUserService(
-	userRepo domain.UserRepository,           // Changed
+	userRepo domain.UserRepository, // Changed
 	attemptRepo domain.UserQuizAttemptRepository, // Changed
 	quizRepo domain.QuizRepository,
 	// appConfig *config.Config, // Removed
@@ -64,7 +63,7 @@ func (s *userServiceImpl) GetUserProfile(ctx context.Context, userID string) (*d
 	return &dto.UserProfileResponse{
 		ID:                domainUser.ID,
 		Email:             domainUser.Email,
-		Name:              domainUser.Name, // domain.User.Name is string
+		Name:              domainUser.Name,              // domain.User.Name is string
 		ProfilePictureURL: domainUser.ProfilePictureURL, // domain.User.ProfilePictureURL is string
 	}, nil
 }
@@ -85,7 +84,6 @@ func (s *userServiceImpl) RecordQuizAttempt(ctx context.Context, userID string, 
 	} else {
 		llmKeywordMatches = []string{}
 	}
-
 
 	domainAttempt := &domain.UserQuizAttempt{ // Changed to domain.UserQuizAttempt
 		ID:                util.NewULID(),
@@ -128,7 +126,7 @@ func (s *userServiceImpl) GetUserQuizAttempts(ctx context.Context, userID string
 			return nil, domain.NewInternalError(fmt.Sprintf("failed to get quiz details for attempt %s (quiz_id %s)", attempt.ID, attempt.QuizID), errQuiz)
 		}
 		if quiz == nil { // Repository returns (nil, nil) for sql.ErrNoRows
-			return nil, domain.NewQuizNotFoundError(attempt.QuizID).WithContext("attempt_id", attempt.ID)
+			return nil, domain.NewQuizNotFoundError(attempt.QuizID)
 		}
 
 		attemptItems[i] = dto.UserQuizAttemptItem{
@@ -198,21 +196,17 @@ func (s *userServiceImpl) GetUserIncorrectAnswers(ctx context.Context, userID st
 			return nil, domain.NewInternalError(fmt.Sprintf("failed to get quiz details for incorrect attempt %s (quiz_id %s)", attempt.ID, attempt.QuizID), errQuiz)
 		}
 		if quiz == nil { // Repository returns (nil, nil) for sql.ErrNoRows
-			return nil, domain.NewQuizNotFoundError(attempt.QuizID).WithContext("attempt_id", attempt.ID)
+			return nil, domain.NewQuizNotFoundError(attempt.QuizID)
 		}
 
-		// Note: domain.Quiz.ModelAnswers is a string, not []string.
-		// If it's a JSON array string or delimited, it needs parsing.
-		// For simplicity, assuming it's a single answer or the DTO needs to be adapted.
-		// The original code had quiz.ModelAnswers[0] - this will break if ModelAnswers is just a string.
-		// For now, I'll pass quiz.ModelAnswers directly. This might need further review based on actual data.
-		correctAnswer := quiz.ModelAnswers // This was quiz.ModelAnswers[0]
-		if len(quiz.ModelAnswers) > 0 && (quiz.ModelAnswers[0] == '[' || quiz.ModelAnswers[0] == '{') {
-			// Simple check if it might be JSON array/object, could be more robust.
-			// Or if it's a specific delimited string.
-			// For this task, we'll assume the DTO might expect a single string or this needs external adjustment.
+		// Note: domain.Quiz.ModelAnswers is []string, not string.
+		// We'll use the first model answer as the correct answer
+		var correctAnswer string
+		if len(quiz.ModelAnswers) > 0 {
+			correctAnswer = quiz.ModelAnswers[0]
+		} else {
+			correctAnswer = "No model answer available"
 		}
-
 
 		incorrectAnswerItems[i] = dto.UserIncorrectAnswerItem{
 			AttemptID:      attempt.ID,

@@ -23,9 +23,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap" // For logInstance used in tests
 
-	"context" // For context.Background used with redisClient
 	"database/sql"
-	"quiz-byte/internal/domain/models"
+	"quiz-byte/internal/repository/models"
 	"quiz-byte/internal/util"
 	"time"
 
@@ -36,9 +35,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/redis/go-redis/v9" // For redisClient used in TestCheckAnswer_Caching
 )
-
-// Note: Global variables like app, logInstance, db, redisClient, subCategoryNameToIDMap, cacheKey
-// are now defined in main_test.go and are accessible by tests in this package.
 
 // Note: Helper functions like cloneResponseBody, initDatabase, seedPrerequisites, saveQuizes,
 // clearRedisCache, clearRedisCacheKey are now in main_test.go.
@@ -410,13 +406,13 @@ func TestCheckAnswer_LoggedInUser(t *testing.T) {
 	// 1. Setup: Create a unique test user
 	userID := util.NewULID()
 	testUser, err := createTestUserDB(db, models.User{ // db is the global from main_test.go
-		ID:        userID,
-		Email:     "loggeduser-" + userID + "@example.com",
-		GoogleID:  sql.NullString{String: "googlelogged-" + userID, Valid: true},
-		Name:      sql.NullString{String: "Logged Test User " + userID, Valid: true},
-		Picture:   sql.NullString{String: "http://example.com/picture-logged-" + userID + ".jpg", Valid: true},
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		ID:                userID,
+		Email:             "loggeduser-" + userID + "@example.com",
+		GoogleID:          "googlelogged-" + userID,
+		Name:              sql.NullString{String: "Logged Test User " + userID, Valid: true},
+		ProfilePictureURL: sql.NullString{String: "http://example.com/picture-logged-" + userID + ".jpg", Valid: true},
+		CreatedAt:         time.Now(),
+		UpdatedAt:         time.Now(),
 	})
 	require.NoError(t, err)
 	require.NotNil(t, testUser)
@@ -508,14 +504,14 @@ func TestCheckAnswer_LoggedInUser(t *testing.T) {
 	assert.InDelta(t, checkAnswerResponse.Score, attempt.LlmScore.Float64, 0.001, "LLM Score in DB should match API response score")
 
 	// Additional checks for other fields if necessary
-	assert.True(t, attempt.Completeness.Valid, "Completeness score should be valid in DB")
-	assert.InDelta(t, checkAnswerResponse.Completeness, attempt.Completeness.Float64, 0.001)
+	assert.True(t, attempt.LlmCompleteness.Valid, "Completeness score should be valid in DB")
+	assert.InDelta(t, checkAnswerResponse.Completeness, attempt.LlmCompleteness.Float64, 0.001)
 
-	assert.True(t, attempt.Relevance.Valid, "Relevance score should be valid in DB")
-	assert.InDelta(t, checkAnswerResponse.Relevance, attempt.Relevance.Float64, 0.001)
+	assert.True(t, attempt.LlmRelevance.Valid, "Relevance score should be valid in DB")
+	assert.InDelta(t, checkAnswerResponse.Relevance, attempt.LlmRelevance.Float64, 0.001)
 
-	assert.True(t, attempt.Accuracy.Valid, "Accuracy score should be valid in DB")
-	assert.InDelta(t, checkAnswerResponse.Accuracy, attempt.Accuracy.Float64, 0.001)
+	assert.True(t, attempt.LlmAccuracy.Valid, "Accuracy score should be valid in DB")
+	assert.InDelta(t, checkAnswerResponse.Accuracy, attempt.LlmAccuracy.Float64, 0.001)
 
 	assert.NotEmpty(t, attempt.LlmExplanation.String, "LLM Explanation in DB should not be empty")
 	assert.Equal(t, checkAnswerResponse.Explanation, attempt.LlmExplanation.String)
@@ -750,7 +746,6 @@ func TestGetBulkQuizzes_Caching(t *testing.T) {
 	assert.Equal(t, len(firstAPIResponse.Quizzes), len(cachedResponse.Quizzes), "Number of quizzes in cache should match API response")
 	// Deep comparison might be too much if order can vary, but for now let's assume order is preserved by cache
 	assert.Equal(t, firstAPIResponse, cachedResponse, "Cached response content does not match first API response")
-
 
 	// Second API Call
 	req2 := httptest.NewRequest(http.MethodGet, urlPath, nil)

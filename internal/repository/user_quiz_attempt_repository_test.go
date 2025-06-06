@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"regexp"
 	"testing"
 	"time"
@@ -11,7 +10,6 @@ import (
 	"quiz-byte/internal/domain"
 	"quiz-byte/internal/dto"
 	"quiz-byte/internal/repository/models"
-	"quiz-byte/internal/util"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/jmoiron/sqlx"
@@ -33,20 +31,20 @@ func setupUserQuizAttemptTestDB(t *testing.T) (*sqlx.DB, sqlmock.Sqlmock) {
 func TestToDomainUserQuizAttempt(t *testing.T) {
 	now := time.Now().Truncate(time.Second)
 	modelAttempt := &models.UserQuizAttempt{
-		ID:                 "attempt1",
-		UserID:             "user1",
-		QuizID:             "quiz1",
-		UserAnswer:         sql.NullString{String: "My answer", Valid: true},
-		LlmScore:           sql.NullFloat64{Float64: 0.8, Valid: true},
-		LlmExplanation:     sql.NullString{String: "Good", Valid: true},
-		LlmKeywordMatches:  models.StringSlice{"key1", "key2"},
-		LlmCompleteness:    sql.NullFloat64{Float64: 0.9, Valid: true},
-		LlmRelevance:       sql.NullFloat64{Float64: 0.7, Valid: true},
-		LlmAccuracy:        sql.NullFloat64{Float64: 0.85, Valid: true},
-		IsCorrect:          true,
-		AttemptedAt:        now,
-		CreatedAt:          now,
-		UpdatedAt:          now,
+		ID:                "attempt1",
+		UserID:            "user1",
+		QuizID:            "quiz1",
+		UserAnswer:        sql.NullString{String: "My answer", Valid: true},
+		LlmScore:          sql.NullFloat64{Float64: 0.8, Valid: true},
+		LlmExplanation:    sql.NullString{String: "Good", Valid: true},
+		LlmKeywordMatches: models.StringSlice{"key1", "key2"},
+		LlmCompleteness:   sql.NullFloat64{Float64: 0.9, Valid: true},
+		LlmRelevance:      sql.NullFloat64{Float64: 0.7, Valid: true},
+		LlmAccuracy:       sql.NullFloat64{Float64: 0.85, Valid: true},
+		IsCorrect:         true,
+		AttemptedAt:       now,
+		CreatedAt:         now,
+		UpdatedAt:         now,
 	}
 
 	domainAttempt := toDomainUserQuizAttempt(modelAttempt)
@@ -102,7 +100,6 @@ func TestFromDomainUserQuizAttempt(t *testing.T) {
 	assert.True(t, modelAttempt.LlmScore.Valid, "LlmScore should be valid even if 0, unless 0 means null")
 	assert.Equal(t, 0.0, modelAttempt.LlmScore.Float64)
 
-
 	assert.Nil(t, fromDomainUserQuizAttempt(nil))
 }
 
@@ -121,7 +118,7 @@ func TestSQLXUserQuizAttemptRepository_CreateAttempt_Success(t *testing.T) {
 	}
 
 	// Regex for INSERT INTO user_quiz_attempts ... VALUES ...
-	mock.ExpectNamedExec(`INSERT INTO user_quiz_attempts`).
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO user_quiz_attempts`)).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	err := repo.CreateAttempt(context.Background(), attempt)
@@ -162,7 +159,6 @@ func TestSQLXUserQuizAttemptRepository_GetAttemptsByUserID_Success(t *testing.T)
 		ExpectQuery().
 		WithArgs(userID). // user_id
 		WillReturnRows(countRows)
-
 
 	filters := dto.AttemptFilters{}
 	pagination := dto.Pagination{Limit: 10, Offset: 0}

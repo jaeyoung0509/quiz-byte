@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
 	"quiz-byte/internal/domain"
 	"quiz-byte/internal/dto"
 	"testing"

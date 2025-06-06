@@ -4,6 +4,7 @@ import (
 	"bytes" // Added for gob
 	"context"
 	"encoding/gob" // Added for gob
+	"errors"
 	"fmt"
 	"os"
 	"testing"
@@ -20,8 +21,8 @@ import (
 
 // TestMain will be used to initialize the logger for all tests in this package
 func TestMain(m *testing.M) {
-	cfg := &config.Config{}
-	if err := logger.Initialize(cfg); err != nil {
+	loggerCfg := config.LoggerConfig{}
+	if err := logger.Initialize(loggerCfg); err != nil {
 		panic("Failed to initialize logger for tests: " + err.Error())
 	}
 	exitVal := m.Run()
@@ -40,7 +41,7 @@ func TestCheckAnswer_With_AnswerCacheService(t *testing.T) { // Renamed test fun
 		UserAnswer: "some user answer",
 	}
 
-	baseCfg := config.Config{
+	_ = config.Config{
 		Embedding: config.EmbeddingConfig{
 			SimilarityThreshold: 0.9, // Still used by AnswerCacheService, but QuizService is unaware of it directly
 		},
@@ -320,7 +321,7 @@ func TestCheckAnswer_With_AnswerCacheService(t *testing.T) { // Renamed test fun
 func TestGetAllSubCategories_Caching(t *testing.T) {
 	ctx := context.Background()
 	testCategoryListTTLString := "15m"
-	cfg := &config.Config{
+	_ = &config.Config{
 		CacheTTLs: config.CacheTTLConfig{
 			CategoryList: testCategoryListTTLString,
 		},
@@ -450,7 +451,7 @@ func TestFindMatchingScoreExplanation(t *testing.T) {
 func TestGetBulkQuizzes_Caching(t *testing.T) {
 	ctx := context.Background()
 	testQuizListTTLString := "5m"
-	cfg := &config.Config{
+	_ = &config.Config{
 		CacheTTLs: config.CacheTTLConfig{
 			QuizList: testQuizListTTLString,
 		},
@@ -480,7 +481,6 @@ func TestGetBulkQuizzes_Caching(t *testing.T) {
 
 		categoryListTTL, _ := time.ParseDuration("1h") // Dummy
 		quizListTTL, _ := time.ParseDuration(testQuizListTTLString)
-
 
 		service := NewQuizService(mockRepo, mockEvaluator, mockCache, mockEmbSvc, mockAnswerCacheSvc, categoryListTTL, quizListTTL)
 

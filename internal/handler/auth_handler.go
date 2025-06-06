@@ -4,9 +4,8 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
-	"quiz-byte/internal/config"
-	"quiz-byte/internal/dto"      // Ensure dto is imported if AuthenticatedUser is used explicitly in handler (it is for logging)
-	"quiz-byte/internal/logger"   // Added
+	"quiz-byte/internal/dto"        // Ensure dto is imported if AuthenticatedUser is used explicitly in handler (it is for logging)
+	"quiz-byte/internal/logger"     // Added
 	"quiz-byte/internal/middleware" // For middleware.ErrorResponse
 	"quiz-byte/internal/service"
 	"time"
@@ -191,7 +190,6 @@ func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 		RefreshToken: newRefreshToken,
 	})
 }
-
 
 // Logout handles user logout.
 // @Summary Logout user

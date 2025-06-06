@@ -1,9 +1,7 @@
 package domain
 
 import (
-	"fmt" // For error messages if needed
 	"testing"
-	"time" // Required for NewQuizEvaluation if it sets times
 )
 
 func TestScoreEvaluationDetail_Validate_Dummy(t *testing.T) {
@@ -13,8 +11,15 @@ func TestScoreEvaluationDetail_Validate_Dummy(t *testing.T) {
 		SampleAnswers: []string{"Answer 1"},
 		Explanation:   "Good job",
 	}
+	// Check that the fields are properly assigned
 	if detail.ScoreRange == "" {
 		t.Error("ScoreRange should not be empty")
+	}
+	if len(detail.SampleAnswers) == 0 {
+		t.Error("SampleAnswers should not be empty")
+	}
+	if detail.Explanation == "" {
+		t.Error("Explanation should not be empty")
 	}
 }
 
@@ -97,8 +102,8 @@ func TestQuizEvaluation_Validate(t *testing.T) {
 				validationErr, ok := err.(*ValidationError)
 				if !ok {
 					t.Errorf("QuizEvaluation.Validate() error type = %T, want *ValidationError for specific text check", err)
-				} else if validationErr.message != tt.errText {
-					t.Errorf("QuizEvaluation.Validate() error text = '%s', want specific text '%s'", validationErr.message, tt.errText)
+				} else if validationErr.Message != tt.errText {
+					t.Errorf("QuizEvaluation.Validate() error text = '%s', want specific text '%s'", validationErr.Message, tt.errText)
 				}
 			}
 		})

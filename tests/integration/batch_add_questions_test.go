@@ -6,7 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"quiz-byte/internal/domain/models" // For domain.ScoreEvaluationDetail
+	"quiz-byte/internal/domain"
+	"quiz-byte/internal/repository/models"
 	"quiz-byte/internal/util"
 	"strings"
 	"testing"
@@ -42,19 +43,17 @@ func TestBatchAddQuestions_SuccessAndIdempotency(t *testing.T) {
 
 	// Prepare command environment variables from the loaded cfg
 	cmdEnv := os.Environ() // Start with current environment
-	cmdEnv = append(cmdEnv, fmt.Sprintf("APP_ENV=%s", cfg.App.Env))
+	cmdEnv = append(cmdEnv, fmt.Sprintf("APP_LOGGER_ENV=%s", cfg.Logger.Env))
 	cmdEnv = append(cmdEnv, fmt.Sprintf("APP_DB_HOST=%s", cfg.DB.Host))
 	cmdEnv = append(cmdEnv, fmt.Sprintf("APP_DB_PORT=%d", cfg.DB.Port))
 	cmdEnv = append(cmdEnv, fmt.Sprintf("APP_DB_USER=%s", cfg.DB.User))
 	cmdEnv = append(cmdEnv, fmt.Sprintf("APP_DB_PASSWORD=%s", cfg.DB.Password))
-	cmdEnv = append(cmdEnv, fmt.Sprintf("APP_DB_NAME=%s", cfg.DB.Name))
-	cmdEnv = append(cmdEnv, fmt.Sprintf("APP_DB_SSL_MODE=%s", cfg.DB.SSLMode))
+	cmdEnv = append(cmdEnv, fmt.Sprintf("APP_DB_NAME=%s", cfg.DB.DBName))
 	// Add any other necessary env vars, e.g., API keys, even if default/mocked for tests
-	cmdEnv = append(cmdEnv, fmt.Sprintf("APP_GEMINI_API_KEY=%s", cfg.Gemini.APIKey)) // Needed by config load
-	cmdEnv = append(cmdEnv, fmt.Sprintf("APP_OPENAI_API_KEY=%s", cfg.OpenAI.APIKey)) // Needed by config load
+	cmdEnv = append(cmdEnv, fmt.Sprintf("APP_LLM_PROVIDERS_GEMINI_API_KEY=%s", cfg.LLMProviders.Gemini.APIKey)) // Needed by config load
+	cmdEnv = append(cmdEnv, fmt.Sprintf("APP_EMBEDDING_OPENAI_API_KEY=%s", cfg.Embedding.OpenAI.APIKey))        // Needed by config load
 	cmdEnv = append(cmdEnv, fmt.Sprintf("APP_EMBEDDING_SOURCE=%s", cfg.Embedding.Source))
-	cmdEnv = append(cmdEnv, fmt.Sprintf("APP_LLM_PROVIDER_SOURCE=%s", cfg.LLMProviders.Source))
-
+	cmdEnv = append(cmdEnv, fmt.Sprintf("APP_LLM_PROVIDERS_OLLAMA_SERVER_URL=%s", cfg.LLMProviders.OllamaServerURL))
 
 	// Determine the path to the main.go for batch_add_questions
 	// Assuming tests are run from the root of the project or tests/integration directory
@@ -69,7 +68,6 @@ func TestBatchAddQuestions_SuccessAndIdempotency(t *testing.T) {
 		batchCmdPath = filepath.Join(wd, "cmd", "batch_add_questions", "main.go")
 	}
 	logInstance.Info("Calculated path for batch command", zap.String("path", batchCmdPath))
-
 
 	// --- Execute Command (First Run) ---
 	t.Log("Executing batch_add_questions command (First Run)...")
@@ -89,7 +87,9 @@ func TestBatchAddQuestions_SuccessAndIdempotency(t *testing.T) {
 	// For now, assert > 0. If cfg.Batch.NumQuestionsPerSubCategory is accessible, use it.
 	// Let's assume default is 3 for this test.
 	expectedQuestionsFirstRun := cfg.Batch.NumQuestionsPerSubCategory
-	if expectedQuestionsFirstRun == 0 { expectedQuestionsFirstRun = 3 } // Default fallback if not in config for some reason
+	if expectedQuestionsFirstRun == 0 {
+		expectedQuestionsFirstRun = 3
+	} // Default fallback if not in config for some reason
 	assert.Equal(t, expectedQuestionsFirstRun, initialQuizCount, "Unexpected number of quizzes after first run")
 
 	var quizzes []models.Quiz
@@ -108,7 +108,7 @@ func TestBatchAddQuestions_SuccessAndIdempotency(t *testing.T) {
 			err = db.Get(&evalRecord, "SELECT score_evaluations FROM quiz_evaluations WHERE quiz_id = :1", quiz.ID)
 			require.NoError(t, err)
 
-			var scoreEvals []models.ScoreEvaluationDetail
+			var scoreEvals []domain.ScoreEvaluationDetail
 			// score_evaluations in DB is TEXT, assuming it's a JSON string
 			err = json.Unmarshal([]byte(evalRecord.ScoreEvaluations), &scoreEvals)
 			require.NoError(t, err, "Failed to unmarshal score_evaluations JSON for quiz %s. JSON: %s", quiz.ID, evalRecord.ScoreEvaluations)
@@ -126,7 +126,6 @@ func TestBatchAddQuestions_SuccessAndIdempotency(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, expectedQuestionsFirstRun, initialEvalCount, "Number of evaluations should match number of quizzes")
 
-
 	// --- Execute Command (Second Run - Idempotency Check) ---
 	t.Log("Executing batch_add_questions command (Second Run - Idempotency)...")
 	cmdSecondRun := exec.Command("go", "run", batchCmdPath)
@@ -138,9 +137,9 @@ func TestBatchAddQuestions_SuccessAndIdempotency(t *testing.T) {
 	// The message might indicate that no new quizzes were added if it's truly idempotent and subcategory is "full"
 	// For now, just check for successful completion.
 	// assert.Contains(t, logOutputSecond, "Batch process completed successfully", "Expected success message in output on second run")
-    // Or it might say "No new quizzes were generated for subcategory..." if it's full based on NumQuestionsPerSubCategory.
-    // This depends on the exact logic of batch_add_questions.
-    // A less brittle check is that it completed without error.
+	// Or it might say "No new quizzes were generated for subcategory..." if it's full based on NumQuestionsPerSubCategory.
+	// This depends on the exact logic of batch_add_questions.
+	// A less brittle check is that it completed without error.
 
 	// --- Database Verification (Second Run) ---
 	var finalQuizCount, finalEvalCount int

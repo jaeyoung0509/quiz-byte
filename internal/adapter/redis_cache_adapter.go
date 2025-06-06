@@ -2,6 +2,7 @@ package adapter
 
 import (
 	"context"
+	"fmt"
 	"quiz-byte/internal/domain"
 	"time"
 

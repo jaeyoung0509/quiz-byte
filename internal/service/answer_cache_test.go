@@ -1,10 +1,9 @@
 package service
 
 import (
-	"bytes" // Added for gob
-	"context" // Keep one context
-	"encoding/gob"  // Added for gob
-	// "encoding/json" // No longer used for direct cache data
+	"bytes"        // Added for gob
+	"context"      // Keep one context
+	"encoding/gob" // Added for gob
 	"fmt"
 	"testing"
 	"time"
@@ -13,12 +12,12 @@ import (
 	"quiz-byte/internal/config"
 	"quiz-byte/internal/domain"
 	"quiz-byte/internal/dto"
-	// util is needed for CosineSimilarity, but it's called by the service, not directly by the test usually.
-	// "quiz-byte/internal/util"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
+
+// Mock implementation of the cache interface for AnswerCacheService
 
 // --- Mocks for AnswerCacheService Tests ---
 
@@ -92,7 +91,7 @@ func TestAnswerCacheServiceImpl_GetAnswerFromCache(t *testing.T) {
 
 	t.Run("Cache Hit - High Similarity", func(t *testing.T) {
 		mockCache := new(MockAnswerCacheDomainCache)
-		mockRepo := new(MockQuizRepository) // Changed to MockQuizRepository
+		mockRepo := new(MockQuizRepository)                                                             // Changed to MockQuizRepository
 		answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, 1*time.Hour) // Example default
 		embeddingSimilarityThreshold := cfg.Embedding.SimilarityThreshold
 		service := NewAnswerCacheService(mockCache, mockRepo, answerEvaluationTTL, embeddingSimilarityThreshold)
@@ -109,7 +108,6 @@ func TestAnswerCacheServiceImpl_GetAnswerFromCache(t *testing.T) {
 		userAnswerForFieldKey := "similar cached text"
 		fieldKey := hashString(userAnswerForFieldKey)
 
-
 		cachedData := CachedAnswerEvaluation{
 			Evaluation: expectedEvalResponse,
 			Embedding:  similarEmbedding,
@@ -125,7 +123,7 @@ func TestAnswerCacheServiceImpl_GetAnswerFromCache(t *testing.T) {
 
 		mockCache.On("HGetAll", ctx, hashCacheKey).Return(cacheReturnMap, nil).Once()
 		updatedModelAnswer := "Updated Model Answer For Cache Hit"
-		mockRepo.On("GetQuizByID", baseQuizID).Return(&domain.Quiz{ModelAnswers: []string{updatedModelAnswer}}, nil).Once()
+		mockRepo.On("GetQuizByID", ctx, baseQuizID).Return(&domain.Quiz{ModelAnswers: []string{updatedModelAnswer}}, nil).Once()
 
 		response, err := service.GetAnswerFromCache(ctx, baseQuizID, baseUserAnswerEmbedding, baseUserAnswerText)
 
@@ -208,7 +206,6 @@ func TestAnswerCacheServiceImpl_GetAnswerFromCache(t *testing.T) {
 		mockRepo.AssertNotCalled(t, "GetQuizByID")
 	})
 
-
 	t.Run("Cache Error on HGetAll", func(t *testing.T) {
 		mockCache := new(MockAnswerCacheDomainCache)
 		mockRepo := new(MockQuizRepository) // Changed to MockQuizRepository
@@ -248,12 +245,11 @@ func TestAnswerCacheServiceImpl_GetAnswerFromCache(t *testing.T) {
 		gobEncodedValidData := validBuffer.String()
 
 		cacheReturnMap := map[string]string{
-			validFieldKey:    gobEncodedValidData,
+			validFieldKey:     gobEncodedValidData,
 			"invalidFieldKey": "this is not gob", // This will cause decode error
 		}
 		// Mock GetQuizByID for the valid entry if it's found and similar
-		mockRepo.On("GetQuizByID", baseQuizID).Return(&domain.Quiz{ModelAnswers: []string{"Updated"}}, nil).Maybe()
-
+		mockRepo.On("GetQuizByID", ctx, baseQuizID).Return(&domain.Quiz{ModelAnswers: []string{"Updated"}}, nil).Maybe()
 
 		mockCache.On("HGetAll", ctx, hashCacheKey).Return(cacheReturnMap, nil).Once()
 
@@ -287,7 +283,6 @@ func TestAnswerCacheServiceImpl_GetAnswerFromCache(t *testing.T) {
 
 		userAnswerForFieldKey := "somekey answer" // Text that would produce "somekey" field
 		fieldKey := hashString(userAnswerForFieldKey)
-
 
 		cachedData := CachedAnswerEvaluation{
 			Evaluation: expectedEvalResponse,
@@ -351,6 +346,7 @@ func TestAnswerCacheServiceImpl_PutAnswerToCache(t *testing.T) {
 		ModelAnswer: "Model answer for put",
 	}
 	testAnswerEvaluationTTLString := "30m"
+	testAnswerEvaluationTTL, _ := time.ParseDuration(testAnswerEvaluationTTLString)
 	cfg := &config.Config{
 		CacheTTLs: config.CacheTTLConfig{
 			AnswerEvaluation: testAnswerEvaluationTTLString,
@@ -360,7 +356,7 @@ func TestAnswerCacheServiceImpl_PutAnswerToCache(t *testing.T) {
 	t.Run("Successful Cache Write", func(t *testing.T) {
 		mockCache := new(MockAnswerCacheDomainCache)
 		// mockRepo is not used by PutAnswerToCache
-		answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, testAnswerEvaluationTTLString)
+		answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, testAnswerEvaluationTTL)
 		embeddingSimilarityThreshold := cfg.Embedding.SimilarityThreshold
 		service := NewAnswerCacheService(mockCache, nil, answerEvaluationTTL, embeddingSimilarityThreshold)
 
@@ -377,7 +373,6 @@ func TestAnswerCacheServiceImpl_PutAnswerToCache(t *testing.T) {
 		fieldKey := hashString(baseUserAnswerText)
 		hashCacheKey := cache.GenerateCacheKey("answer", "evaluation_map", baseQuizID)
 
-
 		mockCache.On("HSet", ctx, hashCacheKey, fieldKey, expectedGobData).Return(nil).Once()
 		expectedTTL, _ := time.ParseDuration(testAnswerEvaluationTTLString)
 		mockCache.On("Expire", ctx, hashCacheKey, expectedTTL).Return(nil).Once()
@@ -389,7 +384,7 @@ func TestAnswerCacheServiceImpl_PutAnswerToCache(t *testing.T) {
 
 	t.Run("Cache HSet Fails", func(t *testing.T) {
 		mockCache := new(MockAnswerCacheDomainCache)
-		answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, testAnswerEvaluationTTLString)
+		answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, testAnswerEvaluationTTL)
 		embeddingSimilarityThreshold := cfg.Embedding.SimilarityThreshold
 		service := NewAnswerCacheService(mockCache, nil, answerEvaluationTTL, embeddingSimilarityThreshold)
 		// cacheKey variable is not used directly here for HSet error, hashCacheKey is
@@ -418,7 +413,7 @@ func TestAnswerCacheServiceImpl_PutAnswerToCache(t *testing.T) {
 
 	t.Run("Cache Expire Fails", func(t *testing.T) {
 		mockCache := new(MockAnswerCacheDomainCache)
-		answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, testAnswerEvaluationTTLString)
+		answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, testAnswerEvaluationTTL)
 		embeddingSimilarityThreshold := cfg.Embedding.SimilarityThreshold
 		service := NewAnswerCacheService(mockCache, nil, answerEvaluationTTL, embeddingSimilarityThreshold)
 		// cacheKey variable is not used directly here for Expire error, hashCacheKey is
@@ -447,7 +442,7 @@ func TestAnswerCacheServiceImpl_PutAnswerToCache(t *testing.T) {
 	})
 
 	t.Run("Cache Service disabled (nil cache)", func(t *testing.T) {
-		answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, testAnswerEvaluationTTLString)
+		answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, testAnswerEvaluationTTL)
 		embeddingSimilarityThreshold := cfg.Embedding.SimilarityThreshold
 		service := NewAnswerCacheService(nil, nil, answerEvaluationTTL, embeddingSimilarityThreshold) // nil cache
 
@@ -457,24 +452,24 @@ func TestAnswerCacheServiceImpl_PutAnswerToCache(t *testing.T) {
 
 	t.Run("Empty User Answer Embedding", func(t *testing.T) {
 		mockCache := new(MockAnswerCacheDomainCache)
-		answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, testAnswerEvaluationTTLString)
+		answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, testAnswerEvaluationTTL)
 		embeddingSimilarityThreshold := cfg.Embedding.SimilarityThreshold
 		service := NewAnswerCacheService(mockCache, nil, answerEvaluationTTL, embeddingSimilarityThreshold)
 
 		err := service.PutAnswerToCache(ctx, baseQuizID, baseUserAnswerText, []float32{}, baseEvaluation) // Empty embedding
-		assert.NoError(t, err) // Skips caching
+		assert.NoError(t, err)                                                                            // Skips caching
 		mockCache.AssertNotCalled(t, "HSet")
 		mockCache.AssertNotCalled(t, "Expire")
 	})
 
 	t.Run("Nil Evaluation", func(t *testing.T) {
 		mockCache := new(MockAnswerCacheDomainCache)
-		answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, testAnswerEvaluationTTLString)
+		answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, testAnswerEvaluationTTL)
 		embeddingSimilarityThreshold := cfg.Embedding.SimilarityThreshold
 		service := NewAnswerCacheService(mockCache, nil, answerEvaluationTTL, embeddingSimilarityThreshold)
 
 		err := service.PutAnswerToCache(ctx, baseQuizID, baseUserAnswerText, baseUserAnswerEmbedding, nil) // Nil evaluation
-		assert.NoError(t, err) // Skips caching
+		assert.NoError(t, err)                                                                             // Skips caching
 		mockCache.AssertNotCalled(t, "HSet")
 		mockCache.AssertNotCalled(t, "Expire")
 	})

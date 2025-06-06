@@ -4,16 +4,17 @@ import (
 	"bytes" // Added for gob
 	"context"
 	"encoding/gob" // Added for gob
+
 	// "encoding/json" // No longer used for cache data in these tests
 	"errors"
 	"testing"
 	"time"
 
+	"quiz-byte/internal/domain"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/tmc/langchaingo/embeddings" // Added
-	"quiz-byte/internal/config"            // Added
-	"quiz-byte/internal/domain"
 )
 
 // MockEmbedder is a mock type for the embeddings.Embedder interface
@@ -91,9 +92,7 @@ var _ domain.Cache = (*MockCache)(nil) // Ensure MockCache implements domain.Cac
 
 func TestNewOllamaEmbeddingService(t *testing.T) {
 	mockCache := new(MockCache)
-	validConfig := &config.Config{
-		CacheTTLs: config.CacheTTLConfig{Embedding: "30m"}, // Provide a test TTL
-	}
+	validTTL := 30 * time.Minute
 
 	t.Run("success", func(t *testing.T) {
 		// This test becomes more of a unit test if langchaingo parts are hard to mock directly for New.
@@ -104,7 +103,7 @@ func TestNewOllamaEmbeddingService(t *testing.T) {
 		// but use mocks for cache/config validation.
 		// To truly unit test, one would mock `ollamaLLM.New` and `embeddings.NewEmbedder`.
 		// This is out of scope for the current refactor.
-		_, err := NewOllamaEmbeddingService("http://localhost:11434", "testmodel", mockCache, validConfig)
+		_, err := NewOllamaEmbeddingService("http://localhost:11434", "testmodel", mockCache, validTTL)
 		// If the above line actually tries to connect and fails in CI, this assertion needs adjustment
 		// or the langchaingo dependencies need to be injectable/mockable.
 		// For now, assuming it might pass if it just sets up structures.
@@ -119,36 +118,33 @@ func TestNewOllamaEmbeddingService(t *testing.T) {
 	})
 
 	t.Run("empty server URL", func(t *testing.T) {
-		_, err := NewOllamaEmbeddingService("", "testmodel", mockCache, validConfig)
+		_, err := NewOllamaEmbeddingService("", "testmodel", mockCache, validTTL)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "ollama server URL cannot be empty")
 	})
 
 	t.Run("empty model name", func(t *testing.T) {
-		_, err := NewOllamaEmbeddingService("http://localhost:11434", "", mockCache, validConfig)
+		_, err := NewOllamaEmbeddingService("http://localhost:11434", "", mockCache, validTTL)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "ollama model name cannot be empty")
 	})
 
 	t.Run("nil cache", func(t *testing.T) {
-		_, err := NewOllamaEmbeddingService("http://localhost:11434", "testmodel", nil, validConfig)
+		_, err := NewOllamaEmbeddingService("http://localhost:11434", "testmodel", nil, validTTL)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "cache instance cannot be nil")
 	})
 
-	t.Run("nil config", func(t *testing.T) {
-		_, err := NewOllamaEmbeddingService("http://localhost:11434", "testmodel", mockCache, nil)
+	t.Run("zero TTL", func(t *testing.T) {
+		_, err := NewOllamaEmbeddingService("http://localhost:11434", "testmodel", mockCache, 0)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "config instance cannot be nil")
+		assert.Contains(t, err.Error(), "embeddingCacheTTL must be positive")
 	})
 }
 
 func TestOllamaEmbeddingService_Generate(t *testing.T) {
 	ctx := context.Background()
-	validConfig := &config.Config{
-		CacheTTLs: config.CacheTTLConfig{Embedding: "30m"}, // Provide a test TTL
-	}
-	expectedTestTTL, _ := time.ParseDuration("30m") // For verifying Set calls
+	validTTL := 30 * time.Minute
 
 	textToEmbed := "test text"
 	expectedEmbedding := []float32{0.1, 0.2, 0.3}
@@ -158,7 +154,7 @@ func TestOllamaEmbeddingService_Generate(t *testing.T) {
 	t.Run("success no cache", func(t *testing.T) {
 		mockEmb := new(MockEmbedder)
 		mockCache := new(MockCache)
-		service := &OllamaEmbeddingService{embedder: mockEmb, cache: mockCache, config: validConfig}
+		service := &OllamaEmbeddingService{embedder: mockEmb, cache: mockCache, embeddingCacheTTL: validTTL}
 
 		mockCache.On("Get", ctx, cacheKey).Return("", domain.ErrCacheMiss).Once()
 		mockEmb.On("EmbedQuery", ctx, textToEmbed).Return(expectedEmbedding, nil).Once() // Assumes mockEmb returns []float32
@@ -169,7 +165,7 @@ func TestOllamaEmbeddingService_Generate(t *testing.T) {
 		_ = enc.Encode(expectedEmbedding)
 		expectedGobData := expectedBuffer.String()
 
-		mockCache.On("Set", ctx, cacheKey, expectedGobData, expectedTestTTL).Return(nil).Once()
+		mockCache.On("Set", ctx, cacheKey, expectedGobData, validTTL).Return(nil).Once()
 
 		result, err := service.Generate(ctx, textToEmbed)
 		assert.NoError(t, err)
@@ -180,8 +176,8 @@ func TestOllamaEmbeddingService_Generate(t *testing.T) {
 
 	t.Run("cache hit", func(t *testing.T) {
 		mockEmb := new(MockEmbedder) // New mock embedder for this test
-		mockCache := new(MockCache) // New mock cache for this test
-		service := &OllamaEmbeddingService{embedder: mockEmb, cache: mockCache, config: validConfig}
+		mockCache := new(MockCache)  // New mock cache for this test
+		service := &OllamaEmbeddingService{embedder: mockEmb, cache: mockCache, embeddingCacheTTL: validTTL}
 
 		// Gob encode expectedEmbedding for cache hit
 		var expectedBuffer bytes.Buffer
@@ -201,7 +197,7 @@ func TestOllamaEmbeddingService_Generate(t *testing.T) {
 	t.Run("cache miss, then success", func(t *testing.T) {
 		mockEmb := new(MockEmbedder)
 		mockCache := new(MockCache)
-		service := &OllamaEmbeddingService{embedder: mockEmb, cache: mockCache, config: validConfig}
+		service := &OllamaEmbeddingService{embedder: mockEmb, cache: mockCache, embeddingCacheTTL: validTTL}
 
 		mockCache.On("Get", ctx, cacheKey).Return("", domain.ErrCacheMiss).Once()
 		mockEmb.On("EmbedQuery", ctx, textToEmbed).Return(expectedEmbedding, nil).Once()
@@ -211,7 +207,7 @@ func TestOllamaEmbeddingService_Generate(t *testing.T) {
 		_ = enc.Encode(expectedEmbedding)
 		expectedGobData := expectedBuffer.String()
 
-		mockCache.On("Set", ctx, cacheKey, expectedGobData, expectedTestTTL).Return(nil).Once()
+		mockCache.On("Set", ctx, cacheKey, expectedGobData, validTTL).Return(nil).Once()
 
 		result, err := service.Generate(ctx, textToEmbed)
 		assert.NoError(t, err)
@@ -223,7 +219,7 @@ func TestOllamaEmbeddingService_Generate(t *testing.T) {
 	t.Run("empty text", func(t *testing.T) {
 		mockEmb := new(MockEmbedder) // Still need to init service
 		mockCache := new(MockCache)
-		service := &OllamaEmbeddingService{embedder: mockEmb, cache: mockCache, config: validConfig}
+		service := &OllamaEmbeddingService{embedder: mockEmb, cache: mockCache, embeddingCacheTTL: validTTL}
 		_, err := service.Generate(ctx, "")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "input text cannot be empty")
@@ -232,7 +228,7 @@ func TestOllamaEmbeddingService_Generate(t *testing.T) {
 	t.Run("embedder error, cache miss", func(t *testing.T) {
 		mockEmb := new(MockEmbedder)
 		mockCache := new(MockCache)
-		service := &OllamaEmbeddingService{embedder: mockEmb, cache: mockCache, config: validConfig}
+		service := &OllamaEmbeddingService{embedder: mockEmb, cache: mockCache, embeddingCacheTTL: validTTL}
 		embedderErr := errors.New("ollama failed")
 
 		mockCache.On("Get", ctx, cacheKey).Return("", domain.ErrCacheMiss).Once()
@@ -249,10 +245,10 @@ func TestOllamaEmbeddingService_Generate(t *testing.T) {
 	t.Run("cache get error (not miss), then success", func(t *testing.T) {
 		mockEmb := new(MockEmbedder)
 		mockCache := new(MockCache)
-		service := &OllamaEmbeddingService{embedder: mockEmb, cache: mockCache, config: validConfig}
+		service := &OllamaEmbeddingService{embedder: mockEmb, cache: mockCache, embeddingCacheTTL: validTTL}
 		cacheErr := errors.New("random cache error")
 
-		mockCache.On("Get", ctx, cacheKey).Return("", cacheErr).Once() // Cache get error
+		mockCache.On("Get", ctx, cacheKey).Return("", cacheErr).Once()                   // Cache get error
 		mockEmb.On("EmbedQuery", ctx, textToEmbed).Return(expectedEmbedding, nil).Once() // Fallback to embedder
 
 		var expectedBuffer bytes.Buffer
@@ -260,7 +256,7 @@ func TestOllamaEmbeddingService_Generate(t *testing.T) {
 		_ = enc.Encode(expectedEmbedding)
 		expectedGobData := expectedBuffer.String()
 
-		mockCache.On("Set", ctx, cacheKey, expectedGobData, expectedTestTTL).Return(nil).Once() // Should still try to cache
+		mockCache.On("Set", ctx, cacheKey, expectedGobData, validTTL).Return(nil).Once() // Should still try to cache
 
 		result, err := service.Generate(ctx, textToEmbed)
 		assert.NoError(t, err)
@@ -272,12 +268,12 @@ func TestOllamaEmbeddingService_Generate(t *testing.T) {
 	t.Run("cache hit but unmarshal error", func(t *testing.T) {
 		mockEmb := new(MockEmbedder)
 		mockCache := new(MockCache)
-		service := &OllamaEmbeddingService{embedder: mockEmb, cache: mockCache, config: validConfig}
+		service := &OllamaEmbeddingService{embedder: mockEmb, cache: mockCache, embeddingCacheTTL: validTTL}
 
 		// For unmarshal error, the cached data string needs to be valid for []byte conversion but invalid for gob
 		// An empty string or a non-gob string would work.
 		// Let's use a simple non-empty string that's not valid gob for []float32
-		mockCache.On("Get", ctx, cacheKey).Return("invalid gob data", nil).Once() // Cache hit, bad data
+		mockCache.On("Get", ctx, cacheKey).Return("invalid gob data", nil).Once()        // Cache hit, bad data
 		mockEmb.On("EmbedQuery", ctx, textToEmbed).Return(expectedEmbedding, nil).Once() // Fallback to embedder
 
 		var expectedBuffer bytes.Buffer
@@ -285,7 +281,7 @@ func TestOllamaEmbeddingService_Generate(t *testing.T) {
 		_ = enc.Encode(expectedEmbedding)
 		expectedGobData := expectedBuffer.String()
 
-		mockCache.On("Set", ctx, cacheKey, expectedGobData, expectedTestTTL).Return(nil).Once() // Should still try to cache
+		mockCache.On("Set", ctx, cacheKey, expectedGobData, validTTL).Return(nil).Once() // Should still try to cache
 
 		result, err := service.Generate(ctx, textToEmbed)
 		assert.NoError(t, err)

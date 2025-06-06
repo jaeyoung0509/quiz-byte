@@ -3,14 +3,12 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"regexp"
 	"testing"
 	"time"
 
 	"quiz-byte/internal/domain"
 	"quiz-byte/internal/repository/models"
-	"quiz-byte/internal/util"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/jmoiron/sqlx"
@@ -131,10 +129,10 @@ func TestSQLXUserRepository_GetUserByID_Success(t *testing.T) {
 	userID := "user-test-id"
 	now := time.Now()
 	expectedModel := models.User{
-		ID:       userID,
-		GoogleID: "google-id",
-		Email:    "test@example.com",
-		Name:     sql.NullString{String: "Test User", Valid: true},
+		ID:        userID,
+		GoogleID:  "google-id",
+		Email:     "test@example.com",
+		Name:      sql.NullString{String: "Test User", Valid: true},
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
@@ -195,7 +193,7 @@ func TestSQLXUserRepository_CreateUser_Success(t *testing.T) {
 
 	// Query uses named exec. sqlx rebinds this.
 	// Regex matches the query structure.
-	mock.ExpectNamedExec(`INSERT INTO users \(id, google_id, email, name, profile_picture_url, created_at, updated_at, deleted_at\) VALUES \(:id, :google_id, :email, :name, :profile_picture_url, :created_at, :updated_at, :deleted_at\)`).
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO users (id, google_id, email, name, profile_picture_url, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)).
 		WillReturnResult(sqlmock.NewResult(1, 1)) // Args are checked by sqlmock with NamedExec
 
 	err := repo.CreateUser(context.Background(), domainUser)

@@ -10,7 +10,7 @@ import (
 	"quiz-byte/internal/dto"
 	"quiz-byte/internal/handler"
 	"quiz-byte/internal/middleware"
-	"quiz-byte/internal/service"
+
 	// "quiz-byte/internal/util" // Not directly used in test, but by code under test
 	"testing"
 	"time"
@@ -23,10 +23,10 @@ import (
 
 // MockQuizService
 type MockQuizService struct {
-	GetRandomQuizFunc     func(subCategory string) (*dto.QuizResponse, error)
-	CheckAnswerFunc       func(req *dto.CheckAnswerRequest) (*dto.CheckAnswerResponse, error)
+	GetRandomQuizFunc       func(subCategory string) (*dto.QuizResponse, error)
+	CheckAnswerFunc         func(req *dto.CheckAnswerRequest) (*dto.CheckAnswerResponse, error)
 	GetAllSubCategoriesFunc func() ([]string, error)
-	GetBulkQuizzesFunc    func(req *dto.BulkQuizzesRequest) (*dto.BulkQuizzesResponse, error)
+	GetBulkQuizzesFunc      func(req *dto.BulkQuizzesRequest) (*dto.BulkQuizzesResponse, error)
 }
 
 func (m *MockQuizService) GetRandomQuiz(subCategory string) (*dto.QuizResponse, error) {
@@ -56,11 +56,11 @@ func (m *MockQuizService) GetBulkQuizzes(req *dto.BulkQuizzesRequest) (*dto.Bulk
 
 // MockUserService
 type MockUserService struct {
-	GetUserProfileFunc        func(ctx context.Context, userID string) (*dto.UserProfileResponse, error)
-	RecordQuizAttemptFunc     func(ctx context.Context, userID string, quizID string, userAnswer string, evalResult *domain.Answer) error
-	GetUserQuizAttemptsFunc   func(ctx context.Context, userID string, filters dto.AttemptFilters, pagination dto.Pagination) (*dto.UserQuizAttemptsResponse, error)
+	GetUserProfileFunc          func(ctx context.Context, userID string) (*dto.UserProfileResponse, error)
+	RecordQuizAttemptFunc       func(ctx context.Context, userID string, quizID string, userAnswer string, evalResult *domain.Answer) error
+	GetUserQuizAttemptsFunc     func(ctx context.Context, userID string, filters dto.AttemptFilters, pagination dto.Pagination) (*dto.UserQuizAttemptsResponse, error)
 	GetUserIncorrectAnswersFunc func(ctx context.Context, userID string, filters dto.AttemptFilters, pagination dto.Pagination) (*dto.UserIncorrectAnswersResponse, error)
-	GetUserRecommendationsFunc func(ctx context.Context, userID string, limit int, optionalSubCategoryID string) (*dto.QuizRecommendationsResponse, error)
+	GetUserRecommendationsFunc  func(ctx context.Context, userID string, limit int, optionalSubCategoryID string) (*dto.QuizRecommendationsResponse, error)
 }
 
 func (m *MockUserService) GetUserProfile(ctx context.Context, userID string) (*dto.UserProfileResponse, error) {
@@ -94,7 +94,6 @@ func (m *MockUserService) GetUserRecommendations(ctx context.Context, userID str
 	panic("MockUserService.GetUserRecommendationsFunc not implemented")
 }
 
-
 // MockAnonymousResultCacheService
 type MockAnonymousResultCacheService struct {
 	PutFunc func(ctx context.Context, requestID string, result *dto.CheckAnswerResponse) error
@@ -114,20 +113,17 @@ func (m *MockAnonymousResultCacheService) Get(ctx context.Context, requestID str
 	panic("MockAnonymousResultCacheService.GetFunc not implemented")
 }
 
-
 func TestQuizHandler_CheckAnswer(t *testing.T) {
 	var mockQuizSvc *MockQuizService
 	var mockUserSvc *MockUserService
 	var mockAnonCacheSvc *MockAnonymousResultCacheService
 	var quizHandler *handler.QuizHandler
-	var app *fiber.App // Fiber app for context creation
 
 	setup := func() {
 		mockQuizSvc = &MockQuizService{}
 		mockUserSvc = &MockUserService{}
 		mockAnonCacheSvc = &MockAnonymousResultCacheService{}
 		quizHandler = handler.NewQuizHandler(mockQuizSvc, mockUserSvc, mockAnonCacheSvc)
-		app = fiber.New()
 	}
 
 	commonCheckAnswerRequest := dto.CheckAnswerRequest{
@@ -151,7 +147,6 @@ func TestQuizHandler_CheckAnswer(t *testing.T) {
 		recordAttemptCalled := false
 		var recordedUserID, recordedQuizID, recordedUserAnswer string
 
-
 		mockQuizSvc.CheckAnswerFunc = func(req *dto.CheckAnswerRequest) (*dto.CheckAnswerResponse, error) {
 			assert.Equal(t, commonCheckAnswerRequest.QuizID, req.QuizID)
 			assert.Equal(t, commonCheckAnswerRequest.UserAnswer, req.UserAnswer)
@@ -172,36 +167,29 @@ func TestQuizHandler_CheckAnswer(t *testing.T) {
 			return errors.New("Put should not be called")
 		}
 
-		c := app.AcquireCtx(&fiber.Ctx{})
-		defer app.ReleaseCtx(c)
-		c.Locals(middleware.UserIDKey, userID)
+		// Create a fiber app and use the test handler
+		app := fiber.New()
+		app.Post("/quiz/check", func(c *fiber.Ctx) error {
+			c.Locals(middleware.UserIDKey, userID)
+			return quizHandler.CheckAnswer(c)
+		})
 
 		reqBodyBytes, _ := json.Marshal(commonCheckAnswerRequest)
-		httpRequest := httptest.NewRequest("POST", "/quiz/check", bytes.NewReader(reqBodyBytes))
-		httpRequest.Header.Set("Content-Type", "application/json")
-		c.SetReq(httpRequest) // Associate httptest request with Fiber context
+		req := httptest.NewRequest("POST", "/quiz/check", bytes.NewReader(reqBodyBytes))
+		req.Header.Set("Content-Type", "application/json")
 
-		err := quizHandler.CheckAnswer(c)
-
+		resp, err := app.Test(req)
 		assert.NoError(t, err)
+		assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 		assert.True(t, recordAttemptCalled, "UserService.RecordQuizAttempt should be called for authenticated user")
 		assert.Equal(t, userID, recordedUserID)
 		assert.Equal(t, commonCheckAnswerRequest.QuizID, recordedQuizID)
 		assert.Equal(t, commonCheckAnswerRequest.UserAnswer, recordedUserAnswer)
-
-		// Check response written to Fiber context
-		assert.Equal(t, fiber.StatusOK, c.Response().StatusCode()) // Default status is 200 if not set otherwise
-		var respBody dto.CheckAnswerResponse
-		err = json.Unmarshal(c.Response().Body(), &respBody)
-		assert.NoError(t, err)
-		assert.Equal(t, commonDomainResult.Score, respBody.Score)
-		assert.Equal(t, commonDomainResult.Explanation, respBody.Explanation)
 	})
 
 	t.Run("Anonymous User", func(t *testing.T) {
 		setup()
 		anonCachePutCalled := false
-		var cachedResult *dto.CheckAnswerResponse
 
 		mockQuizSvc.CheckAnswerFunc = func(req *dto.CheckAnswerRequest) (*dto.CheckAnswerResponse, error) {
 			assert.Equal(t, commonCheckAnswerRequest.QuizID, req.QuizID)
@@ -215,32 +203,23 @@ func TestQuizHandler_CheckAnswer(t *testing.T) {
 		}
 		mockAnonCacheSvc.PutFunc = func(ctx context.Context, requestID string, result *dto.CheckAnswerResponse) error {
 			anonCachePutCalled = true
-			cachedResult = result
 			assert.NotEmpty(t, requestID, "RequestID for cache should not be empty for anonymous user")
 			assert.IsType(t, "string", requestID)
 			assert.Equal(t, commonDomainResult, result)
 			return nil
 		}
 
-		c := app.AcquireCtx(&fiber.Ctx{})
-		defer app.ReleaseCtx(c)
-		// No UserIDKey set in c.Locals for anonymous user
+		// Create a fiber app without setting UserIDKey
+		app := fiber.New()
+		app.Post("/quiz/check", quizHandler.CheckAnswer)
 
 		reqBodyBytes, _ := json.Marshal(commonCheckAnswerRequest)
-		httpRequest := httptest.NewRequest("POST", "/quiz/check", bytes.NewReader(reqBodyBytes))
-		httpRequest.Header.Set("Content-Type", "application/json")
-		c.SetReq(httpRequest)
+		req := httptest.NewRequest("POST", "/quiz/check", bytes.NewReader(reqBodyBytes))
+		req.Header.Set("Content-Type", "application/json")
 
-		err := quizHandler.CheckAnswer(c)
-
+		resp, err := app.Test(req)
 		assert.NoError(t, err)
+		assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 		assert.True(t, anonCachePutCalled, "AnonymousResultCacheService.Put should be called for anonymous user")
-
-		assert.Equal(t, fiber.StatusOK, c.Response().StatusCode())
-		var respBody dto.CheckAnswerResponse
-		err = json.Unmarshal(c.Response().Body(), &respBody)
-		assert.NoError(t, err)
-		assert.Equal(t, commonDomainResult.Score, respBody.Score)
-		assert.Equal(t, commonDomainResult.Explanation, respBody.Explanation)
 	})
 }

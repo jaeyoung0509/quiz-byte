@@ -6,6 +6,7 @@ import (
 	"quiz-byte/internal/domain"
 	"quiz-byte/internal/dto"
 	"quiz-byte/internal/logger"
+	"quiz-byte/internal/port"
 
 	// "quiz-byte/internal/util" // No longer directly used for CosineSimilarity here
 	"bytes"         // Added for gob
@@ -90,7 +91,7 @@ type QuizService interface {
 // quizService implements QuizService
 type quizService struct {
 	repo             domain.QuizRepository
-	evaluator        domain.AnswerEvaluator
+	evaluator        port.AnswerEvaluator
 	cache            domain.Cache // Retained for InvalidateQuizCache
 	embeddingService domain.EmbeddingService
 	answerCache      AnswerCacheService
@@ -102,7 +103,7 @@ type quizService struct {
 // NewQuizService creates a new instance of quizService
 func NewQuizService(
 	repo domain.QuizRepository,
-	evaluator domain.AnswerEvaluator,
+	evaluator port.AnswerEvaluator,
 	cache domain.Cache,
 	embeddingService domain.EmbeddingService,
 	answerCache AnswerCacheService,

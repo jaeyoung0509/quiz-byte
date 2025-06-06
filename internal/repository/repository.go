@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql" // Required for sql.Result
+
 	"github.com/jmoiron/sqlx"
 )
 
@@ -12,5 +13,5 @@ type DBTX interface {
 	SelectContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error
 	NamedExecContext(ctx context.Context, query string, arg interface{}) (sql.Result, error)
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-	NamedQueryContext(ctx context.Context, query string, arg interface{}) (*sqlx.Rows, error)
+	NamedQuery(query string, arg interface{}) (*sqlx.Rows, error)
 }

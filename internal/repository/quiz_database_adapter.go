@@ -43,7 +43,6 @@ func (a *QuizDatabaseAdapter) GetRandomQuiz(ctx context.Context) (*domain.Quiz, 
 	ORDER BY DBMS_RANDOM.VALUE 
 	FETCH FIRST 1 ROWS ONLY`
 
-
 	err := a.db.GetContext(ctx, &modelQuiz, query)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -583,7 +582,8 @@ func (a *QuizDatabaseAdapter) GetUnattemptedQuizzesWithDetails(ctx context.Conte
 
 	query += " ORDER BY DBMS_RANDOM.VALUE FETCH FIRST :limit ROWS ONLY"
 
-	rows, err := a.db.NamedQueryContext(ctx, query, params)
+	// Use NamedQuery for compatibility with both sqlx.DB and sqlx.Tx
+	rows, err := a.db.NamedQuery(query, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query for unattempted quizzes: %w", err)
 	}
@@ -599,8 +599,8 @@ func (a *QuizDatabaseAdapter) GetUnattemptedQuizzesWithDetails(ctx context.Conte
 	if err = rows.Err(); err != nil {
 		return nil, fmt.Errorf("error during rows iteration for unattempted quizzes: %w", err)
 	}
-    if recommendations == nil {
-        return []dto.QuizRecommendationItem{}, nil
-    }
+	if recommendations == nil {
+		return []dto.QuizRecommendationItem{}, nil
+	}
 	return recommendations, nil
 }

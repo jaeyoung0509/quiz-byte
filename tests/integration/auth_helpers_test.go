@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"quiz-byte/internal/domain/models"
 	"quiz-byte/internal/dto"
+	"quiz-byte/internal/repository/models"
 	"quiz-byte/internal/util"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -34,8 +34,8 @@ func createTestUserDB(db *sqlx.DB, user models.User) (*models.User, error) {
 		return nil, fmt.Errorf("user ID must be pre-filled")
 	}
 
-	query := `INSERT INTO users (id, email, google_id, name, picture, created_at, updated_at)
-              VALUES (:id, :email, :google_id, :name, :picture, :created_at, :updated_at)`
+	query := `INSERT INTO users (id, email, google_id, name, profile_picture_url, created_at, updated_at)
+              VALUES (:id, :email, :google_id, :name, :profile_picture_url, :created_at, :updated_at)`
 	_, err := db.NamedExec(query, &user)
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert test user: %w", err)
@@ -83,12 +83,12 @@ func generateTestJWTToken(user *models.User, tokenType string, ttl time.Duration
 func newTestUser() models.User {
 	userID := util.NewULID()
 	return models.User{
-		ID:        userID,
-		Email:     "testuser-" + userID + "@example.com",
-		GoogleID:  sql.NullString{String: "googleid-" + userID, Valid: true}, // Assuming GoogleID can be NULL
-		Name:      sql.NullString{String: "Test User " + userID, Valid: true},
-		Picture:   sql.NullString{String: "http://example.com/picture-" + userID + ".jpg", Valid: true},
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		ID:                userID,
+		Email:             "testuser-" + userID + "@example.com",
+		GoogleID:          "googleid-" + userID,
+		Name:              sql.NullString{String: "Test User " + userID, Valid: true},
+		ProfilePictureURL: sql.NullString{String: "http://example.com/picture-" + userID + ".jpg", Valid: true},
+		CreatedAt:         time.Now(),
+		UpdatedAt:         time.Now(),
 	}
 }

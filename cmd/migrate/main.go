@@ -16,7 +16,7 @@ func main() {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	logger.Initialize(cfg)
+	logger.Initialize(cfg.Logger)
 	l := logger.Get()
 	defer l.Sync()
 

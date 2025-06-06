@@ -4,15 +4,16 @@ import (
 	"bytes" // Added for gob
 	"context"
 	"encoding/gob" // Added for gob
+
 	// "encoding/json" // No longer used for cache data in these tests
 	"errors"
 	"testing"
 	"time"
 
+	"quiz-byte/internal/domain"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"quiz-byte/internal/config" // Added
-	"quiz-byte/internal/domain"
 )
 
 // MockEmbedder is assumed to be available from ollama_embedding_service_test.go when running package tests.
@@ -66,14 +67,12 @@ var _ domain.Cache = (*OpenaiMockCache)(nil) // Ensure OpenaiMockCache implement
 
 func TestNewOpenAIEmbeddingService(t *testing.T) {
 	mockCache := new(OpenaiMockCache) // Use the renamed mock
-	validConfig := &config.Config{
-		CacheTTLs: config.CacheTTLConfig{Embedding: "30m"}, // Provide a test TTL
-	}
+	validTTL := 30 * time.Minute
 	apiKey := "fake-api-key"
 	modelName := "text-embedding-ada-002"
 
 	t.Run("success", func(t *testing.T) {
-		_, err := NewOpenAIEmbeddingService(apiKey, modelName, mockCache, validConfig)
+		_, err := NewOpenAIEmbeddingService(apiKey, modelName, mockCache, validTTL)
 		// As with Ollama, this might be flaky if langchaingo tries to connect/validate API key.
 		// assert.NoError(t, err)
 		if err != nil {
@@ -82,13 +81,13 @@ func TestNewOpenAIEmbeddingService(t *testing.T) {
 	})
 
 	t.Run("empty api key", func(t *testing.T) {
-		_, err := NewOpenAIEmbeddingService("", modelName, mockCache, validConfig)
+		_, err := NewOpenAIEmbeddingService("", modelName, mockCache, validTTL)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "openai API key cannot be empty")
 	})
 
 	t.Run("empty model name (should use default)", func(t *testing.T) {
-		_, err := NewOpenAIEmbeddingService(apiKey, "", mockCache, validConfig)
+		_, err := NewOpenAIEmbeddingService(apiKey, "", mockCache, validTTL)
 		// This should still pass as the constructor sets a default model.
 		// assert.NoError(t, err)
 		if err != nil {
@@ -97,25 +96,22 @@ func TestNewOpenAIEmbeddingService(t *testing.T) {
 	})
 
 	t.Run("nil cache", func(t *testing.T) {
-		_, err := NewOpenAIEmbeddingService(apiKey, modelName, nil, validConfig)
+		_, err := NewOpenAIEmbeddingService(apiKey, modelName, nil, validTTL)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "cache instance cannot be nil")
 	})
 
-	t.Run("nil config", func(t *testing.T) {
-		_, err := NewOpenAIEmbeddingService(apiKey, modelName, mockCache, nil)
+	t.Run("zero TTL", func(t *testing.T) {
+		_, err := NewOpenAIEmbeddingService(apiKey, modelName, mockCache, 0)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "config instance cannot be nil")
+		assert.Contains(t, err.Error(), "embeddingCacheTTL must be positive")
 	})
 }
 
 func TestOpenAIEmbeddingService_Generate(t *testing.T) {
 	ctx := context.Background()
 	// mockEmb and mockCache are now initialized per sub-test to ensure isolation.
-	validConfig := &config.Config{
-		CacheTTLs: config.CacheTTLConfig{Embedding: "30m"}, // Provide a test TTL
-	}
-	expectedTestTTL, _ := time.ParseDuration("30m") // For verifying Set calls
+	validTTL := 30 * time.Minute
 
 	textToEmbed := "test openai text"
 	expectedEmbedding := []float32{0.4, 0.5, 0.6}
@@ -125,7 +121,7 @@ func TestOpenAIEmbeddingService_Generate(t *testing.T) {
 	t.Run("success no cache", func(t *testing.T) {
 		mockEmb := new(MockEmbedder)
 		mockCache := new(OpenaiMockCache)
-		service := &OpenAIEmbeddingService{embedder: mockEmb, cache: mockCache, config: validConfig}
+		service := &OpenAIEmbeddingService{embedder: mockEmb, cache: mockCache, embeddingCacheTTL: validTTL}
 
 		mockCache.On("Get", ctx, cacheKey).Return("", domain.ErrCacheMiss).Once()
 		mockEmb.On("EmbedQuery", ctx, textToEmbed).Return(expectedEmbedding, nil).Once() // Assumes mockEmb returns []float32
@@ -135,7 +131,7 @@ func TestOpenAIEmbeddingService_Generate(t *testing.T) {
 		_ = enc.Encode(expectedEmbedding)
 		expectedGobData := expectedBuffer.String()
 
-		mockCache.On("Set", ctx, cacheKey, expectedGobData, expectedTestTTL).Return(nil).Once()
+		mockCache.On("Set", ctx, cacheKey, expectedGobData, validTTL).Return(nil).Once()
 
 		result, err := service.Generate(ctx, textToEmbed)
 		assert.NoError(t, err)
@@ -145,9 +141,9 @@ func TestOpenAIEmbeddingService_Generate(t *testing.T) {
 	})
 
 	t.Run("cache hit", func(t *testing.T) {
-		mockEmb := new(MockEmbedder) // New mock embedder for this test
+		mockEmb := new(MockEmbedder)      // New mock embedder for this test
 		mockCache := new(OpenaiMockCache) // New mock cache for this test
-		service := &OpenAIEmbeddingService{embedder: mockEmb, cache: mockCache, config: validConfig}
+		service := &OpenAIEmbeddingService{embedder: mockEmb, cache: mockCache, embeddingCacheTTL: validTTL}
 
 		var expectedBuffer bytes.Buffer
 		enc := gob.NewEncoder(&expectedBuffer)
@@ -166,7 +162,7 @@ func TestOpenAIEmbeddingService_Generate(t *testing.T) {
 	t.Run("cache miss, then success", func(t *testing.T) {
 		mockEmb := new(MockEmbedder)
 		mockCache := new(OpenaiMockCache)
-		service := &OpenAIEmbeddingService{embedder: mockEmb, cache: mockCache, config: validConfig}
+		service := &OpenAIEmbeddingService{embedder: mockEmb, cache: mockCache, embeddingCacheTTL: validTTL}
 
 		mockCache.On("Get", ctx, cacheKey).Return("", domain.ErrCacheMiss).Once()
 		mockEmb.On("EmbedQuery", ctx, textToEmbed).Return(expectedEmbedding, nil).Once()
@@ -176,7 +172,7 @@ func TestOpenAIEmbeddingService_Generate(t *testing.T) {
 		_ = enc.Encode(expectedEmbedding)
 		expectedGobData := expectedBuffer.String()
 
-		mockCache.On("Set", ctx, cacheKey, expectedGobData, expectedTestTTL).Return(nil).Once()
+		mockCache.On("Set", ctx, cacheKey, expectedGobData, validTTL).Return(nil).Once()
 
 		result, err := service.Generate(ctx, textToEmbed)
 		assert.NoError(t, err)
@@ -188,7 +184,7 @@ func TestOpenAIEmbeddingService_Generate(t *testing.T) {
 	t.Run("empty text", func(t *testing.T) {
 		mockEmb := new(MockEmbedder) // Still need to init service
 		mockCache := new(OpenaiMockCache)
-		service := &OpenAIEmbeddingService{embedder: mockEmb, cache: mockCache, config: validConfig}
+		service := &OpenAIEmbeddingService{embedder: mockEmb, cache: mockCache, embeddingCacheTTL: validTTL}
 		_, err := service.Generate(ctx, "")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "input text cannot be empty")
@@ -197,7 +193,7 @@ func TestOpenAIEmbeddingService_Generate(t *testing.T) {
 	t.Run("embedder error, cache miss", func(t *testing.T) {
 		mockEmb := new(MockEmbedder)
 		mockCache := new(OpenaiMockCache)
-		service := &OpenAIEmbeddingService{embedder: mockEmb, cache: mockCache, config: validConfig}
+		service := &OpenAIEmbeddingService{embedder: mockEmb, cache: mockCache, embeddingCacheTTL: validTTL}
 		embedderErr := errors.New("openai failed")
 
 		mockCache.On("Get", ctx, cacheKey).Return("", domain.ErrCacheMiss).Once()
@@ -214,7 +210,7 @@ func TestOpenAIEmbeddingService_Generate(t *testing.T) {
 	t.Run("cache get error (not miss), then success", func(t *testing.T) {
 		mockEmb := new(MockEmbedder)
 		mockCache := new(OpenaiMockCache)
-		service := &OpenAIEmbeddingService{embedder: mockEmb, cache: mockCache, config: validConfig}
+		service := &OpenAIEmbeddingService{embedder: mockEmb, cache: mockCache, embeddingCacheTTL: validTTL}
 		cacheErr := errors.New("random cache error")
 
 		mockCache.On("Get", ctx, cacheKey).Return("", cacheErr).Once()
@@ -225,7 +221,7 @@ func TestOpenAIEmbeddingService_Generate(t *testing.T) {
 		_ = enc.Encode(expectedEmbedding)
 		expectedGobData := expectedBuffer.String()
 
-		mockCache.On("Set", ctx, cacheKey, expectedGobData, expectedTestTTL).Return(nil).Once()
+		mockCache.On("Set", ctx, cacheKey, expectedGobData, validTTL).Return(nil).Once()
 
 		result, err := service.Generate(ctx, textToEmbed)
 		assert.NoError(t, err)
@@ -237,7 +233,7 @@ func TestOpenAIEmbeddingService_Generate(t *testing.T) {
 	t.Run("cache hit but unmarshal error", func(t *testing.T) {
 		mockEmb := new(MockEmbedder)
 		mockCache := new(OpenaiMockCache)
-		service := &OpenAIEmbeddingService{embedder: mockEmb, cache: mockCache, config: validConfig}
+		service := &OpenAIEmbeddingService{embedder: mockEmb, cache: mockCache, embeddingCacheTTL: validTTL}
 
 		mockCache.On("Get", ctx, cacheKey).Return("invalid gob data", nil).Once() // Non-empty, but invalid gob for []float32
 		mockEmb.On("EmbedQuery", ctx, textToEmbed).Return(expectedEmbedding, nil).Once()
@@ -247,7 +243,7 @@ func TestOpenAIEmbeddingService_Generate(t *testing.T) {
 		_ = enc.Encode(expectedEmbedding)
 		expectedGobData := expectedBuffer.String()
 
-		mockCache.On("Set", ctx, cacheKey, expectedGobData, expectedTestTTL).Return(nil).Once()
+		mockCache.On("Set", ctx, cacheKey, expectedGobData, validTTL).Return(nil).Once()
 
 		result, err := service.Generate(ctx, textToEmbed)
 		assert.NoError(t, err)

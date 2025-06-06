@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"quiz-byte/internal/config"
 	"quiz-byte/internal/domain"
-	"quiz-byte/internal/dto"
 	"testing"
 	"time"
 
@@ -115,12 +114,12 @@ func TestAuthService_HandleGoogleCallback_CreateUser_RepoError(t *testing.T) {
 		JWT: config.JWTConfig{
 			SecretKey: "testsecretkeydontuseinprod!!!!", AccessTokenTTL: 15 * time.Minute, RefreshTokenTTL: 7 * 24 * time.Hour,
 		},
-		GoogleOAuth: config.GoogleOAuthConfig{ /* fields can be dummy for this test if not directly used before repo call */},
+		GoogleOAuth: config.GoogleOAuthConfig{ /* fields can be dummy for this test if not directly used before repo call */ },
 	}
 	// Note: NewAuthService also creates oauth2Config. For this test, we're focused on repo interaction.
 	// A more complete test might mock http calls for oauth2.Exchange and client.Get.
 
-	authService, err := NewAuthService(mockUserRepo, authCfg)
+	_, err := NewAuthService(mockUserRepo, authCfg)
 	assert.NoError(t, err)
 
 	// Mock GetUserByGoogleID to return (nil, nil) -> user not found

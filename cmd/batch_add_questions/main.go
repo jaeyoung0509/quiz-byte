@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt" // For initial error printing before logger is up
+	"time"
 
 	"quiz-byte/internal/adapter/embedding"
 	"quiz-byte/internal/adapter/quizgen" // Changed from llm to quizgen
@@ -26,7 +27,7 @@ func main() {
 	}
 
 	// Initialize logger
-	err = logger.Initialize(cfg) // Corrected initialization
+	err = logger.Initialize(cfg.Logger) // Corrected initialization
 	if err != nil {
 		fmt.Printf("Failed to initialize logger: %v\n", err)
 		return // Cannot proceed without logger
@@ -63,7 +64,8 @@ func main() {
 		if cfg.Embedding.OpenAI.APIKey == "" {
 			logger.Get().Fatal("OpenAI API key is not configured.")
 		}
-		embedService, err = embedding.NewOpenAIEmbeddingService(cfg.Embedding.OpenAI.APIKey, cfg.Embedding.OpenAI.Model, nil, cfg)
+		embeddingCacheTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.Embedding, 24*time.Hour)
+		embedService, err = embedding.NewOpenAIEmbeddingService(cfg.Embedding.OpenAI.APIKey, cfg.Embedding.OpenAI.Model, nil, embeddingCacheTTL)
 		if err != nil {
 			logger.Get().Fatal("Failed to initialize OpenAI Embedding Service", zap.Error(err))
 		}
@@ -74,11 +76,11 @@ func main() {
 	}
 
 	// Initialize LLM Client
-	if cfg.Gemini.APIKey == "" {
+	if cfg.LLMProviders.Gemini.APIKey == "" {
 		logger.Get().Fatal("Gemini API key is not configured.")
 	}
 	// Initialize the new QuizGenerator
-	quizGenerator, err := quizgen.NewGeminiQuizGenerator(cfg.Gemini.APIKey, cfg.Gemini.Model, logger.Get(), nil, cfg)
+	quizGenerator, err := quizgen.NewGeminiQuizGenerator(cfg.LLMProviders.Gemini.APIKey, cfg.LLMProviders.Gemini.Model, logger.Get(), nil, cfg)
 	if err != nil {
 		logger.Get().Fatal("Failed to initialize QuizGenerator", zap.Error(err))
 	}

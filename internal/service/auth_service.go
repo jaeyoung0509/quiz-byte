@@ -5,7 +5,6 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -16,7 +15,7 @@ import (
 	"quiz-byte/internal/domain"
 	"quiz-byte/internal/dto"    // For AuthClaims and AuthenticatedUser
 	"quiz-byte/internal/logger" // Added
-	"quiz-byte/internal/util" // For ULID generation
+	"quiz-byte/internal/util"   // For ULID generation
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -268,7 +267,6 @@ func (s *authServiceImpl) RefreshToken(ctx context.Context, refreshTokenString s
 		appLogger.Warn("User not found for refresh token", zap.String("userID", claims.UserID))
 		return "", "", domain.NewNotFoundError(fmt.Sprintf("user %s not found for refresh token", claims.UserID))
 	}
-
 
 	newAccessToken, err := s.CreateJWT(ctx, domainUser, s.authCfg.JWT.AccessTokenTTL, tokenTypeAccess)
 	if err != nil {

@@ -128,6 +128,9 @@ func (r *CategoryDatabaseAdapter) GetByNameAndCategoryID(ctx context.Context, na
 
 // Helper functions for converting between domain and model types
 func convertToDomainCategory(category *models.Category) *domain.Category {
+	if category == nil {
+		return nil
+	}
 	return &domain.Category{
 		ID:          category.ID,
 		Name:        category.Name,
@@ -139,6 +142,9 @@ func convertToDomainCategory(category *models.Category) *domain.Category {
 }
 
 func convertToModelCategory(category *domain.Category) *models.Category {
+	if category == nil {
+		return nil
+	}
 	return &models.Category{
 		ID:          category.ID,
 		Name:        category.Name,
@@ -149,6 +155,9 @@ func convertToModelCategory(category *domain.Category) *models.Category {
 }
 
 func convertToDomainSubCategory(subCategory *models.SubCategory) *domain.SubCategory {
+	if subCategory == nil {
+		return nil
+	}
 	return &domain.SubCategory{
 		ID:          subCategory.ID,
 		CategoryID:  subCategory.CategoryID,
@@ -160,6 +169,9 @@ func convertToDomainSubCategory(subCategory *models.SubCategory) *domain.SubCate
 }
 
 func convertToModelSubCategory(subCategory *domain.SubCategory) *models.SubCategory {
+	if subCategory == nil {
+		return nil
+	}
 	return &models.SubCategory{
 		ID:          subCategory.ID,
 		CategoryID:  subCategory.CategoryID,

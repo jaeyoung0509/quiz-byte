@@ -11,6 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"quiz-byte/internal/adapter"
+	"quiz-byte/internal/adapter/embedding"
+	"quiz-byte/internal/adapter/evaluator"
 	"quiz-byte/internal/domain"
 	"quiz-byte/internal/repository"
 	"quiz-byte/internal/repository/models"
@@ -28,8 +30,6 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/jmoiron/sqlx"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/tmc/langchaingo/llms/ollama"
 	"go.uber.org/zap"
 
@@ -108,28 +108,18 @@ func TestMain(m *testing.M) {
 	cacheAdapter := adapter.NewRedisCacheAdapter(redisClient) // Keep this local for now, or make global if needed by tests directly
 
 	// Initialize Embedding Service
-	var embeddingService service.EmbeddingService
-	embeddingTTL := cfg.ParseTTLStringOrDefault(cfg.Embedding.TTL, 1*time.Hour) // Default TTL example
+	var embeddingService domain.EmbeddingService
+	embeddingTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.Embedding, 1*time.Hour) // Default TTL example
 
 	switch cfg.Embedding.Source {
 	case "openai":
-		embeddingService, err = service.NewOpenAIEmbeddingService(cfg.OpenAI.APIKey, cfg.OpenAI.Model, embeddingTTL, cacheAdapter)
+		embeddingService, err = embedding.NewOpenAIEmbeddingService(cfg.Embedding.OpenAI.APIKey, cfg.Embedding.OpenAI.Model, cacheAdapter, embeddingTTL)
 		if err != nil {
 			logInstance.Fatal("Failed to initialize OpenAI Embedding Service", zap.Error(err))
 		}
 		logInstance.Info("OpenAI Embedding Service initialized")
 	case "ollama":
-		// Assuming NewOllamaEmbeddingService exists and is similar to NewOpenAIEmbeddingService
-		// This part needs to be implemented based on actual Ollama embedding client capabilities
-		// For now, let's assume a structure, it might need actual implementation details from main.go
-		ollamaEmbeddingHTTPClient := &http.Client{Timeout: cfg.Embedding.RequestTimeout}
-		embeddingService, err = service.NewOllamaEmbeddingService(
-			cfg.LLMProviders.OllamaServerURL, // Assuming this is the correct URL for embeddings too
-			cfg.Embedding.ModelName,          // Make sure this field exists in config for ollama embeddings
-			ollamaEmbeddingHTTPClient,
-			embeddingTTL,
-			cacheAdapter,
-		)
+		embeddingService, err = embedding.NewOllamaEmbeddingService(cfg.Embedding.Ollama.ServerURL, cfg.Embedding.Ollama.Model, cacheAdapter, embeddingTTL)
 		if err != nil {
 			logInstance.Fatal("Failed to initialize Ollama Embedding Service", zap.Error(err))
 		}
@@ -143,14 +133,14 @@ func TestMain(m *testing.M) {
 		Timeout: 20 * time.Second, // Consider making this configurable
 	}
 	llm, err := ollama.New(
-		ollama.WithServerURL(cfg.LLMProviders.OllamaServerURL), // Corrected from cfg.LLMServer
-		ollama.WithModel(cfg.LLMProviders.OllamaModel),        // Assuming a model field like this in config
+		ollama.WithServerURL(cfg.LLMProviders.OllamaServerURL),
+		ollama.WithModel("qwen3:0.6b"), // Using qwen3 0.6b for evaluation
 		ollama.WithHTTPClient(ollamaHTTPClient),
 	)
 	if err != nil {
 		logInstance.Fatal("Failed to create LLM client", zap.Error(err))
 	}
-	evaluatorService := domain.NewLLMEvaluator(llm) // Corrected, using domain.NewLLMEvaluator as in original quiz_test
+	evaluatorService := evaluator.NewLLMEvaluator(llm) // Using evaluator.NewLLMEvaluator from the correct package
 
 	// Initialize Repositories
 	quizRepository := repository.NewQuizDatabaseAdapter(db)
@@ -191,8 +181,6 @@ func TestMain(m *testing.M) {
 	app = fiber.New(fiber.Config{
 		ReadTimeout:  cfg.Server.ReadTimeout,
 		WriteTimeout: cfg.Server.WriteTimeout,
-		IdleTimeout:  cfg.Server.IdleTimeout, // Use cfg.Server.IdleTimeout
-		BodyLimit:    cfg.Server.BodyLimit,   // Use cfg.Server.BodyLimit
 	})
 	app.Use(middleware.ErrorHandler()) // Global error handler
 
@@ -206,14 +194,14 @@ func TestMain(m *testing.M) {
 
 	// User routes
 	userRouterGroup := app.Group("/users", middleware.Protected(authService)) // Protected group
-	userRouterGroup.Get("/me", userHandler.GetMe)
+	userRouterGroup.Get("/me", userHandler.GetMyProfile)
 
 	// Quiz routes
 	apiGroup := app.Group("/api")
-	apiGroup.Get("/categories", quizHandler.GetAllSubCategories)                                                                          // Public
-	apiGroup.Get("/quiz", middleware.OptionalAuth(authService), validationMiddleware.ValidateGetRandomQuiz, quizHandler.GetRandomQuiz)       // Optional Auth & Validation
-	apiGroup.Get("/quizzes", middleware.OptionalAuth(authService), validationMiddleware.ValidateGetBulkQuizzes, quizHandler.GetBulkQuizzes) // Optional Auth & Validation
-	apiGroup.Post("/quiz/check", middleware.OptionalAuth(authService), validationMiddleware.ValidateCheckAnswer, quizHandler.CheckAnswer) // Optional Auth & Validation
+	apiGroup.Get("/categories", quizHandler.GetAllSubCategories)                                                                                 // Public
+	apiGroup.Get("/quiz", middleware.OptionalAuth(authService), validationMiddleware.ValidateSubCategory(), quizHandler.GetRandomQuiz)           // Optional Auth & Validation
+	apiGroup.Get("/quizzes", middleware.OptionalAuth(authService), validationMiddleware.ValidateBulkQuizzesParams(), quizHandler.GetBulkQuizzes) // Optional Auth & Validation
+	apiGroup.Post("/quiz/check", middleware.OptionalAuth(authService), quizHandler.CheckAnswer)                                                  // Optional Auth
 
 	// Run migrations, seed data, and execute tests
 	if err := initDatabase(cfg); err != nil { // Pass cfg to initDatabase

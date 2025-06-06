@@ -45,7 +45,7 @@ func NewAnonymousResultCacheService(cache domain.Cache, ttl time.Duration) Anony
 }
 
 func (s *anonymousResultCacheServiceImpl) generateKey(requestID string) string { // Renamed from cacheKey
-	return cache.GenerateCacheKey("anonymous_result", requestID) // Use central key generator
+	return cache.GenerateCacheKey("anonymous", "result", requestID) // Use central key generator
 }
 
 // Put stores the quiz result for an anonymous user in the cache.

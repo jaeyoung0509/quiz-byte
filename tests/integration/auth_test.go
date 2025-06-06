@@ -7,17 +7,18 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"quiz-byte/internal/domain/models"
 	"quiz-byte/internal/dto"
 	"quiz-byte/internal/middleware"
+	"quiz-byte/internal/repository/models"
 	"quiz-byte/internal/util"
 	"testing"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"go.uber.org/zap"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -91,7 +92,6 @@ func TestGetMyProfile_Unauthorized(t *testing.T) {
 		_, err := createTestUserDB(db, testUser) // db from main_test.go
 		require.NoError(t, err, "Failed to create test user for expired token test")
 
-		expiredTTL := -1 * time.Hour // A token that expired an hour ago
 		// Corrected: generateTestJWTToken takes absolute TTL, not negative.
 		// To make it expire, we generate with very short TTL and wait.
 		shortTTL := 1 * time.Millisecond
@@ -150,13 +150,13 @@ func TestGetMyProfile_Unauthorized(t *testing.T) {
 func TestGetMyProfile_Success(t *testing.T) {
 	userID := util.NewULID()
 	testUser := models.User{
-		ID:        userID,
-		Email:     "testuser-" + userID + "@success.com",
-		GoogleID:  sql.NullString{String: "googleid-" + userID, Valid: true},
-		Name:      sql.NullString{String: "Test User " + userID, Valid: true},
-		Picture:   sql.NullString{String: "http://example.com/pic-" + userID + ".jpg", Valid: true},
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		ID:                userID,
+		Email:             "testuser-" + userID + "@success.com",
+		GoogleID:          "googleid-" + userID,
+		Name:              sql.NullString{String: "Test User " + userID, Valid: true},
+		ProfilePictureURL: sql.NullString{String: "http://example.com/pic-" + userID + ".jpg", Valid: true},
+		CreatedAt:         time.Now(),
+		UpdatedAt:         time.Now(),
 	}
 	createdUser, err := createTestUserDB(db, testUser) // db from main_test.go
 	require.NoError(t, err, "Failed to create test user for success profile test")
@@ -172,7 +172,7 @@ func TestGetMyProfile_Success(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	bodyBytes, _ := cloneResponseBody(resp) // Use helper from main_test.go
+	bodyBytes, _ := cloneResponseBody(resp)                                      // Use helper from main_test.go
 	fmt.Printf("Raw response body for successful /me: %s\n", bodyBytes.String()) // Debugging line
 
 	require.Equal(t, http.StatusOK, resp.StatusCode, "Body: %s", bodyBytes.String())
@@ -184,20 +184,20 @@ func TestGetMyProfile_Success(t *testing.T) {
 	assert.Equal(t, createdUser.ID, userProfileResponse.ID)
 	assert.Equal(t, createdUser.Email, userProfileResponse.Email)
 	assert.Equal(t, createdUser.Name.String, userProfileResponse.Name)
-	assert.Equal(t, createdUser.Picture.String, userProfileResponse.Picture)
+	assert.Equal(t, createdUser.ProfilePictureURL.String, userProfileResponse.ProfilePictureURL)
 }
 
 func TestGetMyAttempts_NoAttempts(t *testing.T) {
 	// Create a new unique test user
 	userID := util.NewULID()
 	testUser, err := createTestUserDB(db, models.User{
-		ID:        userID,
-		Email:     "noattemptsuser-" + userID + "@example.com",
-		GoogleID:  sql.NullString{String: "google-noattempts-" + userID, Valid: true},
-		Name:      sql.NullString{String: "No Attempts User " + userID, Valid: true},
-		Picture:   sql.NullString{String: "http://example.com/noattempts-" + userID + ".jpg", Valid: true},
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		ID:                userID,
+		Email:             "noattemptsuser-" + userID + "@example.com",
+		GoogleID:          "google-noattempts-" + userID,
+		Name:              sql.NullString{String: "No Attempts User " + userID, Valid: true},
+		ProfilePictureURL: sql.NullString{String: "http://example.com/noattempts-" + userID + ".jpg", Valid: true},
+		CreatedAt:         time.Now(),
+		UpdatedAt:         time.Now(),
 	})
 	require.NoError(t, err)
 	require.NotNil(t, testUser)
@@ -225,20 +225,21 @@ func TestGetMyAttempts_NoAttempts(t *testing.T) {
 	// Assert len(response.Attempts) == 0 and response.PaginationInfo.TotalItems == 0
 	assert.Len(t, response.Attempts, 0, "Expected no attempts for a new user")
 	assert.Equal(t, int64(0), response.PaginationInfo.TotalItems, "Expected total items to be 0 for a new user")
-	assert.Equal(t, 1, response.PaginationInfo.Page, "Page should be 1 for initial request")
+	// assert.Equal(t, 1, response.PaginationInfo.Page, "Page should be 1 for initial request") // Page 필드 제거 또는 주석 처리
+	assert.Equal(t, 10, response.PaginationInfo.Limit)
 }
 
 func TestGetMyAttempts_WithAttempts(t *testing.T) {
 	// Setup: Create a unique test user
 	userID := util.NewULID()
 	userWithAttempts, err := createTestUserDB(db, models.User{
-		ID:        userID,
-		Email:     "attemptsuser-" + userID + "@example.com",
-		GoogleID:  sql.NullString{String: "google-attempts-" + userID, Valid: true},
-		Name:      sql.NullString{String: "Attempts User " + userID, Valid: true},
-		Picture:   sql.NullString{String: "http://example.com/attempts-" + userID + ".jpg", Valid: true},
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		ID:                userID,
+		Email:             "attemptsuser-" + userID + "@example.com",
+		GoogleID:          "google-attempts-" + userID, // Changed from sql.NullString
+		Name:              sql.NullString{String: "Attempts User " + userID, Valid: true},
+		ProfilePictureURL: sql.NullString{String: "http://example.com/attempts-" + userID + ".jpg", Valid: true},
+		CreatedAt:         time.Now(),
+		UpdatedAt:         time.Now(),
 	})
 	require.NoError(t, err)
 	require.NotNil(t, userWithAttempts)
@@ -279,9 +280,8 @@ func TestGetMyAttempts_WithAttempts(t *testing.T) {
 	// Read and decode the check answer response to get the score for later comparison
 	submitRespBodyBytes, _ := cloneResponseBody(submitResp)
 	var checkResp1 dto.CheckAnswerResponse
-	err = json.Unmarshal(submitRespBodyBytes, &checkResp1)
+	err = json.Unmarshal(submitRespBodyBytes.Bytes(), &checkResp1)
 	require.NoError(t, err, "Failed to decode check answer response for first attempt")
-
 
 	// Optional: Submit a second answer
 	quiz2ID := getFirstQuizIDForSubCategory(t, testSubCategoryName) // Could be same quiz or different
@@ -301,9 +301,8 @@ func TestGetMyAttempts_WithAttempts(t *testing.T) {
 
 	submitRespBodyBytes2, _ := cloneResponseBody(submitResp2)
 	var checkResp2 dto.CheckAnswerResponse
-	err = json.Unmarshal(submitRespBodyBytes2, &checkResp2)
+	err = json.Unmarshal(submitRespBodyBytes2.Bytes(), &checkResp2)
 	require.NoError(t, err, "Failed to decode check answer response for second attempt")
-
 
 	// Allow time for async recording
 	time.Sleep(300 * time.Millisecond) // Increased for safety
@@ -320,7 +319,7 @@ func TestGetMyAttempts_WithAttempts(t *testing.T) {
 	require.Equal(t, fiber.StatusOK, attemptsResp.StatusCode, "Body: %s", attemptsRespBodyBytes.String())
 
 	var response dto.UserQuizAttemptsResponse
-	err = json.Unmarshal(attemptsRespBodyBytes, &response)
+	err = json.Unmarshal(attemptsRespBodyBytes.Bytes(), &response)
 	require.NoError(t, err, "Failed to decode /users/me/attempts response. Body: %s", attemptsRespBodyBytes.String())
 
 	assert.Equal(t, int64(2), response.PaginationInfo.TotalItems, "Expected 2 total attempts")
@@ -335,7 +334,6 @@ func TestGetMyAttempts_WithAttempts(t *testing.T) {
 	assert.InDelta(t, checkResp2.Score, response.Attempts[0].LlmScore, 0.001, "LLM score for second attempt mismatch")
 	assert.NotEmpty(t, response.Attempts[0].AttemptedAt, "AttemptedAt should not be empty for second attempt")
 	assert.Equal(t, checkResp2.Explanation, response.Attempts[0].LlmExplanation)
-
 
 	// First attempt
 	assert.Equal(t, quiz1ID, response.Attempts[1].QuizID)

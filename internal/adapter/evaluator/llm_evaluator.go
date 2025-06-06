@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"quiz-byte/internal/domain" // Added for domain types
 	"quiz-byte/internal/logger"
+	"quiz-byte/internal/port"
 	"strings"
 	"time"
 
@@ -20,7 +21,7 @@ type llmEvaluator struct {
 }
 
 // NewLLMEvaluator creates a new instance of llmEvaluator
-func NewLLMEvaluator(llm *ollama.LLM) domain.AnswerEvaluator { // Return type is domain.AnswerEvaluator
+func NewLLMEvaluator(llm *ollama.LLM) port.AnswerEvaluator { // Return type is port.AnswerEvaluator
 	return &llmEvaluator{
 		llmClient: llm,
 	}

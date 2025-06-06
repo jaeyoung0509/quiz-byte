@@ -6,10 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,13 +22,12 @@ func runMigrateCommand(t *testing.T, args ...string) (string, error) {
 	require.NotNil(t, cfg, "Global config (cfg) is not loaded for migrate command")
 
 	cmdEnv := os.Environ()
-	cmdEnv = append(cmdEnv, fmt.Sprintf("APP_ENV=%s", cfg.App.Env))
+	cmdEnv = append(cmdEnv, fmt.Sprintf("APP_LOGGER_ENV=%s", cfg.Logger.Env))
 	cmdEnv = append(cmdEnv, fmt.Sprintf("APP_DB_HOST=%s", cfg.DB.Host))
 	cmdEnv = append(cmdEnv, fmt.Sprintf("APP_DB_PORT=%d", cfg.DB.Port))
 	cmdEnv = append(cmdEnv, fmt.Sprintf("APP_DB_USER=%s", cfg.DB.User))
 	cmdEnv = append(cmdEnv, fmt.Sprintf("APP_DB_PASSWORD=%s", cfg.DB.Password))
-	cmdEnv = append(cmdEnv, fmt.Sprintf("APP_DB_NAME=%s", cfg.DB.Name))
-	cmdEnv = append(cmdEnv, fmt.Sprintf("APP_DB_SSL_MODE=%s", cfg.DB.SSLMode))
+	cmdEnv = append(cmdEnv, fmt.Sprintf("APP_DB_DBNAME=%s", cfg.DB.DBName))
 	// Migrations path is usually configured within the migrate command or relative to it.
 	// If MIGRATE_PATH is needed: cmdEnv = append(cmdEnv, "MIGRATE_PATH=../../database/migrations")
 
@@ -81,7 +78,6 @@ func getMigrationVersionDB(t *testing.T) (string, bool, error) {
 	return fmt.Sprintf("%d", version.Int64), dirty.Bool, nil
 }
 
-
 func TestMigrateCommand(t *testing.T) {
 	// Initial state: initDatabase in main_test.go already runs migrations up.
 	// So, we start by bringing all migrations down.
@@ -96,7 +92,6 @@ func TestMigrateCommand(t *testing.T) {
 	// After full down, version table might be empty or version 0.
 	// If table is dropped and recreated by migrate, ErrNoRows is possible, handled by getMigrationVersionDB.
 	assert.Equal(t, "0", currentVersion, "Version should be 0 after down --all")
-
 
 	// Test `up`
 	t.Log("Running migrate up...")
@@ -113,7 +108,6 @@ func TestMigrateCommand(t *testing.T) {
 	assert.True(t, latestVersion != "0", "Version should be > 0 after first up. Got: %s", latestVersion)
 	initialLatestVersion := latestVersion // Store for later comparison
 
-
 	// Test `down` (single step)
 	t.Log("Running migrate down (single step)...")
 	output, err = runMigrateCommand(t, "down")
@@ -128,7 +122,6 @@ func TestMigrateCommand(t *testing.T) {
 	// Simple check: version should be less. This assumes numeric, sequential versions.
 	// This might not hold if versions are timestamp-based and not perfectly sequential numbers.
 	// For now, we'll rely on NotEqual. A better check would be to parse file names.
-
 
 	// Test `up` again (to reach latest)
 	t.Log("Running migrate up again...")

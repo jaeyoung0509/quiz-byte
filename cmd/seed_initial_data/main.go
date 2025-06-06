@@ -39,7 +39,7 @@ func main() {
 
 	// Initialize logger
 	// Assuming cfg.Logger is the correct field for logger configuration
-	if err := logger.Initialize(&cfg.Logger); err != nil {
+	if err := logger.Initialize(cfg.Logger); err != nil {
 		fmt.Printf("Failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
