@@ -420,7 +420,7 @@ func saveQuizes() error {
 			// However, the schema for quiz_evaluations.score_ranges IS "text" which implies it's a string in Oracle (CLOB/VARCHAR2).
 			// So, we should probably join it.
 
-			scoreRangesStr := strings.Join(scoreRanges, ",") // Example: "0.8-1.0,0.5-0.79,0.0-0.49"
+			scoreRangesStr := strings.Join(scoreRanges, "|||")
 
 			_, evalErr := db.Exec(`
                 INSERT INTO quiz_evaluations (id, quiz_id, score_ranges, score_evaluations, created_at, updated_at, minimum_keywords, required_topics, sample_answers, rubric_details)
