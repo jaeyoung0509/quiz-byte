@@ -18,7 +18,8 @@ import (
 )
 
 const (
-	seedFilePath = "configs/seed_data/initial_english_quizzes.json"
+	categorySeedFilePath = "configs/seed_data/category.json"
+	quizSeedFilePath     = "configs/seed_data/initial_english_quizzes.json"
 )
 
 func firstN(s string, n int) string {
@@ -54,26 +55,82 @@ func main() {
 	defer db.Close()
 	log.Info("Successfully connected to Oracle database.")
 
-	log.Info("Loading seed data from file", zap.String("path", seedFilePath))
-	byteValue, err := os.ReadFile(seedFilePath)
+	// Step 1: Create basic categories from category.json
+	log.Info("Step 1: Creating basic categories", zap.String("path", categorySeedFilePath))
+	if err := seedBasicCategories(ctx, db, log); err != nil {
+		log.Fatal("Failed to seed basic categories", zap.Error(err))
+	}
+
+	// Step 2: Create subcategories and quizzes from initial_english_quizzes.json
+	log.Info("Step 2: Creating subcategories and quizzes", zap.String("path", quizSeedFilePath))
+	if err := seedQuizData(ctx, db, log); err != nil {
+		log.Fatal("Failed to seed quiz data", zap.Error(err))
+	}
+
+	log.Info("Initial data seeding process completed.")
+}
+
+func seedBasicCategories(ctx context.Context, db *sqlx.DB, log *zap.Logger) error {
+	log.Info("Loading basic categories from file", zap.String("path", categorySeedFilePath))
+	byteValue, err := os.ReadFile(categorySeedFilePath)
 	if err != nil {
-		log.Fatal("Failed to read seed file", zap.String("path", seedFilePath), zap.Error(err))
+		return fmt.Errorf("failed to read category file: %w", err)
+	}
+
+	var categoryNames []string
+	if err := json.Unmarshal(byteValue, &categoryNames); err != nil {
+		return fmt.Errorf("failed to unmarshal category data: %w", err)
+	}
+	log.Info("Successfully loaded basic categories", zap.Int("categories_count", len(categoryNames)))
+
+	categoryRepo := repository.NewCategoryDatabaseAdapter(db)
+
+	for _, categoryName := range categoryNames {
+		log.Info("Processing basic category", zap.String("name", categoryName))
+
+		// Check if category already exists
+		existingCategory, err := categoryRepo.GetByName(ctx, categoryName)
+		if err != nil {
+			return fmt.Errorf("error checking category %s: %w", categoryName, err)
+		}
+
+		if existingCategory == nil {
+			log.Info("Category not found, creating", zap.String("name", categoryName))
+			newCategory := domain.NewCategory(categoryName, "")
+			if err := categoryRepo.SaveCategory(ctx, newCategory); err != nil {
+				return fmt.Errorf("failed to save category %s: %w", categoryName, err)
+			}
+			log.Info("Created basic category", zap.String("id", newCategory.ID), zap.String("name", newCategory.Name))
+		} else {
+			log.Info("Category already exists", zap.String("id", existingCategory.ID), zap.String("name", existingCategory.Name))
+		}
+	}
+
+	return nil
+}
+
+func seedQuizData(ctx context.Context, db *sqlx.DB, log *zap.Logger) error {
+	log.Info("Loading quiz data from file", zap.String("path", quizSeedFilePath))
+	byteValue, err := os.ReadFile(quizSeedFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to read quiz file: %w", err)
 	}
 
 	var seedCategories []seedmodels.SeedCategory
 	if err := json.Unmarshal(byteValue, &seedCategories); err != nil {
-		log.Fatal("Failed to unmarshal seed data", zap.Error(err))
+		return fmt.Errorf("failed to unmarshal quiz data: %w", err)
 	}
-	log.Info("Successfully unmarshalled seed data", zap.Int("categories_loaded", len(seedCategories)))
+	log.Info("Successfully loaded quiz data", zap.Int("categories_count", len(seedCategories)))
 
 	for _, sc := range seedCategories {
 		err := seedCategoryData(ctx, db, log, sc)
 		if err != nil {
-			log.Error("Error seeding category, transaction rolled back", zap.String("category", sc.Name), zap.Error(err))
-			// Decide if you want to stop on first error or continue with other categories
+			log.Error("Error seeding category data, transaction rolled back", zap.String("category", sc.Name), zap.Error(err))
+			// Continue with other categories instead of stopping
 		}
 	}
-	log.Info("Initial data seeding process completed.")
+
+	return nil
 }
 
 func seedCategoryData(
@@ -113,21 +170,15 @@ func seedCategoryData(
 	txCategoryRepo := repository.NewCategoryDatabaseAdapter(tx)
 	txQuizRepo := repository.NewQuizDatabaseAdapter(tx)
 
-	// Check if category exists
+	// Check if category exists (it should exist from step 1)
 	dbCategory, err := txCategoryRepo.GetByName(ctx, seedCat.Name)
 	if err != nil {
 		return fmt.Errorf("error checking category %s: %w", seedCat.Name, err) // Propagate error to trigger rollback
 	}
 	if dbCategory == nil {
-		log.Info("Category not found, creating.", zap.String("name", seedCat.Name))
-		dbCategory = domain.NewCategory(seedCat.Name, seedCat.Description)
-		if err = txCategoryRepo.SaveCategory(ctx, dbCategory); err != nil {
-			return fmt.Errorf("failed to save category %s: %w", seedCat.Name, err) // Propagate error
-		}
-		log.Info("Created category.", zap.String("id", dbCategory.ID), zap.String("name", dbCategory.Name))
-	} else {
-		log.Info("Category exists.", zap.String("id", dbCategory.ID), zap.String("name", dbCategory.Name))
+		return fmt.Errorf("category %s not found - should have been created in step 1", seedCat.Name)
 	}
+	log.Info("Found existing category.", zap.String("id", dbCategory.ID), zap.String("name", dbCategory.Name))
 
 	for _, seedSubCat := range seedCat.SubCategories {
 		log.Info("Processing sub-category", zap.String("name", seedSubCat.Name), zap.String("parent_category", dbCategory.Name))

@@ -1,41 +1,697 @@
 [
   {
     "category_name": "Fundamentals of Computer Science",
-    "category_description": "Basic concepts and theories in computer science.",
+    "category_description": "Core concepts in computing, including data organization and algorithm design.",
     "sub_categories": [
       {
         "sub_category_name": "Data Structures",
-        "sub_category_description": "Covers fundamental data structures.",
+        "sub_category_description": "Methods of organizing and storing data for efficient access and modification.",
         "quizzes": [
           {
-            "question": "What is a linked list and what is one advantage it has over an array?",
+            "question": "What is a hash table and how does it handle collisions?",
             "model_answers": [
-              "A linked list is a linear data structure where elements are not stored at contiguous memory locations but are linked using pointers. An advantage over an array is dynamic size, as it can grow or shrink during runtime without needing to reallocate the entire structure.",
-              "It's a sequence of nodes, each containing data and a reference (or link) to the next node. Unlike arrays, linked lists allow for efficient insertion or deletion of elements from any part of the list without reorganizing all other elements."
+              "A hash table is a data structure that maps keys to values using a hash function. It provides fast average-case time complexity for insertion, deletion, and retrieval. Collisions, which occur when two different keys hash to the same index, are typically handled by methods like 'Separate Chaining' (each bucket contains a linked list of entries) or 'Open Addressing' (probing for the next empty slot).",
+              "It's an array-based structure where a hash function computes an index for a key, where the value is stored. When a collision happens, Separate Chaining uses a list or another data structure at the collision index, while Open Addressing finds another empty spot in the same array, for example, by linear probing."
             ],
-            "keywords": ["linked list", "data structure", "dynamic size", "pointers", "nodes", "insertion", "deletion"],
+            "keywords": [
+              "hash table",
+              "hash map",
+              "collision handling",
+              "separate chaining",
+              "open addressing",
+              "hash function"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "Explain the difference between a B-Tree and a B+ Tree.",
+            "model_answers": [
+              "B-Trees and B+ Trees are self-balancing tree data structures designed for storage systems. In a B-Tree, keys and data can be stored in both internal and leaf nodes. In a B+ Tree, all data is stored only in the leaf nodes, and these leaf nodes are linked together in a sequence, which makes range queries much more efficient."
+            ],
+            "keywords": [
+              "b-tree",
+              "b+ tree",
+              "database indexing",
+              "file systems",
+              "leaf nodes",
+              "range queries"
+            ],
+            "difficulty": "hard"
+          },
+          {
+            "question": "What is the difference between a stack and a queue? Provide a real-world example for each.",
+            "model_answers": [
+              "A stack is a Last-In, First-Out (LIFO) data structure, while a queue is a First-In, First-Out (FIFO) data structure. For a stack, think of a pile of plates; you add and remove plates from the top. A real-world example is the function call stack in programming or the 'undo' feature in an editor. For a queue, think of a line of people waiting for a bus; the first person in line is the first to get on. A real-world example is a printer queue or requests to a web server."
+            ],
+            "keywords": [
+              "stack",
+              "queue",
+              "lifo",
+              "fifo",
+              "data structures",
+              "call stack",
+              "print queue"
+            ],
+            "difficulty": "easy"
+          }
+        ]
+      },
+      {
+        "sub_category_name": "Algorithms",
+        "sub_category_description": "Processes or sets of rules to be followed in calculations or other problem-solving operations.",
+        "quizzes": [
+          {
+            "question": "What is dynamic programming and can you give an example of a problem it solves?",
+            "model_answers": [
+              "Dynamic programming is a method for solving complex problems by breaking them down into simpler, overlapping subproblems. It solves each subproblem only once and stores their solutions to avoid redundant computations. A classic example is calculating the Fibonacci sequence, where F(n) = F(n-1) + F(n-2). Instead of re-calculating F(n-1) and F(n-2) recursively, their results are stored (memoization) for reuse.",
+              "It's an algorithmic technique that solves problems by combining the solutions to subproblems. It's applicable when subproblems overlap. The Longest Common Subsequence (LCS) problem is another example solved efficiently using dynamic programming."
+            ],
+            "keywords": [
+              "dynamic programming",
+              "memoization",
+              "tabulation",
+              "overlapping subproblems",
+              "fibonacci",
+              "lcs"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "Explain Dijkstra's algorithm. What problem does it solve?",
+            "model_answers": [
+              "Dijkstra's algorithm is a greedy algorithm that finds the shortest path between a starting node and all other nodes in a weighted graph with non-negative edge weights. It works by maintaining a set of visited nodes and iteratively selecting the unvisited node with the smallest known distance from the start node, then updating the distances of its neighbors."
+            ],
+            "keywords": [
+              "dijkstra's algorithm",
+              "shortest path",
+              "graph theory",
+              "greedy algorithm",
+              "weighted graph"
+            ],
+            "difficulty": "hard"
+          },
+          {
+            "question": "Compare the time complexity of Quicksort, Mergesort, and Bubblesort in the best, average, and worst cases.",
+            "model_answers": [
+              "Bubble Sort: Best case is O(n) if the array is already sorted, but average and worst cases are O(n^2). It's simple but inefficient for large datasets. Mergesort: Best, average, and worst-case time complexity are all O(n log n), making it very consistent. It requires O(n) extra space. Quicksort: Best and average cases are O(n log n), which is very efficient. However, its worst-case complexity is O(n^2), which can occur if the pivot selection is poor (e.g., on an already sorted array)."
+            ],
+            "keywords": [
+              "quicksort",
+              "mergesort",
+              "bubblesort",
+              "sorting algorithms",
+              "time complexity",
+              "big o notation"
+            ],
+            "difficulty": "medium"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "category_name": "Backend Development",
+    "category_description": "Server-side logic, databases, APIs, and architecture that power applications.",
+    "sub_categories": [
+      {
+        "sub_category_name": "Databases (SQL & NoSQL)",
+        "sub_category_description": "Systems for storing, retrieving, and managing data.",
+        "quizzes": [
+          {
+            "question": "Compare and contrast SQL and NoSQL databases.",
+            "model_answers": [
+              "SQL databases (like MySQL, PostgreSQL) are relational, use structured data with predefined schemas, and use SQL (Structured Query Language). They are vertically scalable and prioritize data consistency (ACID properties). NoSQL databases (like MongoDB, Cassandra) are non-relational, have dynamic schemas for unstructured data, are horizontally scalable, and often prioritize availability and performance (BASE properties)."
+            ],
+            "keywords": [
+              "sql",
+              "nosql",
+              "relational database",
+              "non-relational",
+              "schema",
+              "scalability",
+              "acid",
+              "base"
+            ],
             "difficulty": "easy"
           },
           {
-            "question": "Explain the concept of Big O notation and why it is important in algorithm analysis.",
+            "question": "What are ACID properties in the context of database transactions?",
             "model_answers": [
-              "Big O notation is a mathematical notation that describes the limiting behavior of a function when the argument tends towards a particular value or infinity. In computer science, it's used to classify algorithms according to how their run time or space requirements grow as the input size grows. It's important because it helps in comparing the efficiency of different algorithms and choosing the most suitable one for a given problem, especially for large datasets."
+              "ACID is an acronym that stands for Atomicity, Consistency, Isolation, and Durability. It's a set of properties that guarantee database transactions are processed reliably. Atomicity ensures that a transaction is all-or-nothing. Consistency ensures the database remains in a valid state. Isolation ensures that concurrent transactions do not interfere with each other. Durability ensures that once a transaction is committed, it remains so, even in the event of a power loss or system crash."
             ],
-            "keywords": ["big o notation", "algorithm analysis", "time complexity", "space complexity", "asymptotic analysis", "efficiency"],
+            "keywords": [
+              "acid",
+              "database transaction",
+              "atomicity",
+              "consistency",
+              "isolation",
+              "durability",
+              "sql"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "Explain the CAP theorem for distributed computer systems.",
+            "model_answers": [
+              "The CAP theorem states that it is impossible for a distributed data store to simultaneously provide more than two out of the following three guarantees: Consistency (every read receives the most recent write or an error), Availability (every request receives a (non-error) response, without the guarantee that it contains the most recent write), and Partition Tolerance (the system continues to operate despite an arbitrary number of messages being dropped or delayed by the network between nodes). In practice, partition tolerance is a must for distributed systems, so designers must choose between consistency and availability."
+            ],
+            "keywords": [
+              "cap theorem",
+              "distributed systems",
+              "consistency",
+              "availability",
+              "partition tolerance",
+              "nosql"
+            ],
+            "difficulty": "hard"
+          },
+          {
+            "question": "What is a database index and why is it important for performance?",
+            "model_answers": [
+              "A database index is a data structure that improves the speed of data retrieval operations on a database table at the cost of additional writes and storage space to maintain the index structure. An index is used to quickly locate data without having to search every row in a database table every time a table is accessed. Indexes can be created using one or more columns of a database table, providing the basis for both rapid random lookups and efficient access of ordered records."
+            ],
+            "keywords": [
+              "database index",
+              "sql",
+              "performance tuning",
+              "b-tree",
+              "query optimization"
+            ],
             "difficulty": "medium"
           }
         ]
       },
       {
-        "sub_category_name": "Basic Algorithms",
-        "sub_category_description": "Fundamental algorithms and problem-solving techniques.",
+        "sub_category_name": "APIs (REST & GraphQL)",
+        "sub_category_description": "Interfaces for communication between different software components.",
         "quizzes": [
           {
-            "question": "Describe the binary search algorithm. What is its time complexity and a key prerequisite for its use?",
+            "question": "What is an idempotent operation in the context of a REST API? Which HTTP methods are idempotent?",
             "model_answers": [
-              "Binary search is an efficient algorithm for finding an item from a sorted list of items. It works by repeatedly dividing in half the portion of the list that could contain the item, until you've narrowed down the possible locations to just one. Its time complexity is O(log n). A key prerequisite is that the list must be sorted."
+              "An idempotent operation is one that can be applied multiple times without changing the result beyond the initial application. In a REST API, this means making multiple identical requests has the same effect as making a single request. The HTTP methods GET, HEAD, OPTIONS, TRACE, PUT, and DELETE are idempotent. POST is not idempotent."
             ],
-            "keywords": ["binary search", "algorithm", "sorted list", "divide and conquer", "logarithmic time complexity", "O(log n)"],
+            "keywords": [
+              "rest api",
+              "idempotency",
+              "http methods",
+              "put",
+              "delete",
+              "get",
+              "post"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "How does GraphQL solve the problems of over-fetching and under-fetching common in REST APIs?",
+            "model_answers": [
+              "GraphQL solves over-fetching and under-fetching by allowing the client to specify exactly what data it needs in a single request. Over-fetching (getting more data than needed) is avoided because the client's query dictates the response fields. Under-fetching (needing to make multiple API calls to get all required data) is avoided because complex queries can retrieve nested resources in one round trip. The server returns a JSON object that precisely matches the structure of the client's query."
+            ],
+            "keywords": [
+              "graphql",
+              "rest api",
+              "over-fetching",
+              "under-fetching",
+              "api design",
+              "query language"
+            ],
+            "difficulty": "medium"
+          }
+        ]
+      },
+      {
+        "sub_category_name": "System Design & Architecture",
+        "sub_category_description": "Designing the architecture of complex software systems.",
+        "quizzes": [
+          {
+            "question": "Explain the concept of microservices architecture.",
+            "model_answers": [
+              "Microservices is an architectural style that structures an application as a collection of loosely coupled, independently deployable services. Each service is self-contained, responsible for a specific business capability, runs in its own process, and communicates with others through well-defined APIs (often HTTP/REST). This approach enables better scalability, flexibility, and faster development cycles compared to a monolithic architecture."
+            ],
+            "keywords": [
+              "microservices",
+              "monolith",
+              "system architecture",
+              "scalability",
+              "loose coupling",
+              "api"
+            ],
+            "difficulty": "easy"
+          },
+          {
+            "question": "What is a race condition in concurrent programming, and how can you prevent it?",
+            "model_answers": [
+              "A race condition is an undesirable situation that occurs when a device or system attempts to perform two or more operations at the same time, but because of the nature of the device or system, the operations must be done in the proper sequence to be done correctly. They can be prevented using synchronization mechanisms like mutexes (mutual exclusion locks), semaphores, or by designing algorithms to be lock-free."
+            ],
+            "keywords": [
+              "concurrency",
+              "multithreading",
+              "race condition",
+              "synchronization",
+              "mutex",
+              "semaphore"
+            ],
+            "difficulty": "hard"
+          },
+          {
+            "question": "What is load balancing and what are some common strategies?",
+            "model_answers": [
+              "Load balancing is the process of distributing network traffic or computational workloads across multiple servers. This improves responsiveness and increases availability of applications. Common strategies include Round Robin (requests are distributed sequentially), Least Connections (sends traffic to the server with the fewest active connections), and IP Hash (the client's IP address is used to determine which server receives the request)."
+            ],
+            "keywords": [
+              "load balancing",
+              "system design",
+              "scalability",
+              "high availability",
+              "round robin",
+              "least connections"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "Describe different caching strategies like cache-aside, read-through, and write-through.",
+            "model_answers": [
+              "Cache-aside (or lazy loading) is the most common strategy. The application is responsible for checking the cache first. If the data is there (a cache hit), it's returned. If not (a cache miss), the application reads the data from the database, adds it to the cache, and then returns it. Read-through is similar, but the cache library itself handles loading from the database. Write-through writes data to the cache and the database simultaneously, ensuring consistency but with higher latency."
+            ],
+            "keywords": [
+              "caching",
+              "system design",
+              "performance",
+              "cache-aside",
+              "read-through",
+              "write-through",
+              "redis"
+            ],
+            "difficulty": "hard"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "category_name": "DevOps & Cloud Computing",
+    "category_description": "Practices and tools that combine software development (Dev) and IT operations (Ops).",
+    "sub_categories": [
+      {
+        "sub_category_name": "Cloud & AWS",
+        "sub_category_description": "Fundamentals of cloud computing and Amazon Web Services.",
+        "quizzes": [
+          {
+            "question": "What is the difference between IaaS, PaaS, and SaaS?",
+            "model_answers": [
+              "IaaS (Infrastructure as a Service), like AWS EC2, provides virtualized computing resources over the internet (servers, storage, networking). PaaS (Platform as a Service), like AWS Elastic Beanstalk or Heroku, provides a platform allowing customers to develop, run, and manage applications without the complexity of building and maintaining the infrastructure. SaaS (Software as a Service), like Google Workspace or Salesforce, provides ready-to-use software applications over the internet."
+            ],
+            "keywords": [
+              "iaas",
+              "paas",
+              "saas",
+              "cloud computing",
+              "aws",
+              "virtualization"
+            ],
+            "difficulty": "easy"
+          },
+          {
+            "question": "What is AWS S3 and what is its primary use case?",
+            "model_answers": [
+              "Amazon S3 (Simple Storage Service) is a highly scalable object storage service from AWS. It's not a file system, but it stores data as objects within buckets. Its primary use case is for storing and retrieving any amount of data, at any time, from anywhere on the web. It is commonly used for website hosting, data archiving, application data, and as a data lake for analytics."
+            ],
+            "keywords": [
+              "aws",
+              "s3",
+              "object storage",
+              "cloud storage",
+              "bucket"
+            ],
+            "difficulty": "easy"
+          },
+          {
+            "question": "What is serverless computing? Explain with AWS Lambda as an example.",
+            "model_answers": [
+              "Serverless computing is a cloud execution model where the cloud provider manages the allocation and provisioning of servers. You don't manage any servers yourself. You write code and deploy it as functions. AWS Lambda is a prime example. You can upload your code, and Lambda runs it in response to events (like an HTTP request or a file upload to S3). You only pay for the compute time you consume, and it scales automatically from a few requests per day to thousands per second."
+            ],
+            "keywords": [
+              "serverless",
+              "aws lambda",
+              "cloud computing",
+              "faas",
+              "function as a service"
+            ],
+            "difficulty": "medium"
+          }
+        ]
+      },
+      {
+        "sub_category_name": "Containerization (Docker & Kubernetes)",
+        "sub_category_description": "Encapsulating applications in containers for deployment and orchestration.",
+        "quizzes": [
+          {
+            "question": "Explain the relationship between a Dockerfile, a Docker Image, and a Docker Container.",
+            "model_answers": [
+              "A Dockerfile is a text file that contains instructions for building a Docker Image. The Docker Image is a lightweight, standalone, executable package that includes everything needed to run a piece of software, including the code, runtime, libraries, and settings. A Docker Container is a running instance of a Docker Image. You can run multiple containers from the same image."
+            ],
+            "keywords": [
+              "docker",
+              "dockerfile",
+              "docker image",
+              "docker container",
+              "containerization"
+            ],
+            "difficulty": "easy"
+          },
+          {
+            "question": "What is a Pod in Kubernetes and why is it important?",
+            "model_answers": [
+              "A Pod is the smallest and simplest deployable unit in the Kubernetes object model. It represents a single instance of a running process in a cluster. A Pod can contain one or more containers (like Docker containers) that are co-located and co-scheduled, and share resources like storage and networking. This allows closely coupled containers to work together as a single, cohesive service."
+            ],
+            "keywords": [
+              "kubernetes",
+              "k8s",
+              "pod",
+              "container orchestration",
+              "docker",
+              "container"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "In Kubernetes, what is the difference between a Service and a Deployment?",
+            "model_answers": [
+              "A Deployment is responsible for managing a set of replica Pods. It ensures that a specified number of Pods are running and healthy. It handles declarative updates, enabling rolling updates, rollbacks, and scaling. A Service, on the other hand, provides a stable endpoint (a single IP address and DNS name) to access a set of Pods. It acts as a load balancer for the traffic to the Pods managed by a Deployment. The Service's endpoint remains constant even if the Pods it targets are created or destroyed."
+            ],
+            "keywords": [
+              "kubernetes",
+              "k8s",
+              "service",
+              "deployment",
+              "pod",
+              "container orchestration"
+            ],
+            "difficulty": "hard"
+          }
+        ]
+      },
+      {
+        "sub_category_name": "CI/CD",
+        "sub_category_description": "Continuous Integration and Continuous Deployment/Delivery practices.",
+        "quizzes": [
+          {
+            "question": "Explain the concept of a CI/CD pipeline.",
+            "model_answers": [
+              "A CI/CD pipeline is an automated process for delivering software from development to production. 'Continuous Integration' (CI) is the practice of frequently merging code changes into a central repository, after which automated builds and tests are run. 'Continuous Delivery/Deployment' (CD) is the practice of automatically deploying all code changes that pass the CI stage to a testing or production environment. The pipeline automates the build, test, and deployment phases, enabling faster and more reliable software releases."
+            ],
+            "keywords": [
+              "ci/cd",
+              "continuous integration",
+              "continuous deployment",
+              "devops",
+              "automation",
+              "pipeline"
+            ],
+            "difficulty": "medium"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "category_name": "Mobile Development",
+    "category_description": "Creating applications for mobile devices like smartphones and tablets.",
+    "sub_categories": [
+      {
+        "sub_category_name": "Android Development",
+        "sub_category_description": "Building applications for the Android operating system using Kotlin and Jetpack.",
+        "quizzes": [
+          {
+            "question": "Describe the key states in the Android Activity lifecycle.",
+            "model_answers": [
+              "The key states in the Android Activity lifecycle are Created, Started, Resumed, Paused, Stopped, and Destroyed. An activity transitions between these states based on user interaction and system events. The main callback methods are `onCreate()`, `onStart()`, `onResume()`, `onPause()`, `onStop()`, and `onDestroy()`."
+            ],
+            "keywords": [
+              "android",
+              "activity lifecycle",
+              "oncreate",
+              "onresume",
+              "onpause",
+              "android basics"
+            ],
+            "difficulty": "easy"
+          },
+          {
+            "question": "What is the purpose of Android Jetpack?",
+            "model_answers": [
+              "Android Jetpack is a suite of libraries, tools, and guidance from Google to help developers write high-quality apps more easily. It provides components for architecture (like ViewModel, LiveData, Room), UI (like Compose), and behavior. The goal is to handle boilerplate code, manage complex tasks like background jobs and navigation, and ensure apps work consistently across different Android versions and devices."
+            ],
+            "keywords": [
+              "android jetpack",
+              "android development",
+              "viewmodel",
+              "livedata",
+              "room",
+              "jetpack compose"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "Explain the roles of ViewModel and LiveData in the Android Architecture Components.",
+            "model_answers": [
+              "A `ViewModel` is designed to store and manage UI-related data in a lifecycle-conscious way. It allows data to survive configuration changes such as screen rotations. `LiveData` is an observable data holder class. Unlike a regular observable, LiveData is lifecycle-aware, meaning it respects the lifecycle of other app components, such as activities and fragments. It only updates component observers that are in an active lifecycle state. Together, they form a robust pattern for UI development where the UI observes data in the ViewModel, which is exposed via LiveData."
+            ],
+            "keywords": [
+              "android",
+              "viewmodel",
+              "livedata",
+              "jetpack",
+              "architecture components",
+              "lifecycle"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "What is an `Intent` in Android and what are its types?",
+            "model_answers": [
+              "An `Intent` is a messaging object you can use to request an action from another app component. There are two types: Explicit and Implicit. An Explicit Intent specifies the exact component to start (e.g., `new Intent(this, OtherActivity.class)`). It's used for internal app navigation. An Implicit Intent does not name a specific component, but instead declares a general action to perform, allowing a component from another app to handle it (e.g., opening a web page or a map location)."
+            ],
+            "keywords": [
+              "android",
+              "intent",
+              "explicit intent",
+              "implicit intent",
+              "activity",
+              "component communication"
+            ],
+            "difficulty": "medium"
+          }
+        ]
+      },
+      {
+        "sub_category_name": "iOS Development",
+        "sub_category_description": "Building applications for Apple's iOS using Swift and SwiftUI.",
+        "quizzes": [
+          {
+            "question": "What is the difference between a `struct` and a `class` in Swift?",
+            "model_answers": [
+              "The main difference is that `struct` instances are value types, while `class` instances are reference types. When you copy a struct, you get a new, independent copy of the data. When you copy a class, you get a new reference to the same instance in memory. Classes also support inheritance, type casting, and deinitializers, which structs do not."
+            ],
+            "keywords": [
+              "swift",
+              "struct",
+              "class",
+              "value type",
+              "reference type",
+              "ios development"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "Explain the role of SwiftUI in modern iOS development.",
+            "model_answers": [
+              "SwiftUI is a modern, declarative UI framework from Apple for building apps on all Apple platforms. Instead of manually laying out UI components (imperative), you declare what the UI should look like for a given state. When the state changes, SwiftUI automatically updates the UI. This leads to more readable, maintainable, and less error-prone code compared to the older UIKit framework."
+            ],
+            "keywords": [
+              "swiftui",
+              "declarative ui",
+              "uikit",
+              "ios development",
+              "swift",
+              "state management"
+            ],
+            "difficulty": "easy"
+          },
+          {
+            "question": "What is Automatic Reference Counting (ARC) in Swift?",
+            "model_answers": [
+              "Automatic Reference Counting (ARC) is Swift's memory management feature. ARC automatically frees up the memory used by class instances when those instances are no longer needed. It works by keeping track of how many properties, constants, and variables are currently referring to each class instance. When there are zero active references to an instance, ARC deallocates it."
+            ],
+            "keywords": [
+              "swift",
+              "arc",
+              "automatic reference counting",
+              "memory management",
+              "ios development",
+              "retain cycle"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "What is Core Data?",
+            "model_answers": [
+              "Core Data is a framework provided by Apple for managing the model layer objects in an application. It is not a database itself, but a framework for object-graph management and persistence. It can use SQLite as its persistent store, but its primary function is to manage the state of a graph of objects, track changes, and handle persistence, undo/redo, and data validation."
+            ],
+            "keywords": [
+              "ios",
+              "core data",
+              "persistence",
+              "object-graph management",
+              "swift",
+              "xcode"
+            ],
+            "difficulty": "hard"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "category_name": "Artificial Intelligence",
+    "category_description": "The theory and development of computer systems able to perform tasks normally requiring human intelligence.",
+    "sub_categories": [
+      {
+        "sub_category_name": "AI/ML/DL Concepts",
+        "sub_category_description": "Fundamental concepts in Artificial Intelligence, Machine Learning, and Deep Learning.",
+        "quizzes": [
+          {
+            "question": "What is overfitting in machine learning and how can it be prevented?",
+            "model_answers": [
+              "Overfitting occurs when a machine learning model learns the training data too well, including its noise and random fluctuations, to the point that it performs poorly on new, unseen data. It has a low training error but a high test error. Prevention techniques include: getting more training data, using regularization (like L1 or L2), applying dropout, and using cross-validation."
+            ],
+            "keywords": [
+              "machine learning",
+              "overfitting",
+              "underfitting",
+              "regularization",
+              "dropout",
+              "cross-validation",
+              "model evaluation"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "Explain what a Convolutional Neural Network (CNN) is and its primary use case.",
+            "model_answers": [
+              "A Convolutional Neural Network (CNN) is a type of deep learning neural network designed specifically for processing pixel data. It uses special layers called convolutional layers that apply filters to input images to capture spatial hierarchies of features, from simple edges to complex objects. Its primary use case is in computer vision tasks like image classification, object detection, and image segmentation."
+            ],
+            "keywords": [
+              "cnn",
+              "convolutional neural network",
+              "deep learning",
+              "computer vision",
+              "image recognition",
+              "convolutional layer"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "What is the difference between supervised, unsupervised, and reinforcement learning?",
+            "model_answers": [
+              "Supervised learning involves training a model on a labeled dataset, where both the input and the correct output are provided. The goal is to learn a mapping function to predict outputs for new inputs (e.g., image classification). Unsupervised learning works with unlabeled data, trying to find patterns or structure within it (e.g., clustering). Reinforcement learning involves an agent that learns to make decisions by taking actions in an environment to maximize a cumulative reward (e.g., training a model to play a game)."
+            ],
+            "keywords": [
+              "supervised learning",
+              "unsupervised learning",
+              "reinforcement learning",
+              "machine learning",
+              "labeled data",
+              "clustering",
+              "agent",
+              "reward"
+            ],
+            "difficulty": "easy"
+          },
+          {
+            "question": "Explain the concept of Gradient Descent.",
+            "model_answers": [
+              "Gradient Descent is an iterative optimization algorithm used to find the local minimum of a function. In machine learning, it's used to minimize the cost or loss function, thereby improving the model's accuracy. It works by taking repeated steps in the opposite direction of the gradient (or slope) of the function at the current point, because this is the direction of steepest descent. The size of the steps is determined by the learning rate."
+            ],
+            "keywords": [
+              "gradient descent",
+              "machine learning",
+              "optimization",
+              "loss function",
+              "learning rate",
+              "deep learning"
+            ],
+            "difficulty": "medium"
+          }
+        ]
+      },
+      {
+        "sub_category_name": "LLMs & Prompt Engineering",
+        "sub_category_description": "Concepts related to Large Language Models and crafting effective prompts.",
+        "quizzes": [
+          {
+            "question": "What is the Transformer architecture and why is it significant for LLMs?",
+            "model_answers": [
+              "The Transformer is a neural network architecture introduced in the paper 'Attention Is All You Need'. It relies entirely on self-attention mechanisms to process input data, dispensing with recurrence and convolutions. Its ability to handle long-range dependencies and its high parallelizability made it the foundation for most modern Large Language Models (LLMs), like GPT and BERT, enabling them to be trained on massive datasets."
+            ],
+            "keywords": [
+              "llm",
+              "transformer architecture",
+              "attention mechanism",
+              "self-attention",
+              "gpt",
+              "bert",
+              "nlp"
+            ],
+            "difficulty": "hard"
+          },
+          {
+            "question": "What is 'zero-shot' and 'few-shot' prompting?",
+            "model_answers": [
+              "Zero-shot prompting is when you ask an LLM to perform a task without giving it any prior examples of that task in the prompt. You rely on the model's pre-existing knowledge. Few-shot prompting is when you provide a small number (e.g., 1 to 5) of examples of the task within the prompt itself, helping the model understand the desired format or context before it generates a response for your actual query."
+            ],
+            "keywords": [
+              "prompt engineering",
+              "llm",
+              "zero-shot",
+              "few-shot",
+              "in-context learning"
+            ],
+            "difficulty": "easy"
+          },
+          {
+            "question": "What is Retrieval-Augmented Generation (RAG) and how does it enhance LLMs?",
+            "model_answers": [
+              "Retrieval-Augmented Generation (RAG) is a technique that enhances the accuracy and reliability of LLMs by grounding them with external knowledge. Instead of just relying on its internal, static training data, a RAG system first retrieves relevant documents or data snippets from an external source (like a database or a set of documents) based on the user's query. It then provides this retrieved information as context to the LLM along with the original prompt, enabling the model to generate more informed and up-to-date answers."
+            ],
+            "keywords": [
+              "rag",
+              "retrieval-augmented generation",
+              "llm",
+              "prompt engineering",
+              "grounding",
+              "vector database"
+            ],
+            "difficulty": "hard"
+          }
+        ]
+      },
+      {
+        "sub_category_name": "AI Frameworks (PyTorch & TensorFlow)",
+        "sub_category_description": "Popular open-source libraries for machine learning and deep learning.",
+        "quizzes": [
+          {
+            "question": "What is a Tensor, and why is it a fundamental concept in libraries like PyTorch and TensorFlow?",
+            "model_answers": [
+              "A Tensor is a multi-dimensional array, generalizing scalars (0D tensor), vectors (1D tensor), and matrices (2D tensor) to higher dimensions. Tensors are the fundamental data structure in libraries like PyTorch and TensorFlow because they are perfect for representing all types of data in machine learning (like images, text embeddings, model weights) and for performing mathematical operations efficiently on GPUs or TPUs."
+            ],
+            "keywords": [
+              "tensor",
+              "pytorch",
+              "tensorflow",
+              "deep learning",
+              "gpu",
+              "data structure"
+            ],
             "difficulty": "easy"
           }
         ]
@@ -43,21 +699,989 @@
     ]
   },
   {
-    "category_name": "Software Development Principles",
-    "category_description": "Core principles and practices in software development.",
+    "category_name": "Programming & Practices",
+    "category_description": "General programming languages and essential software development practices.",
     "sub_categories": [
       {
-        "sub_category_name": "Version Control with Git",
-        "sub_category_description": "Understanding and using Git for version control.",
+        "sub_category_name": "Programming Languages (Python, Go, Java)",
+        "sub_category_description": "Questions related to popular general-purpose programming languages.",
         "quizzes": [
           {
-            "question": "What is a 'merge conflict' in Git and how can it typically be resolved?",
+            "question": "Explain what a Goroutine is in Go and how it differs from a traditional OS thread.",
             "model_answers": [
-              "A merge conflict in Git occurs when Git is unable to automatically resolve differences in code between two commits being merged. This usually happens when the same lines of code are changed in different branches or when one branch deletes a file that another branch has modified. To resolve it, you typically need to manually edit the conflicted files to select the desired changes, then mark the conflict as resolved (e.g., using 'git add' on the affected files), and finally complete the merge.",
-              "It's when changes from different branches affect the same part of a file, and Git can't figure out which change to accept. You have to manually open the file, look for the conflict markers (<<<<<<<, =======, >>>>>>>), decide what the code should look like, remove the markers, and then commit the resolved file."
+              "A Goroutine is a lightweight thread of execution managed by the Go runtime. They are much cheaper to create than OS threads, with a smaller stack size that can grow if needed. The Go scheduler multiplexes multiple Goroutines onto a smaller number of OS threads, making it highly efficient to run thousands or even millions of concurrent Goroutines.",
+              "Goroutines are Go's way of handling concurrency. Unlike threads, which are managed by the OS, Goroutines are managed by the Go runtime scheduler. This makes them more lightweight and faster to start up, enabling massive concurrency in Go applications."
             ],
-            "keywords": ["git", "merge conflict", "version control", "branches", "resolve conflict", "manual edit"],
+            "keywords": [
+              "go",
+              "golang",
+              "goroutine",
+              "concurrency",
+              "green thread",
+              "go scheduler"
+            ],
             "difficulty": "medium"
+          },
+          {
+            "question": "What are decorators in Python? Provide a simple use case.",
+            "model_answers": [
+              "A decorator in Python is a design pattern that allows a user to add new functionality to an existing object without modifying its structure. Decorators are usually functions that take another function as an argument, add some functionality, and then return the augmented function. A common use case is logging: a decorator can be written to log the arguments and return value of a function each time it's called."
+            ],
+            "keywords": [
+              "python",
+              "decorator",
+              "metaprogramming",
+              "higher-order function"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "What is the Global Interpreter Lock (GIL) in Python and how does it affect concurrency?",
+            "model_answers": [
+              "The Global Interpreter Lock (GIL) is a mutex that protects access to Python objects, preventing multiple native threads from executing Python bytecodes at the same time. This means that even on a multi-core processor, only one thread can be executing Python code at any given moment. This simplifies memory management but limits the performance of CPU-bound multi-threaded programs. It doesn't impact I/O-bound programs as much, and concurrency can be achieved using multiprocessing instead of multithreading for CPU-bound tasks."
+            ],
+            "keywords": [
+              "python",
+              "gil",
+              "global interpreter lock",
+              "concurrency",
+              "multithreading",
+              "multiprocessing"
+            ],
+            "difficulty": "hard"
+          },
+          {
+            "question": "Explain the roles of the JVM, JRE, and JDK in the Java ecosystem.",
+            "model_answers": [
+              "JDK (Java Development Kit) is a full-featured software development kit that includes the JRE and development tools like the compiler (`javac`) and debugger. JRE (Java Runtime Environment) is the environment needed to run Java applications; it contains the JVM and core libraries. JVM (Java Virtual Machine) is an abstract machine that provides a runtime environment in which Java bytecode can be executed. It's the component that makes Java 'platform-independent'."
+            ],
+            "keywords": [
+              "java",
+              "jvm",
+              "jre",
+              "jdk",
+              "platform independent",
+              "bytecode"
+            ],
+            "difficulty": "easy"
+          }
+        ]
+      },
+      {
+        "sub_category_name": "General Practices (Security & Debugging)",
+        "sub_category_description": "Essential practices for writing robust and secure code.",
+        "quizzes": [
+          {
+            "question": "What is SQL Injection, and what is the primary way to prevent it?",
+            "model_answers": [
+              "SQL Injection is a code injection technique used to attack data-driven applications. It occurs when malicious SQL statements are inserted into an entry field for execution (e.g., to dump database contents to the attacker). The primary way to prevent it is to use prepared statements (also known as parameterized queries), which ensure that user input is always treated as data and not as executable code."
+            ],
+            "keywords": [
+              "security",
+              "sql injection",
+              "sqli",
+              "prepared statements",
+              "parameterized queries",
+              "owasp"
+            ],
+            "difficulty": "easy"
+          },
+          {
+            "question": "What is Cross-Site Scripting (XSS) and how can it be mitigated?",
+            "model_answers": [
+              "Cross-Site Scripting (XSS) is a security vulnerability where an attacker injects malicious scripts (usually JavaScript) into content from otherwise trusted websites. When another user visits the page, the script runs in their browser, allowing the attacker to steal information like cookies or perform actions on behalf of the user. Mitigation involves properly sanitizing and escaping all user-supplied input before rendering it on a page and using Content Security Policy (CSP) headers."
+            ],
+            "keywords": [
+              "security",
+              "xss",
+              "cross-site scripting",
+              "input sanitization",
+              "content security policy",
+              "owasp"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "What is Cross-Site Request Forgery (CSRF) and how is it typically prevented?",
+            "model_answers": [
+              "Cross-Site Request Forgery (CSRF or XSRF) is an attack that forces an end user to execute unwanted actions on a web application in which they're currently authenticated. A successful CSRF attack can trick the user into performing state-changing requests like transferring funds or changing their email address. It is typically prevented by using an anti-CSRF token. The server generates a unique, unpredictable token for each user session and requires that token to be included in all subsequent state-changing requests."
+            ],
+            "keywords": [
+              "security",
+              "csrf",
+              "cross-site request forgery",
+              "anti-csrf token",
+              "owasp"
+            ],
+            "difficulty": "hard"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "category_name": "Fundamentals of Computer Science",
+    "category_description": "Core concepts in computing, including data organization and algorithm design.",
+    "sub_categories": [
+      {
+        "sub_category_name": "Data Structures",
+        "sub_category_description": "Methods of organizing and storing data for efficient access and modification.",
+        "quizzes": [
+          {
+            "question": "What is a hash table and how does it handle collisions?",
+            "model_answers": [
+              "A hash table is a data structure that maps keys to values using a hash function. It provides fast average-case time complexity for insertion, deletion, and retrieval. Collisions, which occur when two different keys hash to the same index, are typically handled by methods like 'Separate Chaining' (each bucket contains a linked list of entries) or 'Open Addressing' (probing for the next empty slot).",
+              "It's an array-based structure where a hash function computes an index for a key, where the value is stored. When a collision happens, Separate Chaining uses a list or another data structure at the collision index, while Open Addressing finds another empty spot in the same array, for example, by linear probing."
+            ],
+            "keywords": [
+              "hash table",
+              "hash map",
+              "collision handling",
+              "separate chaining",
+              "open addressing",
+              "hash function"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "Explain the difference between a B-Tree and a B+ Tree.",
+            "model_answers": [
+              "B-Trees and B+ Trees are self-balancing tree data structures designed for storage systems. In a B-Tree, keys and data can be stored in both internal and leaf nodes. In a B+ Tree, all data is stored only in the leaf nodes, and these leaf nodes are linked together in a sequence, which makes range queries much more efficient."
+            ],
+            "keywords": [
+              "b-tree",
+              "b+ tree",
+              "database indexing",
+              "file systems",
+              "leaf nodes",
+              "range queries"
+            ],
+            "difficulty": "hard"
+          },
+          {
+            "question": "What is the difference between a stack and a queue? Provide a real-world example for each.",
+            "model_answers": [
+              "A stack is a Last-In, First-Out (LIFO) data structure, while a queue is a First-In, First-Out (FIFO) data structure. For a stack, think of a pile of plates; you add and remove plates from the top. A real-world example is the function call stack in programming or the 'undo' feature in an editor. For a queue, think of a line of people waiting for a bus; the first person in line is the first to get on. A real-world example is a printer queue or requests to a web server."
+            ],
+            "keywords": [
+              "stack",
+              "queue",
+              "lifo",
+              "fifo",
+              "data structures",
+              "call stack",
+              "print queue"
+            ],
+            "difficulty": "easy"
+          },
+          {
+            "question": "Compare and contrast Breadth-First Search (BFS) and Depth-First Search (DFS).",
+            "model_answers": [
+              "BFS and DFS are two algorithms for traversing or searching tree or graph data structures. BFS explores neighbor nodes first, before moving to the next level neighbors. It uses a queue. It's good for finding the shortest path in an unweighted graph. DFS explores as far as possible along each branch before backtracking. It uses a stack (or recursion). It's useful for tasks like topological sorting or finding connected components."
+            ],
+            "keywords": [
+              "bfs",
+              "dfs",
+              "breadth-first search",
+              "depth-first search",
+              "graph traversal",
+              "tree traversal",
+              "queue",
+              "stack"
+            ],
+            "difficulty": "medium"
+          }
+        ]
+      },
+      {
+        "sub_category_name": "Algorithms",
+        "sub_category_description": "Processes or sets of rules to be followed in calculations or other problem-solving operations.",
+        "quizzes": [
+          {
+            "question": "What is dynamic programming and can you give an example of a problem it solves?",
+            "model_answers": [
+              "Dynamic programming is a method for solving complex problems by breaking them down into simpler, overlapping subproblems. It solves each subproblem only once and stores their solutions to avoid redundant computations. A classic example is calculating the Fibonacci sequence, where F(n) = F(n-1) + F(n-2). Instead of re-calculating F(n-1) and F(n-2) recursively, their results are stored (memoization) for reuse.",
+              "It's an algorithmic technique that solves problems by combining the solutions to subproblems. It's applicable when subproblems overlap. The Longest Common Subsequence (LCS) problem is another example solved efficiently using dynamic programming."
+            ],
+            "keywords": [
+              "dynamic programming",
+              "memoization",
+              "tabulation",
+              "overlapping subproblems",
+              "fibonacci",
+              "lcs"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "Explain Dijkstra's algorithm. What problem does it solve?",
+            "model_answers": [
+              "Dijkstra's algorithm is a greedy algorithm that finds the shortest path between a starting node and all other nodes in a weighted graph with non-negative edge weights. It works by maintaining a set of visited nodes and iteratively selecting the unvisited node with the smallest known distance from the start node, then updating the distances of its neighbors."
+            ],
+            "keywords": [
+              "dijkstra's algorithm",
+              "shortest path",
+              "graph theory",
+              "greedy algorithm",
+              "weighted graph"
+            ],
+            "difficulty": "hard"
+          },
+          {
+            "question": "Compare the time complexity of Quicksort, Mergesort, and Bubblesort in the best, average, and worst cases.",
+            "model_answers": [
+              "Bubble Sort: Best case is O(n) if the array is already sorted, but average and worst cases are O(n^2). It's simple but inefficient for large datasets. Mergesort: Best, average, and worst-case time complexity are all O(n log n), making it very consistent. It requires O(n) extra space. Quicksort: Best and average cases are O(n log n), which is very efficient. However, its worst-case complexity is O(n^2), which can occur if the pivot selection is poor (e.g., on an already sorted array)."
+            ],
+            "keywords": [
+              "quicksort",
+              "mergesort",
+              "bubblesort",
+              "sorting algorithms",
+              "time complexity",
+              "big o notation"
+            ],
+            "difficulty": "medium"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "category_name": "Backend Development",
+    "category_description": "Server-side logic, databases, APIs, and architecture that power applications.",
+    "sub_categories": [
+      {
+        "sub_category_name": "Databases (SQL & NoSQL)",
+        "sub_category_description": "Systems for storing, retrieving, and managing data.",
+        "quizzes": [
+          {
+            "question": "Compare and contrast SQL and NoSQL databases.",
+            "model_answers": [
+              "SQL databases (like MySQL, PostgreSQL) are relational, use structured data with predefined schemas, and use SQL (Structured Query Language). They are vertically scalable and prioritize data consistency (ACID properties). NoSQL databases (like MongoDB, Cassandra) are non-relational, have dynamic schemas for unstructured data, are horizontally scalable, and often prioritize availability and performance (BASE properties)."
+            ],
+            "keywords": [
+              "sql",
+              "nosql",
+              "relational database",
+              "non-relational",
+              "schema",
+              "scalability",
+              "acid",
+              "base"
+            ],
+            "difficulty": "easy"
+          },
+          {
+            "question": "What are ACID properties in the context of database transactions?",
+            "model_answers": [
+              "ACID is an acronym that stands for Atomicity, Consistency, Isolation, and Durability. It's a set of properties that guarantee database transactions are processed reliably. Atomicity ensures that a transaction is all-or-nothing. Consistency ensures the database remains in a valid state. Isolation ensures that concurrent transactions do not interfere with each other. Durability ensures that once a transaction is committed, it remains so, even in the event of a power loss or system crash."
+            ],
+            "keywords": [
+              "acid",
+              "database transaction",
+              "atomicity",
+              "consistency",
+              "isolation",
+              "durability",
+              "sql"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "Explain the CAP theorem for distributed computer systems.",
+            "model_answers": [
+              "The CAP theorem states that it is impossible for a distributed data store to simultaneously provide more than two out of the following three guarantees: Consistency (every read receives the most recent write or an error), Availability (every request receives a (non-error) response, without the guarantee that it contains the most recent write), and Partition Tolerance (the system continues to operate despite an arbitrary number of messages being dropped or delayed by the network between nodes). In practice, partition tolerance is a must for distributed systems, so designers must choose between consistency and availability."
+            ],
+            "keywords": [
+              "cap theorem",
+              "distributed systems",
+              "consistency",
+              "availability",
+              "partition tolerance",
+              "nosql"
+            ],
+            "difficulty": "hard"
+          },
+          {
+            "question": "What is a database index and why is it important for performance?",
+            "model_answers": [
+              "A database index is a data structure that improves the speed of data retrieval operations on a database table at the cost of additional writes and storage space to maintain the index structure. An index is used to quickly locate data without having to search every row in a database table every time a table is accessed. Indexes can be created using one or more columns of a database table, providing the basis for both rapid random lookups and efficient access of ordered records."
+            ],
+            "keywords": [
+              "database index",
+              "sql",
+              "performance tuning",
+              "b-tree",
+              "query optimization"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "What is database normalization? Explain the first three normal forms (1NF, 2NF, 3NF).",
+            "model_answers": [
+              "Database normalization is the process of organizing columns and tables in a relational database to minimize data redundancy. 1NF (First Normal Form) ensures that table cells hold a single value and each record is unique. 2NF (Second Normal Form) requires the table to be in 1NF and all non-key attributes to be fully functional on the primary key. 3NF (Third Normal Form) requires the table to be in 2NF and all attributes to be dependent only on the primary key, not on other non-key attributes."
+            ],
+            "keywords": [
+              "database normalization",
+              "1nf",
+              "2nf",
+              "3nf",
+              "relational database",
+              "sql",
+              "data redundancy"
+            ],
+            "difficulty": "hard"
+          }
+        ]
+      },
+      {
+        "sub_category_name": "APIs (REST & GraphQL)",
+        "sub_category_description": "Interfaces for communication between different software components.",
+        "quizzes": [
+          {
+            "question": "What is an idempotent operation in the context of a REST API? Which HTTP methods are idempotent?",
+            "model_answers": [
+              "An idempotent operation is one that can be applied multiple times without changing the result beyond the initial application. In a REST API, this means making multiple identical requests has the same effect as making a single request. The HTTP methods GET, HEAD, OPTIONS, TRACE, PUT, and DELETE are idempotent. POST is not idempotent."
+            ],
+            "keywords": [
+              "rest api",
+              "idempotency",
+              "http methods",
+              "put",
+              "delete",
+              "get",
+              "post"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "How does GraphQL solve the problems of over-fetching and under-fetching common in REST APIs?",
+            "model_answers": [
+              "GraphQL solves over-fetching and under-fetching by allowing the client to specify exactly what data it needs in a single request. Over-fetching (getting more data than needed) is avoided because the client's query dictates the response fields. Under-fetching (needing to make multiple API calls to get all required data) is avoided because complex queries can retrieve nested resources in one round trip. The server returns a JSON object that precisely matches the structure of the client's query."
+            ],
+            "keywords": [
+              "graphql",
+              "rest api",
+              "over-fetching",
+              "under-fetching",
+              "api design",
+              "query language"
+            ],
+            "difficulty": "medium"
+          }
+        ]
+      },
+      {
+        "sub_category_name": "System Design & Architecture",
+        "sub_category_description": "Designing the architecture of complex software systems.",
+        "quizzes": [
+          {
+            "question": "Explain the concept of microservices architecture.",
+            "model_answers": [
+              "Microservices is an architectural style that structures an application as a collection of loosely coupled, independently deployable services. Each service is self-contained, responsible for a specific business capability, runs in its own process, and communicates with others through well-defined APIs (often HTTP/REST). This approach enables better scalability, flexibility, and faster development cycles compared to a monolithic architecture."
+            ],
+            "keywords": [
+              "microservices",
+              "monolith",
+              "system architecture",
+              "scalability",
+              "loose coupling",
+              "api"
+            ],
+            "difficulty": "easy"
+          },
+          {
+            "question": "What is a race condition in concurrent programming, and how can you prevent it?",
+            "model_answers": [
+              "A race condition is an undesirable situation that occurs when a device or system attempts to perform two or more operations at the same time, but because of the nature of the device or system, the operations must be done in the proper sequence to be done correctly. They can be prevented using synchronization mechanisms like mutexes (mutual exclusion locks), semaphores, or by designing algorithms to be lock-free."
+            ],
+            "keywords": [
+              "concurrency",
+              "multithreading",
+              "race condition",
+              "synchronization",
+              "mutex",
+              "semaphore"
+            ],
+            "difficulty": "hard"
+          },
+          {
+            "question": "What is load balancing and what are some common strategies?",
+            "model_answers": [
+              "Load balancing is the process of distributing network traffic or computational workloads across multiple servers. This improves responsiveness and increases availability of applications. Common strategies include Round Robin (requests are distributed sequentially), Least Connections (sends traffic to the server with the fewest active connections), and IP Hash (the client's IP address is used to determine which server receives the request)."
+            ],
+            "keywords": [
+              "load balancing",
+              "system design",
+              "scalability",
+              "high availability",
+              "round robin",
+              "least connections"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "Describe different caching strategies like cache-aside, read-through, and write-through.",
+            "model_answers": [
+              "Cache-aside (or lazy loading) is the most common strategy. The application is responsible for checking the cache first. If the data is there (a cache hit), it's returned. If not (a cache miss), the application reads the data from the database, adds it to the cache, and then returns it. Read-through is similar, but the cache library itself handles loading from the database. Write-through writes data to the cache and the database simultaneously, ensuring consistency but with higher latency."
+            ],
+            "keywords": [
+              "caching",
+              "system design",
+              "performance",
+              "cache-aside",
+              "read-through",
+              "write-through",
+              "redis"
+            ],
+            "difficulty": "hard"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "category_name": "DevOps & Cloud Computing",
+    "category_description": "Practices and tools that combine software development (Dev) and IT operations (Ops).",
+    "sub_categories": [
+      {
+        "sub_category_name": "Cloud & AWS",
+        "sub_category_description": "Fundamentals of cloud computing and Amazon Web Services.",
+        "quizzes": [
+          {
+            "question": "What is the difference between IaaS, PaaS, and SaaS?",
+            "model_answers": [
+              "IaaS (Infrastructure as a Service), like AWS EC2, provides virtualized computing resources over the internet (servers, storage, networking). PaaS (Platform as a Service), like AWS Elastic Beanstalk or Heroku, provides a platform allowing customers to develop, run, and manage applications without the complexity of building and maintaining the infrastructure. SaaS (Software as a Service), like Google Workspace or Salesforce, provides ready-to-use software applications over the internet."
+            ],
+            "keywords": [
+              "iaas",
+              "paas",
+              "saas",
+              "cloud computing",
+              "aws",
+              "virtualization"
+            ],
+            "difficulty": "easy"
+          },
+          {
+            "question": "What is AWS S3 and what is its primary use case?",
+            "model_answers": [
+              "Amazon S3 (Simple Storage Service) is a highly scalable object storage service from AWS. It's not a file system, but it stores data as objects within buckets. Its primary use case is for storing and retrieving any amount of data, at any time, from anywhere on the web. It is commonly used for website hosting, data archiving, application data, and as a data lake for analytics."
+            ],
+            "keywords": [
+              "aws",
+              "s3",
+              "object storage",
+              "cloud storage",
+              "bucket"
+            ],
+            "difficulty": "easy"
+          },
+          {
+            "question": "What is serverless computing? Explain with AWS Lambda as an example.",
+            "model_answers": [
+              "Serverless computing is a cloud execution model where the cloud provider manages the allocation and provisioning of servers. You don't manage any servers yourself. You write code and deploy it as functions. AWS Lambda is a prime example. You can upload your code, and Lambda runs it in response to events (like an HTTP request or a file upload to S3). You only pay for the compute time you consume, and it scales automatically from a few requests per day to thousands per second."
+            ],
+            "keywords": [
+              "serverless",
+              "aws lambda",
+              "cloud computing",
+              "faas",
+              "function as a service"
+            ],
+            "difficulty": "medium"
+          }
+        ]
+      },
+      {
+        "sub_category_name": "Containerization (Docker & Kubernetes)",
+        "sub_category_description": "Encapsulating applications in containers for deployment and orchestration.",
+        "quizzes": [
+          {
+            "question": "Explain the relationship between a Dockerfile, a Docker Image, and a Docker Container.",
+            "model_answers": [
+              "A Dockerfile is a text file that contains instructions for building a Docker Image. The Docker Image is a lightweight, standalone, executable package that includes everything needed to run a piece of software, including the code, runtime, libraries, and settings. A Docker Container is a running instance of a Docker Image. You can run multiple containers from the same image."
+            ],
+            "keywords": [
+              "docker",
+              "dockerfile",
+              "docker image",
+              "docker container",
+              "containerization"
+            ],
+            "difficulty": "easy"
+          },
+          {
+            "question": "What is a Pod in Kubernetes and why is it important?",
+            "model_answers": [
+              "A Pod is the smallest and simplest deployable unit in the Kubernetes object model. It represents a single instance of a running process in a cluster. A Pod can contain one or more containers (like Docker containers) that are co-located and co-scheduled, and share resources like storage and networking. This allows closely coupled containers to work together as a single, cohesive service."
+            ],
+            "keywords": [
+              "kubernetes",
+              "k8s",
+              "pod",
+              "container orchestration",
+              "docker",
+              "container"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "In Kubernetes, what is the difference between a Service and a Deployment?",
+            "model_answers": [
+              "A Deployment is responsible for managing a set of replica Pods. It ensures that a specified number of Pods are running and healthy. It handles declarative updates, enabling rolling updates, rollbacks, and scaling. A Service, on the other hand, provides a stable endpoint (a single IP address and DNS name) to access a set of Pods. It acts as a load balancer for the traffic to the Pods managed by a Deployment. The Service's endpoint remains constant even if the Pods it targets are created or destroyed."
+            ],
+            "keywords": [
+              "kubernetes",
+              "k8s",
+              "service",
+              "deployment",
+              "pod",
+              "container orchestration"
+            ],
+            "difficulty": "hard"
+          }
+        ]
+      },
+      {
+        "sub_category_name": "CI/CD",
+        "sub_category_description": "Continuous Integration and Continuous Deployment/Delivery practices.",
+        "quizzes": [
+          {
+            "question": "Explain the concept of a CI/CD pipeline.",
+            "model_answers": [
+              "A CI/CD pipeline is an automated process for delivering software from development to production. 'Continuous Integration' (CI) is the practice of frequently merging code changes into a central repository, after which automated builds and tests are run. 'Continuous Delivery/Deployment' (CD) is the practice of automatically deploying all code changes that pass the CI stage to a testing or production environment. The pipeline automates the build, test, and deployment phases, enabling faster and more reliable software releases."
+            ],
+            "keywords": [
+              "ci/cd",
+              "continuous integration",
+              "continuous deployment",
+              "devops",
+              "automation",
+              "pipeline"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "What is Infrastructure as Code (IaC) and what are its benefits?",
+            "model_answers": [
+              "Infrastructure as Code (IaC) is the practice of managing and provisioning computing infrastructure through machine-readable definition files, rather than physical hardware configuration or interactive configuration tools. This allows for versioning, reusability, and automation of infrastructure setup. Benefits include speed and consistency in deployments, reduced risk of human error, and improved collaboration between development and operations teams. Tools like Terraform and AWS CloudFormation are popular examples."
+            ],
+            "keywords": [
+              "iac",
+              "infrastructure as code",
+              "devops",
+              "terraform",
+              "cloudformation",
+              "automation"
+            ],
+            "difficulty": "medium"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "category_name": "Mobile Development",
+    "category_description": "Creating applications for mobile devices like smartphones and tablets.",
+    "sub_categories": [
+      {
+        "sub_category_name": "Android Development",
+        "sub_category_description": "Building applications for the Android operating system using Kotlin and Jetpack.",
+        "quizzes": [
+          {
+            "question": "Describe the key states in the Android Activity lifecycle.",
+            "model_answers": [
+              "The key states in the Android Activity lifecycle are Created, Started, Resumed, Paused, Stopped, and Destroyed. An activity transitions between these states based on user interaction and system events. The main callback methods are `onCreate()`, `onStart()`, `onResume()`, `onPause()`, `onStop()`, and `onDestroy()`."
+            ],
+            "keywords": [
+              "android",
+              "activity lifecycle",
+              "oncreate",
+              "onresume",
+              "onpause",
+              "android basics"
+            ],
+            "difficulty": "easy"
+          },
+          {
+            "question": "What is the purpose of Android Jetpack?",
+            "model_answers": [
+              "Android Jetpack is a suite of libraries, tools, and guidance from Google to help developers write high-quality apps more easily. It provides components for architecture (like ViewModel, LiveData, Room), UI (like Compose), and behavior. The goal is to handle boilerplate code, manage complex tasks like background jobs and navigation, and ensure apps work consistently across different Android versions and devices."
+            ],
+            "keywords": [
+              "android jetpack",
+              "android development",
+              "viewmodel",
+              "livedata",
+              "room",
+              "jetpack compose"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "Explain the roles of ViewModel and LiveData in the Android Architecture Components.",
+            "model_answers": [
+              "A `ViewModel` is designed to store and manage UI-related data in a lifecycle-conscious way. It allows data to survive configuration changes such as screen rotations. `LiveData` is an observable data holder class. Unlike a regular observable, LiveData is lifecycle-aware, meaning it respects the lifecycle of other app components, such as activities and fragments. It only updates component observers that are in an active lifecycle state. Together, they form a robust pattern for UI development where the UI observes data in the ViewModel, which is exposed via LiveData."
+            ],
+            "keywords": [
+              "android",
+              "viewmodel",
+              "livedata",
+              "jetpack",
+              "architecture components",
+              "lifecycle"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "What is an `Intent` in Android and what are its types?",
+            "model_answers": [
+              "An `Intent` is a messaging object you can use to request an action from another app component. There are two types: Explicit and Implicit. An Explicit Intent specifies the exact component to start (e.g., `new Intent(this, OtherActivity.class)`). It's used for internal app navigation. An Implicit Intent does not name a specific component, but instead declares a general action to perform, allowing a component from another app to handle it (e.g., opening a web page or a map location)."
+            ],
+            "keywords": [
+              "android",
+              "intent",
+              "explicit intent",
+              "implicit intent",
+              "activity",
+              "component communication"
+            ],
+            "difficulty": "medium"
+          }
+        ]
+      },
+      {
+        "sub_category_name": "iOS Development",
+        "sub_category_description": "Building applications for Apple's iOS using Swift and SwiftUI.",
+        "quizzes": [
+          {
+            "question": "What is the difference between a `struct` and a `class` in Swift?",
+            "model_answers": [
+              "The main difference is that `struct` instances are value types, while `class` instances are reference types. When you copy a struct, you get a new, independent copy of the data. When you copy a class, you get a new reference to the same instance in memory. Classes also support inheritance, type casting, and deinitializers, which structs do not."
+            ],
+            "keywords": [
+              "swift",
+              "struct",
+              "class",
+              "value type",
+              "reference type",
+              "ios development"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "Explain the role of SwiftUI in modern iOS development.",
+            "model_answers": [
+              "SwiftUI is a modern, declarative UI framework from Apple for building apps on all Apple platforms. Instead of manually laying out UI components (imperative), you declare what the UI should look like for a given state. When the state changes, SwiftUI automatically updates the UI. This leads to more readable, maintainable, and less error-prone code compared to the older UIKit framework."
+            ],
+            "keywords": [
+              "swiftui",
+              "declarative ui",
+              "uikit",
+              "ios development",
+              "swift",
+              "state management"
+            ],
+            "difficulty": "easy"
+          },
+          {
+            "question": "What is Automatic Reference Counting (ARC) in Swift?",
+            "model_answers": [
+              "Automatic Reference Counting (ARC) is Swift's memory management feature. ARC automatically frees up the memory used by class instances when those instances are no longer needed. It works by keeping track of how many properties, constants, and variables are currently referring to each class instance. When there are zero active references to an instance, ARC deallocates it."
+            ],
+            "keywords": [
+              "swift",
+              "arc",
+              "automatic reference counting",
+              "memory management",
+              "ios development",
+              "retain cycle"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "What is Core Data?",
+            "model_answers": [
+              "Core Data is a framework provided by Apple for managing the model layer objects in an application. It is not a database itself, but a framework for object-graph management and persistence. It can use SQLite as its persistent store, but its primary function is to manage the state of a graph of objects, track changes, and handle persistence, undo/redo, and data validation."
+            ],
+            "keywords": [
+              "ios",
+              "core data",
+              "persistence",
+              "object-graph management",
+              "swift",
+              "xcode"
+            ],
+            "difficulty": "hard"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "category_name": "Artificial Intelligence",
+    "category_description": "The theory and development of computer systems able to perform tasks normally requiring human intelligence.",
+    "sub_categories": [
+      {
+        "sub_category_name": "AI/ML/DL Concepts",
+        "sub_category_description": "Fundamental concepts in Artificial Intelligence, Machine Learning, and Deep Learning.",
+        "quizzes": [
+          {
+            "question": "What is overfitting in machine learning and how can it be prevented?",
+            "model_answers": [
+              "Overfitting occurs when a machine learning model learns the training data too well, including its noise and random fluctuations, to the point that it performs poorly on new, unseen data. It has a low training error but a high test error. Prevention techniques include: getting more training data, using regularization (like L1 or L2), applying dropout, and using cross-validation."
+            ],
+            "keywords": [
+              "machine learning",
+              "overfitting",
+              "underfitting",
+              "regularization",
+              "dropout",
+              "cross-validation",
+              "model evaluation"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "Explain what a Convolutional Neural Network (CNN) is and its primary use case.",
+            "model_answers": [
+              "A Convolutional Neural Network (CNN) is a type of deep learning neural network designed specifically for processing pixel data. It uses special layers called convolutional layers that apply filters to input images to capture spatial hierarchies of features, from simple edges to complex objects. Its primary use case is in computer vision tasks like image classification, object detection, and image segmentation."
+            ],
+            "keywords": [
+              "cnn",
+              "convolutional neural network",
+              "deep learning",
+              "computer vision",
+              "image recognition",
+              "convolutional layer"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "What is the difference between supervised, unsupervised, and reinforcement learning?",
+            "model_answers": [
+              "Supervised learning involves training a model on a labeled dataset, where both the input and the correct output are provided. The goal is to learn a mapping function to predict outputs for new inputs (e.g., image classification). Unsupervised learning works with unlabeled data, trying to find patterns or structure within it (e.g., clustering). Reinforcement learning involves an agent that learns to make decisions by taking actions in an environment to maximize a cumulative reward (e.g., training a model to play a game)."
+            ],
+            "keywords": [
+              "supervised learning",
+              "unsupervised learning",
+              "reinforcement learning",
+              "machine learning",
+              "labeled data",
+              "clustering",
+              "agent",
+              "reward"
+            ],
+            "difficulty": "easy"
+          },
+          {
+            "question": "Explain the concept of Gradient Descent.",
+            "model_answers": [
+              "Gradient Descent is an iterative optimization algorithm used to find the local minimum of a function. In machine learning, it's used to minimize the cost or loss function, thereby improving the model's accuracy. It works by taking repeated steps in the opposite direction of the gradient (or slope) of the function at the current point, because this is the direction of steepest descent. The size of the steps is determined by the learning rate."
+            ],
+            "keywords": [
+              "gradient descent",
+              "machine learning",
+              "optimization",
+              "loss function",
+              "learning rate",
+              "deep learning"
+            ],
+            "difficulty": "medium"
+          }
+        ]
+      },
+      {
+        "sub_category_name": "LLMs & Prompt Engineering",
+        "sub_category_description": "Concepts related to Large Language Models and crafting effective prompts.",
+        "quizzes": [
+          {
+            "question": "What is the Transformer architecture and why is it significant for LLMs?",
+            "model_answers": [
+              "The Transformer is a neural network architecture introduced in the paper 'Attention Is All You Need'. It relies entirely on self-attention mechanisms to process input data, dispensing with recurrence and convolutions. Its ability to handle long-range dependencies and its high parallelizability made it the foundation for most modern Large Language Models (LLMs), like GPT and BERT, enabling them to be trained on massive datasets."
+            ],
+            "keywords": [
+              "llm",
+              "transformer architecture",
+              "attention mechanism",
+              "self-attention",
+              "gpt",
+              "bert",
+              "nlp"
+            ],
+            "difficulty": "hard"
+          },
+          {
+            "question": "What is 'zero-shot' and 'few-shot' prompting?",
+            "model_answers": [
+              "Zero-shot prompting is when you ask an LLM to perform a task without giving it any prior examples of that task in the prompt. You rely on the model's pre-existing knowledge. Few-shot prompting is when you provide a small number (e.g., 1 to 5) of examples of the task within the prompt itself, helping the model understand the desired format or context before it generates a response for your actual query."
+            ],
+            "keywords": [
+              "prompt engineering",
+              "llm",
+              "zero-shot",
+              "few-shot",
+              "in-context learning"
+            ],
+            "difficulty": "easy"
+          },
+          {
+            "question": "What is Retrieval-Augmented Generation (RAG) and how does it enhance LLMs?",
+            "model_answers": [
+              "Retrieval-Augmented Generation (RAG) is a technique that enhances the accuracy and reliability of LLMs by grounding them with external knowledge. Instead of just relying on its internal, static training data, a RAG system first retrieves relevant documents or data snippets from an external source (like a database or a set of documents) based on the user's query. It then provides this retrieved information as context to the LLM along with the original prompt, enabling the model to generate more informed and up-to-date answers."
+            ],
+            "keywords": [
+              "rag",
+              "retrieval-augmented generation",
+              "llm",
+              "prompt engineering",
+              "grounding",
+              "vector database"
+            ],
+            "difficulty": "hard"
+          }
+        ]
+      },
+      {
+        "sub_category_name": "AI Frameworks (PyTorch & TensorFlow)",
+        "sub_category_description": "Popular open-source libraries for machine learning and deep learning.",
+        "quizzes": [
+          {
+            "question": "What is a Tensor, and why is it a fundamental concept in libraries like PyTorch and TensorFlow?",
+            "model_answers": [
+              "A Tensor is a multi-dimensional array, generalizing scalars (0D tensor), vectors (1D tensor), and matrices (2D tensor) to higher dimensions. Tensors are the fundamental data structure in libraries like PyTorch and TensorFlow because they are perfect for representing all types of data in machine learning (like images, text embeddings, model weights) and for performing mathematical operations efficiently on GPUs or TPUs."
+            ],
+            "keywords": [
+              "tensor",
+              "pytorch",
+              "tensorflow",
+              "deep learning",
+              "gpu",
+              "data structure"
+            ],
+            "difficulty": "easy"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "category_name": "Programming & Practices",
+    "category_description": "General programming languages and essential software development practices.",
+    "sub_categories": [
+      {
+        "sub_category_name": "Programming Languages (Python, Go, Java)",
+        "sub_category_description": "Questions related to popular general-purpose programming languages.",
+        "quizzes": [
+          {
+            "question": "Explain what a Goroutine is in Go and how it differs from a traditional OS thread.",
+            "model_answers": [
+              "A Goroutine is a lightweight thread of execution managed by the Go runtime. They are much cheaper to create than OS threads, with a smaller stack size that can grow if needed. The Go scheduler multiplexes multiple Goroutines onto a smaller number of OS threads, making it highly efficient to run thousands or even millions of concurrent Goroutines.",
+              "Goroutines are Go's way of handling concurrency. Unlike threads, which are managed by the OS, Goroutines are managed by the Go runtime scheduler. This makes them more lightweight and faster to start up, enabling massive concurrency in Go applications."
+            ],
+            "keywords": [
+              "go",
+              "golang",
+              "goroutine",
+              "concurrency",
+              "green thread",
+              "go scheduler"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "What are decorators in Python? Provide a simple use case.",
+            "model_answers": [
+              "A decorator in Python is a design pattern that allows a user to add new functionality to an existing object without modifying its structure. Decorators are usually functions that take another function as an argument, add some functionality, and then return the augmented function. A common use case is logging: a decorator can be written to log the arguments and return value of a function each time it's called."
+            ],
+            "keywords": [
+              "python",
+              "decorator",
+              "metaprogramming",
+              "higher-order function"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "What is the Global Interpreter Lock (GIL) in Python and how does it affect concurrency?",
+            "model_answers": [
+              "The Global Interpreter Lock (GIL) is a mutex that protects access to Python objects, preventing multiple native threads from executing Python bytecodes at the same time. This means that even on a multi-core processor, only one thread can be executing Python code at any given moment. This simplifies memory management but limits the performance of CPU-bound multi-threaded programs. It doesn't impact I/O-bound programs as much, and concurrency can be achieved using multiprocessing instead of multithreading for CPU-bound tasks."
+            ],
+            "keywords": [
+              "python",
+              "gil",
+              "global interpreter lock",
+              "concurrency",
+              "multithreading",
+              "multiprocessing"
+            ],
+            "difficulty": "hard"
+          },
+          {
+            "question": "Explain the roles of the JVM, JRE, and JDK in the Java ecosystem.",
+            "model_answers": [
+              "JDK (Java Development Kit) is a full-featured software development kit that includes the JRE and development tools like the compiler (`javac`) and debugger. JRE (Java Runtime Environment) is the environment needed to run Java applications; it contains the JVM and core libraries. JVM (Java Virtual Machine) is an abstract machine that provides a runtime environment in which Java bytecode can be executed. It's the component that makes Java 'platform-independent'."
+            ],
+            "keywords": [
+              "java",
+              "jvm",
+              "jre",
+              "jdk",
+              "platform independent",
+              "bytecode"
+            ],
+            "difficulty": "easy"
+          }
+        ]
+      },
+      {
+        "sub_category_name": "General Practices (Security & Debugging)",
+        "sub_category_description": "Essential practices for writing robust and secure code.",
+        "quizzes": [
+          {
+            "question": "What is SQL Injection, and what is the primary way to prevent it?",
+            "model_answers": [
+              "SQL Injection is a code injection technique used to attack data-driven applications. It occurs when malicious SQL statements are inserted into an entry field for execution (e.g., to dump database contents to the attacker). The primary way to prevent it is to use prepared statements (also known as parameterized queries), which ensure that user input is always treated as data and not as executable code."
+            ],
+            "keywords": [
+              "security",
+              "sql injection",
+              "sqli",
+              "prepared statements",
+              "parameterized queries",
+              "owasp"
+            ],
+            "difficulty": "easy"
+          },
+          {
+            "question": "What is Cross-Site Scripting (XSS) and how can it be mitigated?",
+            "model_answers": [
+              "Cross-Site Scripting (XSS) is a security vulnerability where an attacker injects malicious scripts (usually JavaScript) into content from otherwise trusted websites. When another user visits the page, the script runs in their browser, allowing the attacker to steal information like cookies or perform actions on behalf of the user. Mitigation involves properly sanitizing and escaping all user-supplied input before rendering it on a page and using Content Security Policy (CSP) headers."
+            ],
+            "keywords": [
+              "security",
+              "xss",
+              "cross-site scripting",
+              "input sanitization",
+              "content security policy",
+              "owasp"
+            ],
+            "difficulty": "medium"
+          },
+          {
+            "question": "What is Cross-Site Request Forgery (CSRF) and how is it typically prevented?",
+            "model_answers": [
+              "Cross-Site Request Forgery (CSRF or XSRF) is an attack that forces an end user to execute unwanted actions on a web application in which they're currently authenticated. A successful CSRF attack can trick the user into performing state-changing requests like transferring funds or changing their email address. It is typically prevented by using an anti-CSRF token. The server generates a unique, unpredictable token for each user session and requires that token to be included in all subsequent state-changing requests."
+            ],
+            "keywords": [
+              "security",
+              "csrf",
+              "cross-site request forgery",
+              "anti-csrf token",
+              "owasp"
+            ],
+            "difficulty": "hard"
           }
         ]
       }

@@ -65,8 +65,8 @@ func (r *CategoryDatabaseAdapter) SaveCategory(ctx context.Context, category *do
 	modelCategory.UpdatedAt = time.Now()
 
 	query := `INSERT INTO categories (id, name, description, created_at, updated_at)
-              VALUES (:id, :name, :description, :created_at, :updated_at)`
-	_, err := r.db.NamedExecContext(ctx, query, modelCategory)
+              VALUES (:1, :2, :3, :4, :5)`
+	_, err := r.db.ExecContext(ctx, query, modelCategory.ID, modelCategory.Name, modelCategory.Description, modelCategory.CreatedAt, modelCategory.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to save category: %w", err)
 	}
@@ -84,8 +84,8 @@ func (r *CategoryDatabaseAdapter) SaveSubCategory(ctx context.Context, subCatego
 	modelSubCategory.UpdatedAt = time.Now()
 
 	query := `INSERT INTO sub_categories (id, category_id, name, description, created_at, updated_at)
-              VALUES (:id, :category_id, :name, :description, :created_at, :updated_at)`
-	_, err := r.db.NamedExecContext(ctx, query, modelSubCategory)
+              VALUES (:1, :2, :3, :4, :5, :6)`
+	_, err := r.db.ExecContext(ctx, query, modelSubCategory.ID, modelSubCategory.CategoryID, modelSubCategory.Name, modelSubCategory.Description, modelSubCategory.CreatedAt, modelSubCategory.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to save subcategory: %w", err)
 	}
