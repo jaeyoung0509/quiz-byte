@@ -48,10 +48,12 @@ func TestGetQuizByID(t *testing.T) {
 		DeletedAt:     sql.NullTime{},
 	}
 
-	rows := sqlmock.NewRows([]string{"id", "question", "model_answers", "keywords", "difficulty", "sub_category_id", "created_at", "updated_at", "deleted_at"}).
+	// Match the column names to the aliases used in the SQL query (uppercase)
+	rows := sqlmock.NewRows([]string{"ID", "QUESTION", "MODEL_ANSWERS", "KEYWORDS", "DIFFICULTY", "SUB_CATEGORY_ID", "CREATED_AT", "UPDATED_AT", "DELETED_AT"}).
 		AddRow(expectedModelQuiz.ID, expectedModelQuiz.Question, expectedModelQuiz.ModelAnswers, expectedModelQuiz.Keywords, expectedModelQuiz.Difficulty, expectedModelQuiz.SubCategoryID, expectedModelQuiz.CreatedAt, expectedModelQuiz.UpdatedAt, expectedModelQuiz.DeletedAt)
 
-	originalSQL := `SELECT id "id", question "question", model_answers "model_answers", keywords "keywords", difficulty "difficulty", sub_category_id "sub_category_id", created_at "created_at", updated_at "updated_at", deleted_at "deleted_at" FROM quizzes WHERE id = :1 AND deleted_at IS NULL`
+	// Corrected SQL with uppercase aliases to match actual query
+	originalSQL := `SELECT id "ID", question "QUESTION", model_answers "MODEL_ANSWERS", keywords "KEYWORDS", difficulty "DIFFICULTY", sub_category_id "SUB_CATEGORY_ID", created_at "CREATED_AT", updated_at "UPDATED_AT", deleted_at "DELETED_AT" FROM quizzes WHERE id = :1 AND deleted_at IS NULL`
 
 	mock.ExpectQuery(regexp.QuoteMeta(originalSQL)).
 		WithArgs(testULID).
@@ -83,16 +85,16 @@ func TestGetAllSubCategories(t *testing.T) {
 	}{
 		{
 			name: "successful retrieval",
-			mockRows: sqlmock.NewRows([]string{"sub_category_id"}).
-				AddRow("cat1").
-				AddRow("cat2").
-				AddRow("cat3"),
-			expected:      []string{"cat1", "cat2", "cat3"},
+			mockRows: sqlmock.NewRows([]string{"id"}). // Column name changed to "id"
+				AddRow("subcat_id1").
+				AddRow("subcat_id2").
+				AddRow("subcat_id3"),
+			expected:      []string{"subcat_id1", "subcat_id2", "subcat_id3"},
 			expectedError: false,
 		},
 		{
 			name:          "empty result",
-			mockRows:      sqlmock.NewRows([]string{"sub_category_id"}),
+			mockRows:      sqlmock.NewRows([]string{"id"}), // Column name changed to "id"
 			expected:      []string{},
 			expectedError: false,
 		},
@@ -100,11 +102,12 @@ func TestGetAllSubCategories(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			expectedQuery := `SELECT DISTINCT sub_category_id FROM quizzes WHERE sub_category_id IS NOT NULL AND deleted_at IS NULL ORDER BY sub_category_id ASC`
+			// Corrected query to match actual implementation
+			expectedQuery := `SELECT id FROM sub_categories WHERE deleted_at IS NULL ORDER BY id ASC`
 			mock.ExpectQuery(regexp.QuoteMeta(expectedQuery)).
 				WillReturnRows(tt.mockRows)
 
-			result, err := repo.GetAllSubCategories(context.Background()) // Added context
+			result, err := repo.GetAllSubCategories(context.Background())
 
 			if tt.expectedError {
 				assert.Error(t, err)
@@ -135,10 +138,10 @@ func TestGetRandomQuizBySubCategory(t *testing.T) {
 		DeletedAt:     sql.NullTime{},
 	}
 
-	rows := sqlmock.NewRows([]string{"id", "question", "model_answers", "keywords", "difficulty", "sub_category_id", "created_at", "updated_at", "deleted_at"}).
+	rows := sqlmock.NewRows([]string{"ID", "QUESTION", "MODEL_ANSWERS", "KEYWORDS", "DIFFICULTY", "SUB_CATEGORY_ID", "CREATED_AT", "UPDATED_AT", "DELETED_AT"}).
 		AddRow(expectedModelQuiz.ID, expectedModelQuiz.Question, expectedModelQuiz.ModelAnswers, expectedModelQuiz.Keywords, expectedModelQuiz.Difficulty, expectedModelQuiz.SubCategoryID, expectedModelQuiz.CreatedAt, expectedModelQuiz.UpdatedAt, expectedModelQuiz.DeletedAt)
 
-	originalSQL := `SELECT id "id", question "question", model_answers "model_answers", keywords "keywords", difficulty "difficulty", sub_category_id "sub_category_id", created_at "created_at", updated_at "updated_at", deleted_at "deleted_at" FROM quizzes WHERE sub_category_id = :1 AND deleted_at IS NULL ORDER BY DBMS_RANDOM.VALUE FETCH FIRST 1 ROWS ONLY`
+	originalSQL := `SELECT id "ID", question "QUESTION", model_answers "MODEL_ANSWERS", keywords "KEYWORDS", difficulty "DIFFICULTY", sub_category_id "SUB_CATEGORY_ID", created_at "CREATED_AT", updated_at "UPDATED_AT", deleted_at "DELETED_AT" FROM quizzes WHERE sub_category_id = :1 AND deleted_at IS NULL ORDER BY DBMS_RANDOM.VALUE FETCH FIRST 1 ROWS ONLY`
 
 	mock.ExpectQuery(regexp.QuoteMeta(originalSQL)).
 		WithArgs(testSubCatID).
@@ -169,19 +172,19 @@ func TestGetRandomQuiz(t *testing.T) {
 		DeletedAt:     sql.NullTime{},
 	}
 
-	rows := sqlmock.NewRows([]string{"id", "question", "model_answers", "keywords", "difficulty", "sub_category_id", "created_at", "updated_at", "deleted_at"}).
+	rows := sqlmock.NewRows([]string{"ID", "QUESTION", "MODEL_ANSWERS", "KEYWORDS", "DIFFICULTY", "SUB_CATEGORY_ID", "CREATED_AT", "UPDATED_AT", "DELETED_AT"}).
 		AddRow(expectedModelQuiz.ID, expectedModelQuiz.Question, expectedModelQuiz.ModelAnswers, expectedModelQuiz.Keywords, expectedModelQuiz.Difficulty, expectedModelQuiz.SubCategoryID, expectedModelQuiz.CreatedAt, expectedModelQuiz.UpdatedAt, expectedModelQuiz.DeletedAt)
 
 	originalSQL := `SELECT
-		id "id",
-		question "question",
-		model_answers "model_answers",
-		keywords "keywords",
-		difficulty "difficulty",
-		sub_category_id "sub_category_id",
-		created_at "created_at",
-		updated_at "updated_at",
-		deleted_at "deleted_at"
+		id "ID",
+		question "QUESTION",
+		model_answers "MODEL_ANSWERS",
+		keywords "KEYWORDS",
+		difficulty "DIFFICULTY",
+		sub_category_id "SUB_CATEGORY_ID",
+		created_at "CREATED_AT",
+		updated_at "UPDATED_AT",
+		deleted_at "DELETED_AT"
 	FROM quizzes
 	WHERE deleted_at IS NULL
 	ORDER BY DBMS_RANDOM.VALUE
@@ -206,7 +209,7 @@ func TestGetQuizByID_NotFound(t *testing.T) {
 	repo := NewQuizDatabaseAdapter(db)
 	testULID := util.NewULID()
 
-	originalSQL := `SELECT id "id", question "question", model_answers "model_answers", keywords "keywords", difficulty "difficulty", sub_category_id "sub_category_id", created_at "created_at", updated_at "updated_at", deleted_at "deleted_at" FROM quizzes WHERE id = :1 AND deleted_at IS NULL`
+	originalSQL := `SELECT id "ID", question "QUESTION", model_answers "MODEL_ANSWERS", keywords "KEYWORDS", difficulty "DIFFICULTY", sub_category_id "SUB_CATEGORY_ID", created_at "CREATED_AT", updated_at "UPDATED_AT", deleted_at "DELETED_AT" FROM quizzes WHERE id = :1 AND deleted_at IS NULL`
 
 	mock.ExpectQuery(regexp.QuoteMeta(originalSQL)).
 		WithArgs(testULID).
@@ -276,13 +279,14 @@ func TestGetSimilarQuiz(t *testing.T) {
 
 	originalQueryCurrent := `SELECT
 		difficulty "difficulty",
-		sub_category_id "sub_category_id"
+		difficulty "DIFFICULTY",
+		sub_category_id "SUB_CATEGORY_ID"
 	FROM quizzes
 	WHERE id = :1
 	AND deleted_at IS NULL`
 	mock.ExpectQuery(regexp.QuoteMeta(originalQueryCurrent)).
 		WithArgs(currentQuizID).
-		WillReturnRows(sqlmock.NewRows([]string{"difficulty", "sub_category_id"}).AddRow(difficulty, subCatID))
+		WillReturnRows(sqlmock.NewRows([]string{"DIFFICULTY", "SUB_CATEGORY_ID"}).AddRow(difficulty, subCatID))
 
 	similarQuizID := util.NewULID()
 	now := time.Now()
@@ -297,19 +301,19 @@ func TestGetSimilarQuiz(t *testing.T) {
 		UpdatedAt:     now,
 		DeletedAt:     sql.NullTime{},
 	}
-	rowsSimilar := sqlmock.NewRows([]string{"id", "question", "model_answers", "keywords", "difficulty", "sub_category_id", "created_at", "updated_at", "deleted_at"}).
+	rowsSimilar := sqlmock.NewRows([]string{"ID", "QUESTION", "MODEL_ANSWERS", "KEYWORDS", "DIFFICULTY", "SUB_CATEGORY_ID", "CREATED_AT", "UPDATED_AT", "DELETED_AT"}).
 		AddRow(expectedSimilarModelQuiz.ID, expectedSimilarModelQuiz.Question, expectedSimilarModelQuiz.ModelAnswers, expectedSimilarModelQuiz.Keywords, expectedSimilarModelQuiz.Difficulty, expectedSimilarModelQuiz.SubCategoryID, expectedSimilarModelQuiz.CreatedAt, expectedSimilarModelQuiz.UpdatedAt, expectedSimilarModelQuiz.DeletedAt)
 
 	originalQuerySimilar := `SELECT
-		id "id",
-		question "question",
-		model_answers "model_answers",
-		keywords "keywords",
-		difficulty "difficulty",
-		sub_category_id "sub_category_id",
-		created_at "created_at",
-		updated_at "updated_at",
-		deleted_at "deleted_at"
+		id "ID",
+		question "QUESTION",
+		model_answers "MODEL_ANSWERS",
+		keywords "KEYWORDS",
+		difficulty "DIFFICULTY",
+		sub_category_id "SUB_CATEGORY_ID",
+		created_at "CREATED_AT",
+		updated_at "UPDATED_AT",
+		deleted_at "DELETED_AT"
 	FROM quizzes
 	WHERE id != :1
 	AND sub_category_id = :2
@@ -360,24 +364,25 @@ func TestGetSimilarQuiz_SimilarQuizNotFound(t *testing.T) {
 
 	originalQueryCurrent := `SELECT
 		difficulty "difficulty",
-		sub_category_id "sub_category_id"
+		difficulty "DIFFICULTY",
+		sub_category_id "SUB_CATEGORY_ID"
 	FROM quizzes
 	WHERE id = :1
 	AND deleted_at IS NULL`
 	mock.ExpectQuery(regexp.QuoteMeta(originalQueryCurrent)).
 		WithArgs(currentQuizID).
-		WillReturnRows(sqlmock.NewRows([]string{"difficulty", "sub_category_id"}).AddRow(difficulty, subCatID))
+		WillReturnRows(sqlmock.NewRows([]string{"DIFFICULTY", "SUB_CATEGORY_ID"}).AddRow(difficulty, subCatID))
 
 	originalQuerySimilar := `SELECT
-		id "id",
-		question "question",
-		model_answers "model_answers",
-		keywords "keywords",
-		difficulty "difficulty",
-		sub_category_id "sub_category_id",
-		created_at "created_at",
-		updated_at "updated_at",
-		deleted_at "deleted_at"
+		id "ID",
+		question "QUESTION",
+		model_answers "MODEL_ANSWERS",
+		keywords "KEYWORDS",
+		difficulty "DIFFICULTY",
+		sub_category_id "SUB_CATEGORY_ID",
+		created_at "CREATED_AT",
+		updated_at "UPDATED_AT",
+		deleted_at "DELETED_AT"
 	FROM quizzes
 	WHERE id != :1
 	AND sub_category_id = :2

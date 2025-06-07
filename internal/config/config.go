@@ -136,7 +136,7 @@ func LoadConfig() (*Config, error) {
 	viper.BindEnv("db.port", "APP_DB_PORT")
 	viper.BindEnv("db.user", "APP_DB_USER")
 	viper.BindEnv("db.password", "APP_DB_PASSWORD")
-	viper.BindEnv("db.name", "APP_DB_NAME")
+	viper.BindEnv("db.dbname", "APP_DB_NAME") // Corrected and re-enabled
 
 	// Server environment variables
 	viper.BindEnv("server.port", "APP_SERVER_PORT")
@@ -202,7 +202,7 @@ func LoadConfig() (*Config, error) {
 			Port:     viper.GetInt("db.port"),
 			User:     viper.GetString("db.user"),
 			Password: viper.GetString("db.password"),
-			DBName:   viper.GetString("db.name"),
+			DBName:   viper.GetString("db.dbname"), // Corrected: was "db.name"
 		},
 		Server: ServerConfig{
 			Port:         viper.GetInt("server.port"),
@@ -353,7 +353,7 @@ func (c *Config) ParseTTLStringOrDefault(ttlString string, defaultDuration time.
 }
 
 func (c *Config) GetDSN() string {
-	// Oracle DSN format: user/password@host:port/service
+	// Oracle DSN format for go-ora: oracle://user:password@host:port/service_name
 	return fmt.Sprintf("oracle://%s:%s@%s:%d/%s",
 		c.DB.User,
 		c.DB.Password,

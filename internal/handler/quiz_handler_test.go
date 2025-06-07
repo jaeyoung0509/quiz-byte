@@ -159,8 +159,24 @@ func TestQuizHandler_CheckAnswer(t *testing.T) {
 			recordedUserID = uID
 			recordedQuizID = qID
 			recordedUserAnswer = uAnswer
-			assert.Equal(t, commonDomainResult.Score, evalResult.Score)
-			assert.WithinDuration(t, time.Now(), evalResult.AnsweredAt, 5*time.Second) // Check if AnsweredAt is recent
+
+		// It's crucial to ensure evalResult is not nil before dereferencing.
+		if !assert.NotNil(t, evalResult, "evalResult passed to RecordQuizAttempt should not be nil") {
+			return errors.New("evalResult was nil and assertion failed") // Return error to stop further processing if nil
+		}
+
+		// Assuming commonCheckAnswerRequest contains the QuizID and UserAnswer that should be in evalResult
+		// commonDomainResult is the *dto.CheckAnswerResponse
+		assert.Equal(t, commonCheckAnswerRequest.QuizID, evalResult.QuizID, "evalResult.QuizID mismatch")
+		assert.Equal(t, commonCheckAnswerRequest.UserAnswer, evalResult.UserAnswer, "evalResult.UserAnswer mismatch")
+		assert.Equal(t, commonDomainResult.Score, evalResult.Score, "evalResult.Score mismatch")
+		assert.Equal(t, commonDomainResult.Explanation, evalResult.Explanation, "evalResult.Explanation mismatch")
+		assert.ElementsMatch(t, commonDomainResult.KeywordMatches, evalResult.KeywordMatches, "evalResult.KeywordMatches mismatch") // Use ElementsMatch for slices where order doesn't matter
+		assert.Equal(t, commonDomainResult.Completeness, evalResult.Completeness, "evalResult.Completeness mismatch")
+		assert.Equal(t, commonDomainResult.Relevance, evalResult.Relevance, "evalResult.Relevance mismatch")
+		assert.Equal(t, commonDomainResult.Accuracy, evalResult.Accuracy, "evalResult.Accuracy mismatch")
+		assert.WithinDuration(t, time.Now(), evalResult.AnsweredAt, 5*time.Second, "evalResult.AnsweredAt out of range")
+
 			return nil
 		}
 		// Ensure Put is not called by setting it to fail the test if it is
