@@ -27,20 +27,22 @@ type AnonymousResultCacheService interface {
 
 // anonymousResultCacheServiceImpl implements AnonymousResultCacheService using a generic cache.
 type anonymousResultCacheServiceImpl struct {
-	cache domain.Cache
-	ttl   time.Duration
+	cache     domain.Cache
+	ttl       time.Duration
+	txManager domain.TransactionManager // Added for transaction support
 }
 
 // NewAnonymousResultCacheService creates a new instance of anonymousResultCacheServiceImpl.
-func NewAnonymousResultCacheService(cache domain.Cache, ttl time.Duration) AnonymousResultCacheService {
+func NewAnonymousResultCacheService(cache domain.Cache, ttl time.Duration, txManager domain.TransactionManager) AnonymousResultCacheService {
 	if cache == nil {
 		// Fallback to a no-op implementation if cache is nil to prevent panics
 		logger.Get().Warn("AnonymousResultCacheService initialized with nil cache. Service will be no-op.")
 		return &noopAnonymousResultCacheService{}
 	}
 	return &anonymousResultCacheServiceImpl{
-		cache: cache,
-		ttl:   ttl,
+		cache:     cache,
+		ttl:       ttl,
+		txManager: txManager,
 	}
 }
 

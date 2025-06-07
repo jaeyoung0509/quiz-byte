@@ -45,20 +45,23 @@ type AnswerCacheService interface {
 type answerCacheServiceImpl struct {
 	cache                        domain.Cache
 	repo                         domain.QuizRepository
-	answerEvaluationTTL          time.Duration // Added
-	embeddingSimilarityThreshold float64       // Added
+	txManager                    domain.TransactionManager // Added for transaction support
+	answerEvaluationTTL          time.Duration             // Added
+	embeddingSimilarityThreshold float64                   // Added
 }
 
 // NewAnswerCacheService creates a new instance of answerCacheServiceImpl
 func NewAnswerCacheService(
 	cache domain.Cache,
 	repo domain.QuizRepository,
+	txManager domain.TransactionManager, // Added for transaction support
 	answerEvaluationTTL time.Duration, // Added
 	embeddingSimilarityThreshold float64, // Added
 ) AnswerCacheService {
 	return &answerCacheServiceImpl{
 		cache:                        cache,
 		repo:                         repo,
+		txManager:                    txManager,
 		answerEvaluationTTL:          answerEvaluationTTL,
 		embeddingSimilarityThreshold: embeddingSimilarityThreshold,
 	}

@@ -297,3 +297,14 @@ func (m *MockAnswerCacheService) PutAnswerToCache(ctx context.Context, quizID st
 }
 
 var _ AnswerCacheService = (*MockAnswerCacheService)(nil) // Corrected to service.AnswerCacheService
+
+// --- MockTransactionManager ---
+
+type MockTransactionManager struct {
+	mock.Mock
+}
+
+func (m *MockTransactionManager) WithTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
+	args := m.Called(ctx, fn)
+	return args.Error(0)
+}

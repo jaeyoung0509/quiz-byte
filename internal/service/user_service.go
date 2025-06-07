@@ -31,6 +31,7 @@ type userServiceImpl struct {
 	userRepo    domain.UserRepository            // Changed
 	attemptRepo domain.UserQuizAttemptRepository // Changed
 	quizRepo    domain.QuizRepository
+	txManager   domain.TransactionManager // Added for transaction support
 	// appConfig   *config.Config // Removed
 }
 
@@ -39,12 +40,14 @@ func NewUserService(
 	userRepo domain.UserRepository, // Changed
 	attemptRepo domain.UserQuizAttemptRepository, // Changed
 	quizRepo domain.QuizRepository,
+	txManager domain.TransactionManager, // Added for transaction support
 	// appConfig *config.Config, // Removed
 ) UserService {
 	return &userServiceImpl{
 		userRepo:    userRepo,
 		attemptRepo: attemptRepo,
 		quizRepo:    quizRepo,
+		txManager:   txManager,
 		// appConfig:   appConfig, // Removed
 	}
 }

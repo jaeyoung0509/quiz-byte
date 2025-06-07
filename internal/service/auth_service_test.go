@@ -54,7 +54,7 @@ func TestAuthService_RefreshToken_UserNotFound(t *testing.T) {
 		},
 	}
 
-	authService, err := NewAuthService(mockUserRepo, authCfg)
+	authService, err := NewAuthService(mockUserRepo, authCfg, &MockTransactionManager{})
 	assert.NoError(t, err)
 
 	// Create a valid refresh token string (for testing purposes)
@@ -87,7 +87,7 @@ func TestAuthService_RefreshToken_RepoError(t *testing.T) {
 			RefreshTokenTTL: 7 * 24 * time.Hour,
 		},
 	}
-	authService, err := NewAuthService(mockUserRepo, authCfg)
+	authService, err := NewAuthService(mockUserRepo, authCfg, &MockTransactionManager{})
 	assert.NoError(t, err)
 
 	dummyUser := &domain.User{ID: "user123"}
@@ -119,7 +119,7 @@ func TestAuthService_HandleGoogleCallback_CreateUser_RepoError(t *testing.T) {
 	// Note: NewAuthService also creates oauth2Config. For this test, we're focused on repo interaction.
 	// A more complete test might mock http calls for oauth2.Exchange and client.Get.
 
-	_, err := NewAuthService(mockUserRepo, authCfg)
+	_, err := NewAuthService(mockUserRepo, authCfg, &MockTransactionManager{})
 	assert.NoError(t, err)
 
 	// Mock GetUserByGoogleID to return (nil, nil) -> user not found

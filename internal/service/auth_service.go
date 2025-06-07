@@ -55,10 +55,11 @@ type authServiceImpl struct {
 	oauth2Config  *oauth2.Config
 	authCfg       config.AuthConfig // Changed from appConfig
 	encryptionKey []byte
+	txManager     domain.TransactionManager // Added for transaction support
 }
 
 // NewAuthService creates a new instance of AuthService.
-func NewAuthService(userRepo domain.UserRepository, authCfg config.AuthConfig) (AuthService, error) { // Changed param type
+func NewAuthService(userRepo domain.UserRepository, authCfg config.AuthConfig, txManager domain.TransactionManager) (AuthService, error) { // Changed param type
 	if len(authCfg.JWT.SecretKey) == 0 {
 		return nil, errors.New("encryption key for auth service is not configured (use JWT.SecretKey or a dedicated one)")
 	}
@@ -80,6 +81,7 @@ func NewAuthService(userRepo domain.UserRepository, authCfg config.AuthConfig) (
 		},
 		authCfg:       authCfg,
 		encryptionKey: encKey,
+		txManager:     txManager, // Added transaction manager
 	}, nil
 }
 
@@ -136,31 +138,39 @@ func (s *authServiceImpl) HandleGoogleCallback(ctx context.Context, code string,
 	}
 
 	now := time.Now()
-	if domainUser == nil { // User not found, create new domain user
-		domainUser = &domain.User{
-			ID:                util.NewULID(),
-			GoogleID:          userInfo.ID,
-			Email:             userInfo.Email,
-			Name:              userInfo.Name,
-			ProfilePictureURL: userInfo.Picture,
-			CreatedAt:         now,
-			UpdatedAt:         now,
+
+	// Wrap user creation/update operations in a transaction
+	err = s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
+		if domainUser == nil { // User not found, create new domain user
+			domainUser = &domain.User{
+				ID:                util.NewULID(),
+				GoogleID:          userInfo.ID,
+				Email:             userInfo.Email,
+				Name:              userInfo.Name,
+				ProfilePictureURL: userInfo.Picture,
+				CreatedAt:         now,
+				UpdatedAt:         now,
+			}
+			// err from CreateUser is already wrapped by the repository
+			if err := s.userRepo.CreateUser(txCtx, domainUser); err != nil {
+				return domain.NewInternalError("failed to create user during google callback", err)
+			}
+			appLogger.Info("New user created via Google OAuth", zap.String("userID", domainUser.ID), zap.String("email", domainUser.Email))
+		} else { // User found, update profile info if changed
+			domainUser.Email = userInfo.Email
+			domainUser.Name = userInfo.Name
+			domainUser.ProfilePictureURL = userInfo.Picture
+			domainUser.UpdatedAt = now
+			// err from UpdateUser is already wrapped by the repository
+			if err := s.userRepo.UpdateUser(txCtx, domainUser); err != nil {
+				return domain.NewInternalError("failed to update user during google callback", err)
+			}
+			appLogger.Info("User logged in via Google OAuth", zap.String("userID", domainUser.ID), zap.String("email", domainUser.Email))
 		}
-		// err from CreateUser is already wrapped by the repository
-		if err := s.userRepo.CreateUser(ctx, domainUser); err != nil {
-			return "", "", nil, domain.NewInternalError("failed to create user during google callback", err)
-		}
-		appLogger.Info("New user created via Google OAuth", zap.String("userID", domainUser.ID), zap.String("email", domainUser.Email))
-	} else { // User found, update profile info if changed
-		domainUser.Email = userInfo.Email
-		domainUser.Name = userInfo.Name
-		domainUser.ProfilePictureURL = userInfo.Picture
-		domainUser.UpdatedAt = now
-		// err from UpdateUser is already wrapped by the repository
-		if err := s.userRepo.UpdateUser(ctx, domainUser); err != nil {
-			return "", "", nil, domain.NewInternalError("failed to update user during google callback", err)
-		}
-		appLogger.Info("User logged in via Google OAuth", zap.String("userID", domainUser.ID), zap.String("email", domainUser.Email))
+		return nil
+	})
+	if err != nil {
+		return "", "", nil, err
 	}
 
 	accessToken, err := s.CreateJWT(ctx, domainUser, s.authCfg.JWT.AccessTokenTTL, tokenTypeAccess)

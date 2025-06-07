@@ -50,7 +50,7 @@ func TestUserService_GetUserProfile_Success(t *testing.T) {
 	var mockAttemptRepo *MockUserQuizAttemptRepository
 	var mockQuizRepo *MockQuizRepository
 
-	userService := NewUserService(mockUserRepo, mockAttemptRepo, mockQuizRepo)
+	userService := NewUserService(mockUserRepo, mockAttemptRepo, mockQuizRepo, &MockTransactionManager{})
 
 	userID := "user1"
 	expectedUser := &domain.User{ID: userID, Name: "Test User", Email: "test@example.com"}
@@ -69,7 +69,7 @@ func TestUserService_GetUserProfile_NotFound(t *testing.T) {
 	mockUserRepo := new(MockUserRepository)
 	var mockAttemptRepo *MockUserQuizAttemptRepository
 	var mockQuizRepo *MockQuizRepository
-	userService := NewUserService(mockUserRepo, mockAttemptRepo, mockQuizRepo)
+	userService := NewUserService(mockUserRepo, mockAttemptRepo, mockQuizRepo, &MockTransactionManager{})
 
 	userID := "unknownUser"
 	// Simulate repository returning (nil, nil) for not found
@@ -92,7 +92,7 @@ func TestUserService_GetUserProfile_RepositoryError(t *testing.T) {
 	mockUserRepo := new(MockUserRepository)
 	var mockAttemptRepo *MockUserQuizAttemptRepository
 	var mockQuizRepo *MockQuizRepository
-	userService := NewUserService(mockUserRepo, mockAttemptRepo, mockQuizRepo)
+	userService := NewUserService(mockUserRepo, mockAttemptRepo, mockQuizRepo, &MockTransactionManager{})
 
 	userID := "user1"
 	expectedRepoError := errors.New("database connection error")
@@ -116,7 +116,7 @@ func TestUserService_GetUserQuizAttempts_RepoError(t *testing.T) {
 	mockUserRepo := new(MockUserRepository) // Not used directly in this method, but needed for service creation
 	mockAttemptRepo := new(MockUserQuizAttemptRepository)
 	mockQuizRepo := new(MockQuizRepository) // Not used if GetAttemptsByUserID fails first
-	userService := NewUserService(mockUserRepo, mockAttemptRepo, mockQuizRepo)
+	userService := NewUserService(mockUserRepo, mockAttemptRepo, mockQuizRepo, &MockTransactionManager{})
 
 	userID := "user1"
 	filters := dto.AttemptFilters{}
@@ -141,7 +141,7 @@ func TestUserService_GetUserQuizAttempts_QuizDetailNotFound(t *testing.T) {
 	mockUserRepo := new(MockUserRepository)
 	mockAttemptRepo := new(MockUserQuizAttemptRepository)
 	mockQuizRepo := new(MockQuizRepository)
-	userService := NewUserService(mockUserRepo, mockAttemptRepo, mockQuizRepo)
+	userService := NewUserService(mockUserRepo, mockAttemptRepo, mockQuizRepo, &MockTransactionManager{})
 
 	userID := "user1"
 	filters := dto.AttemptFilters{}
@@ -172,7 +172,7 @@ func TestUserService_GetUserQuizAttempts_QuizDetailRepoError(t *testing.T) {
 	mockUserRepo := new(MockUserRepository)
 	mockAttemptRepo := new(MockUserQuizAttemptRepository)
 	mockQuizRepo := new(MockQuizRepository)
-	userService := NewUserService(mockUserRepo, mockAttemptRepo, mockQuizRepo)
+	userService := NewUserService(mockUserRepo, mockAttemptRepo, mockQuizRepo, &MockTransactionManager{})
 
 	userID := "user1"
 	filters := dto.AttemptFilters{}

@@ -1,4 +1,4 @@
-package service_test
+package service
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"errors"
 	"quiz-byte/internal/domain"
 	"quiz-byte/internal/dto"
-	"quiz-byte/internal/service"
 	"testing"
 	"time"
 
@@ -86,8 +85,9 @@ func (m *ManualMockCache) Ping(ctx context.Context) error {
 
 func TestAnonymousResultCacheServiceImpl_Put(t *testing.T) {
 	mockCache := &ManualMockCache{}
+	mockTransactionManger := &MockTransactionManager{} // Not used in this test, but can be passed if needed
 	ttl := 5 * time.Minute
-	cacheService := service.NewAnonymousResultCacheService(mockCache, ttl)
+	cacheService := NewAnonymousResultCacheService(mockCache, ttl, mockTransactionManger)
 	ctx := context.Background()
 
 	requestID := "req123"
@@ -110,8 +110,9 @@ func TestAnonymousResultCacheServiceImpl_Put(t *testing.T) {
 
 func TestAnonymousResultCacheServiceImpl_Get(t *testing.T) {
 	mockCache := &ManualMockCache{}
+	mockTransactionManager := &MockTransactionManager{} // Not used in this test, but can be passed if needed
 	ttl := 5 * time.Minute
-	cacheService := service.NewAnonymousResultCacheService(mockCache, ttl)
+	cacheService := NewAnonymousResultCacheService(mockCache, ttl, mockTransactionManager)
 	ctx := context.Background()
 
 	requestID := "req123"
@@ -139,7 +140,7 @@ func TestAnonymousResultCacheServiceImpl_Get(t *testing.T) {
 
 		result, err := cacheService.Get(ctx, requestID)
 		assert.Nil(t, result)
-		assert.Equal(t, service.ErrAnonymousResultNotFound, err)
+		assert.Equal(t, ErrAnonymousResultNotFound, err)
 	})
 
 	t.Run("Cache Miss (nil data, nil error - less common but possible)", func(t *testing.T) {
@@ -151,7 +152,7 @@ func TestAnonymousResultCacheServiceImpl_Get(t *testing.T) {
 		result, err := cacheService.Get(ctx, requestID)
 		assert.Nil(t, result)
 		// The service implementation should consistently return ErrAnonymousResultNotFound for misses
-		assert.Equal(t, service.ErrAnonymousResultNotFound, err)
+		assert.Equal(t, ErrAnonymousResultNotFound, err)
 	})
 
 	t.Run("Cache Error", func(t *testing.T) {
@@ -190,7 +191,8 @@ func TestAnonymousResultCacheServiceImpl_Get(t *testing.T) {
 func TestNewAnonymousResultCacheService_NilCache(t *testing.T) {
 	ttl := 5 * time.Minute
 	// Initialize with nil cache
-	cacheService := service.NewAnonymousResultCacheService(nil, ttl)
+	mockTransactionManager := &MockTransactionManager{} // Not used in this test, but can be passed if needed
+	cacheService := NewAnonymousResultCacheService(nil, ttl, mockTransactionManager)
 	ctx := context.Background()
 
 	requestID := "reqNoCache"
@@ -203,5 +205,5 @@ func TestNewAnonymousResultCacheService_NilCache(t *testing.T) {
 	// Test Get on no-op service
 	retrievedResult, errGet := cacheService.Get(ctx, requestID)
 	assert.Nil(t, retrievedResult, "Get on no-op service should return nil result")
-	assert.Equal(t, service.ErrAnonymousResultNotFound, errGet, "Get on no-op service should return ErrAnonymousResultNotFound")
+	assert.Equal(t, ErrAnonymousResultNotFound, errGet, "Get on no-op service should return ErrAnonymousResultNotFound")
 }

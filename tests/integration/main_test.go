@@ -141,6 +141,12 @@ func TestMain(m *testing.M) {
 	}
 	evaluatorService := evaluator.NewLLMEvaluator(llm) // Using evaluator.NewLLMEvaluator from the correct package
 
+	// Initialize Transaction Manager
+	txManager := repository.NewTransactionManagerAdapter(db)
+	if err != nil {
+		logInstance.Fatal("Failed to create transaction manager", zap.Error(err))
+	}
+
 	// Initialize Repositories
 	quizRepository := repository.NewQuizDatabaseAdapter(db)
 	userRepository := repository.NewSQLXUserRepository(db)
@@ -148,25 +154,25 @@ func TestMain(m *testing.M) {
 
 	// Initialize AnswerCacheService
 	answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, 10*time.Minute) // Example TTL
-	answerCacheSvc := service.NewAnswerCacheService(cacheAdapter, quizRepository, answerEvaluationTTL, cfg.Embedding.SimilarityThreshold)
+	answerCacheSvc := service.NewAnswerCacheService(cacheAdapter, quizRepository, txManager, answerEvaluationTTL, cfg.Embedding.SimilarityThreshold)
 
 	// Initialize QuizService
 	categoryListTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.CategoryList, 5*time.Minute)
 	quizListTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.QuizList, 5*time.Minute)
-	quizService := service.NewQuizService(quizRepository, evaluatorService, cacheAdapter, embeddingService, answerCacheSvc, categoryListTTL, quizListTTL)
+	quizService := service.NewQuizService(quizRepository, evaluatorService, cacheAdapter, embeddingService, answerCacheSvc, txManager, categoryListTTL, quizListTTL)
 
 	// Initialize AuthService
-	authService, err := service.NewAuthService(userRepository, cfg.Auth)
+	authService, err := service.NewAuthService(userRepository, cfg.Auth, txManager)
 	if err != nil {
 		logInstance.Fatal("Failed to initialize AuthService", zap.Error(err))
 	}
 
 	// Initialize UserService - matches cmd/api/main.go (no cfg)
-	userService := service.NewUserService(userRepository, userQuizAttemptRepository, quizRepository)
+	userService := service.NewUserService(userRepository, userQuizAttemptRepository, quizRepository, txManager)
 
 	// Initialize AnonymousResultCacheService
 	anonymousResultCacheTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.LLMResponse, 5*time.Minute)
-	anonymousResultCacheSvc := service.NewAnonymousResultCacheService(cacheAdapter, anonymousResultCacheTTL)
+	anonymousResultCacheSvc := service.NewAnonymousResultCacheService(cacheAdapter, anonymousResultCacheTTL, txManager)
 
 	// Initialize Handlers
 	quizHandler := handler.NewQuizHandler(quizService, userService, anonymousResultCacheSvc)

@@ -91,10 +91,11 @@ func TestAnswerCacheServiceImpl_GetAnswerFromCache(t *testing.T) {
 
 	t.Run("Cache Hit - High Similarity", func(t *testing.T) {
 		mockCache := new(MockAnswerCacheDomainCache)
-		mockRepo := new(MockQuizRepository)                                                             // Changed to MockQuizRepository
+		mockRepo := new(MockQuizRepository) // Changed to MockQuizRepository
+		mockTxManager := new(MockTransactionManager)
 		answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, 1*time.Hour) // Example default
 		embeddingSimilarityThreshold := cfg.Embedding.SimilarityThreshold
-		service := NewAnswerCacheService(mockCache, mockRepo, answerEvaluationTTL, embeddingSimilarityThreshold)
+		service := NewAnswerCacheService(mockCache, mockRepo, mockTxManager, answerEvaluationTTL, embeddingSimilarityThreshold)
 
 		// Cache key for the HASH where evaluations are stored
 		hashCacheKey := cache.GenerateCacheKey("answer", "evaluation_map", baseQuizID)
@@ -138,9 +139,10 @@ func TestAnswerCacheServiceImpl_GetAnswerFromCache(t *testing.T) {
 	t.Run("Cache Hit - Low Similarity", func(t *testing.T) {
 		mockCache := new(MockAnswerCacheDomainCache)
 		mockRepo := new(MockQuizRepository) // Changed to MockQuizRepository
+		mockTxManager := new(MockTransactionManager)
 		answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, 1*time.Hour)
 		embeddingSimilarityThreshold := cfg.Embedding.SimilarityThreshold
-		service := NewAnswerCacheService(mockCache, mockRepo, answerEvaluationTTL, embeddingSimilarityThreshold)
+		service := NewAnswerCacheService(mockCache, mockRepo, mockTxManager, answerEvaluationTTL, embeddingSimilarityThreshold)
 
 		hashCacheKey := cache.GenerateCacheKey("answer", "evaluation_map", baseQuizID)
 		dissimilarEmbedding := []float32{0.9, 0.8, 0.7} // Dissimilar
@@ -175,9 +177,10 @@ func TestAnswerCacheServiceImpl_GetAnswerFromCache(t *testing.T) {
 	t.Run("Cache Miss - Empty Cache", func(t *testing.T) {
 		mockCache := new(MockAnswerCacheDomainCache)
 		mockRepo := new(MockQuizRepository) // Changed to MockQuizRepository
+		mockTxManager := new(MockTransactionManager)
 		answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, 1*time.Hour)
 		embeddingSimilarityThreshold := cfg.Embedding.SimilarityThreshold
-		service := NewAnswerCacheService(mockCache, mockRepo, answerEvaluationTTL, embeddingSimilarityThreshold)
+		service := NewAnswerCacheService(mockCache, mockRepo, mockTxManager, answerEvaluationTTL, embeddingSimilarityThreshold)
 		hashCacheKey := cache.GenerateCacheKey("answer", "evaluation_map", baseQuizID)
 
 		mockCache.On("HGetAll", ctx, hashCacheKey).Return(map[string]string{}, nil).Once()
@@ -192,9 +195,10 @@ func TestAnswerCacheServiceImpl_GetAnswerFromCache(t *testing.T) {
 	t.Run("Cache Miss - CacheKey Not Found (ErrCacheMiss)", func(t *testing.T) {
 		mockCache := new(MockAnswerCacheDomainCache)
 		mockRepo := new(MockQuizRepository) // Changed to MockQuizRepository
+		mockTxManager := new(MockTransactionManager)
 		answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, 1*time.Hour)
 		embeddingSimilarityThreshold := cfg.Embedding.SimilarityThreshold
-		service := NewAnswerCacheService(mockCache, mockRepo, answerEvaluationTTL, embeddingSimilarityThreshold)
+		service := NewAnswerCacheService(mockCache, mockRepo, mockTxManager, answerEvaluationTTL, embeddingSimilarityThreshold)
 		hashCacheKey := cache.GenerateCacheKey("answer", "evaluation_map", baseQuizID)
 
 		mockCache.On("HGetAll", ctx, hashCacheKey).Return(nil, domain.ErrCacheMiss).Once()
@@ -209,9 +213,10 @@ func TestAnswerCacheServiceImpl_GetAnswerFromCache(t *testing.T) {
 	t.Run("Cache Error on HGetAll", func(t *testing.T) {
 		mockCache := new(MockAnswerCacheDomainCache)
 		mockRepo := new(MockQuizRepository) // Changed to MockQuizRepository
+		mockTxManager := new(MockTransactionManager)
 		answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, 1*time.Hour)
 		embeddingSimilarityThreshold := cfg.Embedding.SimilarityThreshold
-		service := NewAnswerCacheService(mockCache, mockRepo, answerEvaluationTTL, embeddingSimilarityThreshold)
+		service := NewAnswerCacheService(mockCache, mockRepo, mockTxManager, answerEvaluationTTL, embeddingSimilarityThreshold)
 		hashCacheKey := cache.GenerateCacheKey("answer", "evaluation_map", baseQuizID)
 		expectedError := fmt.Errorf("HGetAll failed")
 
@@ -227,9 +232,10 @@ func TestAnswerCacheServiceImpl_GetAnswerFromCache(t *testing.T) {
 	t.Run("Unmarshal Error for a cached entry", func(t *testing.T) {
 		mockCache := new(MockAnswerCacheDomainCache)
 		mockRepo := new(MockQuizRepository) // Changed to MockQuizRepository
+		mockTxManager := new(MockTransactionManager)
 		answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, 1*time.Hour)
 		embeddingSimilarityThreshold := cfg.Embedding.SimilarityThreshold
-		service := NewAnswerCacheService(mockCache, mockRepo, answerEvaluationTTL, embeddingSimilarityThreshold)
+		service := NewAnswerCacheService(mockCache, mockRepo, mockTxManager, answerEvaluationTTL, embeddingSimilarityThreshold)
 		hashCacheKey := cache.GenerateCacheKey("answer", "evaluation_map", baseQuizID)
 
 		// One valid, one invalid
@@ -272,9 +278,10 @@ func TestAnswerCacheServiceImpl_GetAnswerFromCache(t *testing.T) {
 	t.Run("GetQuizByID Fails During Model Answer Update", func(t *testing.T) {
 		mockCache := new(MockAnswerCacheDomainCache)
 		mockRepo := new(MockQuizRepository) // Changed to MockQuizRepository
+		mockTxManager := new(MockTransactionManager)
 		answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, 1*time.Hour)
 		embeddingSimilarityThreshold := cfg.Embedding.SimilarityThreshold
-		service := NewAnswerCacheService(mockCache, mockRepo, answerEvaluationTTL, embeddingSimilarityThreshold)
+		service := NewAnswerCacheService(mockCache, mockRepo, mockTxManager, answerEvaluationTTL, embeddingSimilarityThreshold)
 
 		hashCacheKey := cache.GenerateCacheKey("answer", "evaluation_map", baseQuizID)
 		similarEmbedding := []float32{0.11, 0.21, 0.31}
@@ -310,9 +317,10 @@ func TestAnswerCacheServiceImpl_GetAnswerFromCache(t *testing.T) {
 
 	t.Run("Cache Service disabled (nil cache)", func(t *testing.T) {
 		mockRepo := new(MockQuizRepository) // Changed to MockQuizRepository // Repo might still be non-nil
+		mockTxManager := new(MockTransactionManager)
 		answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, 1*time.Hour)
 		embeddingSimilarityThreshold := cfg.Embedding.SimilarityThreshold
-		service := NewAnswerCacheService(nil, mockRepo, answerEvaluationTTL, embeddingSimilarityThreshold) // nil cache
+		service := NewAnswerCacheService(nil, mockRepo, mockTxManager, answerEvaluationTTL, embeddingSimilarityThreshold) // nil cache
 
 		response, err := service.GetAnswerFromCache(ctx, baseQuizID, baseUserAnswerEmbedding, baseUserAnswerText)
 		assert.NoError(t, err)
@@ -323,9 +331,10 @@ func TestAnswerCacheServiceImpl_GetAnswerFromCache(t *testing.T) {
 	t.Run("Empty User Answer Embedding", func(t *testing.T) {
 		mockCache := new(MockAnswerCacheDomainCache)
 		mockRepo := new(MockQuizRepository) // Changed to MockQuizRepository
+		mockTxManager := new(MockTransactionManager)
 		answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, 1*time.Hour)
 		embeddingSimilarityThreshold := cfg.Embedding.SimilarityThreshold
-		service := NewAnswerCacheService(mockCache, mockRepo, answerEvaluationTTL, embeddingSimilarityThreshold)
+		service := NewAnswerCacheService(mockCache, mockRepo, mockTxManager, answerEvaluationTTL, embeddingSimilarityThreshold)
 
 		response, err := service.GetAnswerFromCache(ctx, baseQuizID, []float32{}, baseUserAnswerText) // Empty embedding
 		assert.NoError(t, err)
@@ -355,10 +364,11 @@ func TestAnswerCacheServiceImpl_PutAnswerToCache(t *testing.T) {
 
 	t.Run("Successful Cache Write", func(t *testing.T) {
 		mockCache := new(MockAnswerCacheDomainCache)
+		mockTxManager := new(MockTransactionManager)
 		// mockRepo is not used by PutAnswerToCache
 		answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, testAnswerEvaluationTTL)
 		embeddingSimilarityThreshold := cfg.Embedding.SimilarityThreshold
-		service := NewAnswerCacheService(mockCache, nil, answerEvaluationTTL, embeddingSimilarityThreshold)
+		service := NewAnswerCacheService(mockCache, nil, mockTxManager, answerEvaluationTTL, embeddingSimilarityThreshold)
 
 		expectedCachedEval := CachedAnswerEvaluation{
 			Evaluation: baseEvaluation,
@@ -384,9 +394,10 @@ func TestAnswerCacheServiceImpl_PutAnswerToCache(t *testing.T) {
 
 	t.Run("Cache HSet Fails", func(t *testing.T) {
 		mockCache := new(MockAnswerCacheDomainCache)
+		mockTxManager := new(MockTransactionManager)
 		answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, testAnswerEvaluationTTL)
 		embeddingSimilarityThreshold := cfg.Embedding.SimilarityThreshold
-		service := NewAnswerCacheService(mockCache, nil, answerEvaluationTTL, embeddingSimilarityThreshold)
+		service := NewAnswerCacheService(mockCache, nil, mockTxManager, answerEvaluationTTL, embeddingSimilarityThreshold)
 		// cacheKey variable is not used directly here for HSet error, hashCacheKey is
 		expectedError := fmt.Errorf("HSet failed")
 
@@ -413,9 +424,10 @@ func TestAnswerCacheServiceImpl_PutAnswerToCache(t *testing.T) {
 
 	t.Run("Cache Expire Fails", func(t *testing.T) {
 		mockCache := new(MockAnswerCacheDomainCache)
+		mockTxManager := new(MockTransactionManager)
 		answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, testAnswerEvaluationTTL)
 		embeddingSimilarityThreshold := cfg.Embedding.SimilarityThreshold
-		service := NewAnswerCacheService(mockCache, nil, answerEvaluationTTL, embeddingSimilarityThreshold)
+		service := NewAnswerCacheService(mockCache, nil, mockTxManager, answerEvaluationTTL, embeddingSimilarityThreshold)
 		// cacheKey variable is not used directly here for Expire error, hashCacheKey is
 		expectedError := fmt.Errorf("Expire failed")
 
@@ -442,9 +454,10 @@ func TestAnswerCacheServiceImpl_PutAnswerToCache(t *testing.T) {
 	})
 
 	t.Run("Cache Service disabled (nil cache)", func(t *testing.T) {
+		mockTxManager := new(MockTransactionManager)
 		answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, testAnswerEvaluationTTL)
 		embeddingSimilarityThreshold := cfg.Embedding.SimilarityThreshold
-		service := NewAnswerCacheService(nil, nil, answerEvaluationTTL, embeddingSimilarityThreshold) // nil cache
+		service := NewAnswerCacheService(nil, nil, mockTxManager, answerEvaluationTTL, embeddingSimilarityThreshold) // nil cache
 
 		err := service.PutAnswerToCache(ctx, baseQuizID, baseUserAnswerText, baseUserAnswerEmbedding, baseEvaluation)
 		assert.NoError(t, err) // Should not error, just skip
@@ -452,9 +465,10 @@ func TestAnswerCacheServiceImpl_PutAnswerToCache(t *testing.T) {
 
 	t.Run("Empty User Answer Embedding", func(t *testing.T) {
 		mockCache := new(MockAnswerCacheDomainCache)
+		mockTxManager := new(MockTransactionManager)
 		answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, testAnswerEvaluationTTL)
 		embeddingSimilarityThreshold := cfg.Embedding.SimilarityThreshold
-		service := NewAnswerCacheService(mockCache, nil, answerEvaluationTTL, embeddingSimilarityThreshold)
+		service := NewAnswerCacheService(mockCache, nil, mockTxManager, answerEvaluationTTL, embeddingSimilarityThreshold)
 
 		err := service.PutAnswerToCache(ctx, baseQuizID, baseUserAnswerText, []float32{}, baseEvaluation) // Empty embedding
 		assert.NoError(t, err)                                                                            // Skips caching
@@ -464,9 +478,10 @@ func TestAnswerCacheServiceImpl_PutAnswerToCache(t *testing.T) {
 
 	t.Run("Nil Evaluation", func(t *testing.T) {
 		mockCache := new(MockAnswerCacheDomainCache)
+		mockTxManager := new(MockTransactionManager)
 		answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, testAnswerEvaluationTTL)
 		embeddingSimilarityThreshold := cfg.Embedding.SimilarityThreshold
-		service := NewAnswerCacheService(mockCache, nil, answerEvaluationTTL, embeddingSimilarityThreshold)
+		service := NewAnswerCacheService(mockCache, nil, mockTxManager, answerEvaluationTTL, embeddingSimilarityThreshold)
 
 		err := service.PutAnswerToCache(ctx, baseQuizID, baseUserAnswerText, baseUserAnswerEmbedding, nil) // Nil evaluation
 		assert.NoError(t, err)                                                                             // Skips caching

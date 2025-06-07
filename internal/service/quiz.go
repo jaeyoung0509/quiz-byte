@@ -136,6 +136,7 @@ type quizService struct {
 	cache            domain.Cache // Retained for InvalidateQuizCache
 	embeddingService domain.EmbeddingService
 	answerCache      AnswerCacheService
+	txManager        domain.TransactionManager // Added for transaction support
 	sfGroup          singleflight.Group
 	categoryListTTL  time.Duration // Added
 	quizListTTL      time.Duration // Added
@@ -148,6 +149,7 @@ func NewQuizService(
 	cache domain.Cache,
 	embeddingService domain.EmbeddingService,
 	answerCache AnswerCacheService,
+	txManager domain.TransactionManager, // Added for transaction support
 	categoryListTTL time.Duration, // Added
 	quizListTTL time.Duration, // Added
 ) QuizService {
@@ -157,6 +159,7 @@ func NewQuizService(
 		cache:            cache,
 		embeddingService: embeddingService,
 		answerCache:      answerCache,
+		txManager:        txManager,
 		categoryListTTL:  categoryListTTL,
 		quizListTTL:      quizListTTL,
 	}

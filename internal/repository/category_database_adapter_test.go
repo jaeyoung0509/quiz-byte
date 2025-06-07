@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context" // Added context
+	"database/sql"
 	"regexp"
 	"testing"
 	"time"
@@ -32,11 +33,11 @@ func TestGetAllCategories(t *testing.T) {
 
 	now := time.Now()
 	expectedCategories := []models.Category{
-		{ID: util.NewULID(), Name: "Category 1", Description: "Desc 1", CreatedAt: now, UpdatedAt: now},
-		{ID: util.NewULID(), Name: "Category 2", Description: "Desc 2", CreatedAt: now, UpdatedAt: now},
+		{ID: util.NewULID(), Name: "Category 1", Description: sql.NullString{"Desc 1", false}, CreatedAt: now, UpdatedAt: now},
+		{ID: util.NewULID(), Name: "Category 2", Description: sql.NullString{"Desc 2", false}, CreatedAt: now, UpdatedAt: now},
 	}
 
-	rows := sqlmock.NewRows([]string{"id", "name", "description", "created_at", "updated_at", "deleted_at"})
+	rows := sqlmock.NewRows([]string{"id", "name", "description", "created_at", "u	pdated_at", "deleted_at"})
 	for _, cat := range expectedCategories {
 		rows.AddRow(cat.ID, cat.Name, cat.Description, cat.CreatedAt, cat.UpdatedAt, nil)
 	}
@@ -81,8 +82,8 @@ func TestGetSubCategories(t *testing.T) {
 	categoryID := util.NewULID()
 	now := time.Now()
 	expectedSubCategories := []models.SubCategory{
-		{ID: util.NewULID(), CategoryID: categoryID, Name: "SubCat 1", Description: "SubDesc 1", CreatedAt: now, UpdatedAt: now},
-		{ID: util.NewULID(), CategoryID: categoryID, Name: "SubCat 2", Description: "SubDesc 2", CreatedAt: now, UpdatedAt: now},
+		{ID: util.NewULID(), CategoryID: categoryID, Name: "SubCat 1", Description: sql.NullString{"SubDesc 1", false}, CreatedAt: now, UpdatedAt: now},
+		{ID: util.NewULID(), CategoryID: categoryID, Name: "SubCat 2", Description: sql.NullString{"SubDesc 2", false}, CreatedAt: now, UpdatedAt: now},
 	}
 
 	rows := sqlmock.NewRows([]string{"id", "category_id", "name", "description", "created_at", "updated_at", "deleted_at"})
@@ -186,7 +187,7 @@ func TestConvertToDomainCategory(t *testing.T) {
 	model := &models.Category{
 		ID:          "cat1",
 		Name:        "Category 1",
-		Description: "Description 1",
+		Description: sql.NullString{"Description 1", false},
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
@@ -229,7 +230,7 @@ func TestConvertToDomainSubCategory(t *testing.T) {
 		ID:          "subcat1",
 		CategoryID:  "cat1",
 		Name:        "SubCategory 1",
-		Description: "SubDescription 1",
+		Description: sql.NullString{"SubDescription 1", false},
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}

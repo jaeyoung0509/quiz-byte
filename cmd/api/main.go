@@ -136,6 +136,9 @@ func main() {
 		appLogger.Fatal("Failed to connect to database", zap.Error(err))
 	}
 
+	// Initialize transaction manager
+	txManager := repository.NewTransactionManagerAdapter(db)
+
 	// Initialize repositories
 	quizRepository := repository.NewQuizDatabaseAdapter(db) // Renamed for clarity
 	userRepository := repository.NewSQLXUserRepository(db)
@@ -149,7 +152,7 @@ func main() {
 	// Initialize AnswerCacheService with parsed TTL and threshold
 	answerEvaluationTTL := cfg.ParseTTLStringOrDefault(cfg.CacheTTLs.AnswerEvaluation, 24*time.Hour) // Default from original service
 	embeddingSimilarityThreshold := cfg.Embedding.SimilarityThreshold
-	answerCacheSvc := service.NewAnswerCacheService(cacheAdapter, quizRepository, answerEvaluationTTL, embeddingSimilarityThreshold)
+	answerCacheSvc := service.NewAnswerCacheService(cacheAdapter, quizRepository, txManager, answerEvaluationTTL, embeddingSimilarityThreshold)
 	appLogger.Info("AnswerCacheService initialized")
 
 	// Initialize QuizService with parsed TTLs
@@ -161,23 +164,24 @@ func main() {
 		cacheAdapter, // This is the domain.Cache for QuizService's own cache needs (e.g. category list)
 		embeddingService,
 		answerCacheSvc, // Pass the initialized AnswerCacheService
+		txManager,
 		categoryListTTL,
 		quizListTTL,
 	)
 	appLogger.Info("QuizService initialized")
 
-	authService, err := service.NewAuthService(userRepository, cfg.Auth) // Pass cfg.Auth
+	authService, err := service.NewAuthService(userRepository, cfg.Auth, txManager) // Pass cfg.Auth
 	if err != nil {
 		appLogger.Fatal("Failed to create AuthService", zap.Error(err))
 	}
 	appLogger.Info("AuthService initialized")
 
-	userService := service.NewUserService(userRepository, userQuizAttemptRepository, quizRepository) // Remove cfg
+	userService := service.NewUserService(userRepository, userQuizAttemptRepository, quizRepository, txManager) // Remove cfg
 	appLogger.Info("UserService initialized")
 
 	// Initialize AnonymousResultCacheService
 	anonymousResultCacheTTL := 5 * time.Minute // As specified in the subtask
-	anonymousResultCacheSvc := service.NewAnonymousResultCacheService(cacheAdapter, anonymousResultCacheTTL)
+	anonymousResultCacheSvc := service.NewAnonymousResultCacheService(cacheAdapter, anonymousResultCacheTTL, txManager)
 	appLogger.Info("AnonymousResultCacheService initialized", zap.Duration("ttl", anonymousResultCacheTTL))
 
 	// Initialize handlers
