@@ -1,4 +1,4 @@
-![Quiz Byte Logo](logo.png)
+<img src="logo.png" alt="Quiz Byte Logo" width="200">
 
 # Quiz Byte Backend
 
