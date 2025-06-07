@@ -200,21 +200,128 @@ The command will log its progress to the console. It is designed to be idempoten
 ## API Endpoints
 
 ### Authentication
-- `POST /auth/google/login` - Initiate Google OAuth login
-- `POST /auth/google/callback` - Handle OAuth callback
-- `POST /auth/refresh` - Refresh JWT token
+- `GET /auth/google/login` - Initiate Google OAuth login (redirects to Google consent page)
+- `GET /auth/google/callback` - Handle OAuth callback with authorization code and state
+  - Query params: `code` (required), `state` (required)
+  - Returns: JSON with `access_token` and `refresh_token`
+- `POST /auth/refresh` - Refresh JWT tokens using refresh token
+  - Body: `{"refresh_token": "token_value"}`
+  - Returns: New `access_token` and `refresh_token`
+- `POST /auth/logout` - Logout user (requires authentication)
+  - Headers: `Authorization: Bearer <access_token>`
+  - Returns: Logout success message
+
+### Category Management
+- `GET /categories` - Get all available quiz categories and subcategories
+  - Public endpoint (no authentication required)
+  - Returns: Complete category hierarchy
 
 ### Quiz Management
-- `GET /quiz/categories` - Get all quiz categories
-- `GET /quiz/random/:category` - Get random quiz by category
+- `GET /quiz` - Get random quiz by subcategory
+  - Query params: `sub_category` (required)
+  - Optional authentication (anonymous users supported)
+  - Returns: Single quiz with question and options
+- `GET /quizzes` - Get multiple quizzes by subcategory
+  - Query params: `sub_category` (required), `count` (optional, default 10, max 50)
+  - Optional authentication (anonymous users supported)
+  - Returns: Array of quizzes
 - `POST /quiz/check` - Submit and evaluate quiz answer
-- `POST /quiz/bulk` - Get multiple quizzes with criteria
+  - Body: Quiz answer submission with AI-powered evaluation
+  - Optional authentication (anonymous users supported)
+  - Returns: Detailed evaluation with score, feedback, and analysis
 
-### User Management
-- `GET /users/me` - Get user profile
-- `GET /users/me/attempts` - Get user's quiz attempts
-- `GET /users/me/incorrect-answers` - Get incorrect answers for review
+### User Management (All Protected Routes)
+- `GET /users/me` - Get user profile information
+  - Headers: `Authorization: Bearer <access_token>`
+  - Returns: User profile with basic information
+
+- `GET /users/me/attempts` - Get user's quiz attempt history
+  - Headers: `Authorization: Bearer <access_token>`
+  - Query params:
+    - `limit` (optional, default 10) - Items per page
+    - `page` (optional, default 1) - Page number
+    - `category_id` (optional) - Filter by category
+    - `start_date` (optional, YYYY-MM-DD) - Filter from date
+    - `end_date` (optional, YYYY-MM-DD) - Filter to date
+    - `is_correct` (optional, true/false) - Filter by correctness
+    - `sort_by` (optional, default 'attempted_at') - Sort field
+    - `sort_order` (optional, ASC/DESC, default 'DESC') - Sort direction
+  - Returns: Paginated list of quiz attempts with filtering
+
+- `GET /users/me/incorrect-answers` - Get user's incorrect answers for review
+  - Headers: `Authorization: Bearer <access_token>`
+  - Query params: Same filtering options as attempts
+  - Returns: Paginated list of incorrect answers with explanations
+
 - `GET /users/me/recommendations` - Get personalized quiz recommendations
+  - Headers: `Authorization: Bearer <access_token>`
+  - Query params:
+    - `limit` (optional, default 10) - Number of recommendations
+    - `sub_category_id` (optional) - Filter by subcategory
+  - Returns: Personalized quiz recommendations based on performance
+
+### API Features
+- **Authentication**: JWT-based authentication with Google OAuth 2.0
+- **Optional Authentication**: Some endpoints support both authenticated and anonymous users
+- **Pagination**: User-specific endpoints support pagination with `limit`, `page`, and `offset`
+- **Filtering**: Advanced filtering options for quiz attempts and results
+- **Error Handling**: Consistent error response format with detailed error codes
+- **Rate Limiting**: Built-in protection against excessive API calls
+- **CORS Support**: Cross-origin requests enabled for web applications
+
+### Response Format
+All API responses follow a consistent JSON structure:
+
+**Success Response:**
+```json
+{
+  "data": { /* response data */ },
+  "status": "success"
+}
+```
+
+**Error Response:**
+```json
+{
+  "code": "ERROR_CODE",
+  "message": "Human readable error message",
+  "status": 400
+}
+```
+
+### Authentication
+Most user-specific endpoints require authentication via Bearer token:
+```
+Authorization: Bearer <your_jwt_token>
+```
+
+Anonymous access is supported for basic quiz functionality, allowing users to try quizzes without registration.
+
+## API Documentation
+
+The API is fully documented using Swagger/OpenAPI 3.0. You can access the interactive API documentation at:
+
+```
+http://localhost:8090/swagger/
+```
+
+### Swagger Features
+- **Interactive Testing**: Test API endpoints directly from the browser
+- **Request/Response Examples**: See example requests and responses for each endpoint
+- **Authentication Testing**: Use the "Authorize" button to test protected endpoints
+- **Schema Documentation**: Detailed documentation of all request/response models
+- **Error Code Reference**: Complete list of error codes and their meanings
+
+### API Versioning
+- Current API version: `v1`
+- Base URL: `http://localhost:8090/api`
+- Versioning strategy: URL path versioning (`/api/v1/...`)
+
+### Testing the API
+1. Start the server: `go run cmd/api/main.go`
+2. Visit `http://localhost:8090/swagger/`
+3. Use the "Authorize" button to authenticate with your JWT token
+4. Try out different endpoints with the interactive interface
 
 ## Advanced Features
 
