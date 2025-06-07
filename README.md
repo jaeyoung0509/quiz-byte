@@ -40,6 +40,168 @@ The project follows Clean Architecture principles with Domain-Driven Design:
 - **Adapter Layer**: Integration with external services (embeddings, quiz generation)
 - **Transaction Layer**: Consistent transaction boundaries across all operations
 
+## System Architecture Diagram
+
+```mermaid
+graph TB
+    subgraph "Client Applications"
+        Android[Android App]
+        Web[Web Browser]
+        API_Client[API Client]
+    end
+
+    subgraph "Quiz Byte Backend"
+        subgraph "API Server"
+            Router[Fiber Router]
+            AuthHandler[Auth Handler]
+            QuizHandler[Quiz Handler]
+            UserHandler[User Handler]
+            Middleware[Auth Middleware]
+        end
+
+        subgraph "Service Layer"
+            AuthService[Auth Service]
+            QuizService[Quiz Service]
+            UserService[User Service]
+            CacheService[Answer Cache Service]
+            BatchService[Batch Service]
+        end
+
+        subgraph "Domain Layer"
+            QuizDomain[Quiz Domain]
+            UserDomain[User Domain]
+            AuthDomain[Auth Domain]
+            TxManager[Transaction Manager]
+        end
+
+        subgraph "Repository Layer"
+            QuizRepo[Quiz Repository]
+            UserRepo[User Repository]
+            CategoryRepo[Category Repository]
+        end
+    end
+
+    subgraph "Batch Processing"
+        BatchCmd[Batch Command]
+        QuizGen[Quiz Generator]
+        DataSeeder[Data Seeder]
+    end
+
+    subgraph "External Services"
+        GoogleOAuth[Google OAuth 2.0]
+        Redis[(Redis Cache)]
+        Oracle[(Oracle Database)]
+        
+        subgraph "AI Services"
+            Gemini[Google Gemini API]
+            OpenAI[OpenAI Embeddings]
+            Ollama[Ollama Local LLM]
+        end
+    end
+
+    subgraph "Adapters"
+        OAuthAdapter[OAuth Adapter]
+        RedisAdapter[Redis Cache Adapter]
+        DBAdapter[Database Adapter]
+        EmbeddingAdapter[Embedding Adapter]
+        LLMAdapter[LLM Evaluator Adapter]
+        QuizGenAdapter[Quiz Generation Adapter]
+    end
+
+    %% Client Connections
+    Android --> Router
+    Web --> Router
+    API_Client --> Router
+
+    %% API Flow
+    Router --> Middleware
+    Middleware --> AuthHandler
+    Middleware --> QuizHandler
+    Middleware --> UserHandler
+
+    %% Handler to Service
+    AuthHandler --> AuthService
+    QuizHandler --> QuizService
+    UserHandler --> UserService
+
+    %% Service Dependencies
+    AuthService --> UserRepo
+    QuizService --> QuizRepo
+    QuizService --> CacheService
+    UserService --> UserRepo
+    CacheService --> RedisAdapter
+
+    %% Domain Layer
+    AuthService --> TxManager
+    QuizService --> TxManager
+    UserService --> TxManager
+
+    %% Repository to Adapters
+    QuizRepo --> DBAdapter
+    UserRepo --> DBAdapter
+    CategoryRepo --> DBAdapter
+
+    %% External Service Connections
+    OAuthAdapter --> GoogleOAuth
+    RedisAdapter --> Redis
+    DBAdapter --> Oracle
+    EmbeddingAdapter --> OpenAI
+    EmbeddingAdapter --> Ollama
+    LLMAdapter --> Gemini
+    QuizGenAdapter --> Gemini
+
+    %% Batch Processing
+    BatchCmd --> QuizGen
+    BatchCmd --> DataSeeder
+    QuizGen --> QuizGenAdapter
+    QuizGen --> EmbeddingAdapter
+    DataSeeder --> DBAdapter
+
+    %% Service to Adapter Connections
+    AuthService --> OAuthAdapter
+    QuizService --> LLMAdapter
+    QuizService --> EmbeddingAdapter
+    
+    %% Styling
+    classDef clientApps fill:#e1f5fe
+    classDef apiLayer fill:#f3e5f5
+    classDef serviceLayer fill:#e8f5e8
+    classDef domainLayer fill:#fff3e0
+    classDef repoLayer fill:#fce4ec
+    classDef externalServices fill:#f1f8e9
+    classDef adapters fill:#e0f2f1
+    classDef batchProcessing fill:#fff8e1
+
+    class Android,Web,API_Client clientApps
+    class Router,AuthHandler,QuizHandler,UserHandler,Middleware apiLayer
+    class AuthService,QuizService,UserService,CacheService,BatchService serviceLayer
+    class QuizDomain,UserDomain,AuthDomain,TxManager domainLayer
+    class QuizRepo,UserRepo,CategoryRepo repoLayer
+    class GoogleOAuth,Redis,Oracle,Gemini,OpenAI,Ollama externalServices
+    class OAuthAdapter,RedisAdapter,DBAdapter,EmbeddingAdapter,LLMAdapter,QuizGenAdapter adapters
+    class BatchCmd,QuizGen,DataSeeder batchProcessing
+```
+
+### Architecture Highlights
+
+#### Clean Architecture Layers
+1. **Presentation Layer** (Handlers): HTTP request/response handling
+2. **Application Layer** (Services): Business logic orchestration
+3. **Domain Layer**: Core business rules and entities
+4. **Infrastructure Layer** (Adapters): External service integration
+
+#### Port & Adapter Pattern
+- **Ports**: Domain interfaces defining contracts
+- **Adapters**: Infrastructure implementations of those contracts
+- **Benefits**: Testability, flexibility, and maintainability
+
+#### Key Components
+- **Transaction Manager**: Ensures data consistency across operations
+- **Cache Layer**: Redis-based caching with embedding similarity
+- **AI Integration**: Multiple LLM providers for different use cases
+- **Authentication**: Secure OAuth 2.0 flow with JWT tokens
+- **Batch Processing**: Automated quiz generation and data seeding
+
 ## Project Structure
 ```
 cmd/                          # Entry points
