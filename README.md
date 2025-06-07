@@ -1,3 +1,5 @@
+![Quiz Byte Logo](logo.png)
+
 # Quiz Byte Backend
 
 ## Overview
@@ -17,6 +19,9 @@ Quiz Byte is a backend system that provides a variety of quizzes in computer sci
 - Domain-driven error handling and validation
 
 ## New Features (Recent Updates)
+- **Transaction Management**: Consistent transaction handling across all service layers for data integrity
+- **Database Robustness**: Enhanced NULL handling for Oracle database compatibility
+- **Service Layer Improvements**: Unified service constructor patterns with transaction support
 - **User Management**: Complete user authentication and profile management
 - **Quiz Attempt Tracking**: Store and retrieve user quiz attempts with detailed evaluation
 - **AI-Powered Evaluation**: Advanced answer evaluation using LLM with multiple scoring metrics
@@ -28,11 +33,12 @@ Quiz Byte is a backend system that provides a variety of quizzes in computer sci
 ## Architecture
 The project follows Clean Architecture principles with Domain-Driven Design:
 - **Domain Layer**: Core business logic, entities, and interfaces
-- **Service Layer**: Application use cases and business logic orchestration
+- **Service Layer**: Application use cases and business logic orchestration with transaction management
 - **Repository Layer**: Data access with adapters and database abstraction
 - **Handler Layer**: HTTP request handling and API endpoints
 - **Infrastructure Layer**: External services (Redis, OAuth, LLM services)
 - **Adapter Layer**: Integration with external services (embeddings, quiz generation)
+- **Transaction Layer**: Consistent transaction boundaries across all operations
 
 ## Project Structure
 ```

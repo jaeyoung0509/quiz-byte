@@ -434,7 +434,7 @@ func TestToModelQuizEvaluationAndBack(t *testing.T) {
 	}
 	err = json.Unmarshal([]byte(modelEval.ScoreEvaluations.String), &unmarshaledDetails)
 	if err != nil {
-		t.Fatalf("Failed to unmarshal modelEval.ScoreEvaluations: %v. JSON was: %s", err, modelEval.ScoreEvaluations)
+		t.Fatalf("Failed to unmarshal modelEval.ScoreEvaluations: %v. JSON was: %v", err, modelEval.ScoreEvaluations.String)
 	}
 	assert.Equal(t, len(domainEval.ScoreEvaluations), len(unmarshaledDetails))
 	if len(unmarshaledDetails) > 0 && len(domainEval.ScoreEvaluations) > 0 {
