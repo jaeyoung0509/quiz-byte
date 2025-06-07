@@ -77,28 +77,33 @@ func seedBasicCategories(ctx context.Context, db *sqlx.DB, log *zap.Logger) erro
 		return fmt.Errorf("failed to read category file: %w", err)
 	}
 
-	var categoryNames []string
-	if err := json.Unmarshal(byteValue, &categoryNames); err != nil {
+	type CategoryData struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+	}
+
+	var categoryData []CategoryData
+	if err := json.Unmarshal(byteValue, &categoryData); err != nil {
 		return fmt.Errorf("failed to unmarshal category data: %w", err)
 	}
-	log.Info("Successfully loaded basic categories", zap.Int("categories_count", len(categoryNames)))
+	log.Info("Successfully loaded basic categories", zap.Int("categories_count", len(categoryData)))
 
 	categoryRepo := repository.NewCategoryDatabaseAdapter(db)
 
-	for _, categoryName := range categoryNames {
-		log.Info("Processing basic category", zap.String("name", categoryName))
+	for _, catData := range categoryData {
+		log.Info("Processing basic category", zap.String("name", catData.Name))
 
 		// Check if category already exists
-		existingCategory, err := categoryRepo.GetByName(ctx, categoryName)
+		existingCategory, err := categoryRepo.GetByName(ctx, catData.Name)
 		if err != nil {
-			return fmt.Errorf("error checking category %s: %w", categoryName, err)
+			return fmt.Errorf("error checking category %s: %w", catData.Name, err)
 		}
 
 		if existingCategory == nil {
-			log.Info("Category not found, creating", zap.String("name", categoryName))
-			newCategory := domain.NewCategory(categoryName, "")
+			log.Info("Category not found, creating", zap.String("name", catData.Name))
+			newCategory := domain.NewCategory(catData.Name, catData.Description)
 			if err := categoryRepo.SaveCategory(ctx, newCategory); err != nil {
-				return fmt.Errorf("failed to save category %s: %w", categoryName, err)
+				return fmt.Errorf("failed to save category %s: %w", catData.Name, err)
 			}
 			log.Info("Created basic category", zap.String("id", newCategory.ID), zap.String("name", newCategory.Name))
 		} else {

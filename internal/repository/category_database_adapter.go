@@ -131,10 +131,14 @@ func convertToDomainCategory(category *models.Category) *domain.Category {
 	if category == nil {
 		return nil
 	}
+	description := ""
+	if category.Description.Valid {
+		description = category.Description.String
+	}
 	return &domain.Category{
 		ID:          category.ID,
 		Name:        category.Name,
-		Description: category.Description,
+		Description: description,
 		CreatedAt:   category.CreatedAt,
 		UpdatedAt:   category.UpdatedAt,
 		// SubCategories are not preloaded with SQLx in this manner
@@ -145,10 +149,14 @@ func convertToModelCategory(category *domain.Category) *models.Category {
 	if category == nil {
 		return nil
 	}
+	var description sql.NullString
+	if category.Description != "" {
+		description = sql.NullString{String: category.Description, Valid: true}
+	}
 	return &models.Category{
 		ID:          category.ID,
 		Name:        category.Name,
-		Description: category.Description,
+		Description: description,
 		CreatedAt:   category.CreatedAt,
 		UpdatedAt:   category.UpdatedAt,
 	}
@@ -158,11 +166,15 @@ func convertToDomainSubCategory(subCategory *models.SubCategory) *domain.SubCate
 	if subCategory == nil {
 		return nil
 	}
+	description := ""
+	if subCategory.Description.Valid {
+		description = subCategory.Description.String
+	}
 	return &domain.SubCategory{
 		ID:          subCategory.ID,
 		CategoryID:  subCategory.CategoryID,
 		Name:        subCategory.Name,
-		Description: subCategory.Description,
+		Description: description,
 		CreatedAt:   subCategory.CreatedAt,
 		UpdatedAt:   subCategory.UpdatedAt,
 	}
@@ -172,11 +184,15 @@ func convertToModelSubCategory(subCategory *domain.SubCategory) *models.SubCateg
 	if subCategory == nil {
 		return nil
 	}
+	var description sql.NullString
+	if subCategory.Description != "" {
+		description = sql.NullString{String: subCategory.Description, Valid: true}
+	}
 	return &models.SubCategory{
 		ID:          subCategory.ID,
 		CategoryID:  subCategory.CategoryID,
 		Name:        subCategory.Name,
-		Description: subCategory.Description,
+		Description: description,
 		CreatedAt:   subCategory.CreatedAt,
 		UpdatedAt:   subCategory.UpdatedAt,
 	}

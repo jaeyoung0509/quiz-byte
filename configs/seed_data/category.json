@@ -1,42 +1,186 @@
 [
-  "Data Structures",
-  "Algorithms",
-  "Databases",
-  "SQL",
-  "NoSQL",
-  "REST API",
-  "GraphQL",
-  "Microservices",
-  "Networking",
-  "Concurrency",
-  "System Design",
-  "Cloud Basics",
-  "AWS",
-  "Docker",
-  "Kubernetes",
-  "CI/CD",
-  "Android Basics",
-  "Android Jetpack",
-  "Kotlin",
-  "iOS Basics",
-  "Swift",
-  "SwiftUI",
-  "Xcode",
-  "App Lifecycle",
-  "Core Data",
-  "AI Basics",
-  "Machine Learning",
-  "Deep Learning",
-  "NLP",
-  "Computer Vision",
-  "PyTorch",
-  "TensorFlow",
-  "Model Evaluation",
-  "Prompt Engineering",
-  "LLMs",
-  "Python",
-  "Go",
-  "Java",
-  "Debugging",
-  "Security"
+  {
+    "name": "Fundamentals of Computer Science",
+    "description": "Core concepts in computing, including data organization and algorithm design."
+  },
+  {
+    "name": "Backend Development",
+    "description": "Server-side logic, databases, APIs, and architecture that power applications."
+  },
+  {
+    "name": "DevOps & Cloud Computing",
+    "description": "Practices and tools that combine software development (Dev) and IT operations (Ops)."
+  },
+  {
+    "name": "Mobile Development",
+    "description": "Creating applications for mobile devices like smartphones and tablets."
+  },
+  {
+    "name": "Artificial Intelligence",
+    "description": "The theory and development of computer systems able to perform tasks normally requiring human intelligence."
+  },
+  {
+    "name": "Programming & Practices",
+    "description": "General programming languages and essential software development practices."
+  },
+  {
+    "name": "Data Structures",
+    "description": "Ways of organizing and storing data efficiently for various operations."
+  },
+  {
+    "name": "Algorithms",
+    "description": "Step-by-step procedures for solving computational problems and performing calculations."
+  },
+  {
+    "name": "Databases",
+    "description": "Systems for storing, retrieving, and managing structured data."
+  },
+  {
+    "name": "SQL",
+    "description": "Structured Query Language for managing and querying relational databases."
+  },
+  {
+    "name": "NoSQL",
+    "description": "Non-relational databases designed for flexible, scalable data storage."
+  },
+  {
+    "name": "REST API",
+    "description": "Representational State Transfer architecture for designing web services."
+  },
+  {
+    "name": "GraphQL",
+    "description": "Query language and runtime for APIs that allows clients to request specific data."
+  },
+  {
+    "name": "Microservices",
+    "description": "Architectural approach where applications are built as a collection of small, independent services."
+  },
+  {
+    "name": "Networking",
+    "description": "Concepts and protocols for connecting and communicating between computer systems."
+  },
+  {
+    "name": "Concurrency",
+    "description": "Techniques for handling multiple tasks simultaneously in software systems."
+  },
+  {
+    "name": "System Design",
+    "description": "Architectural principles for building large-scale, distributed systems."
+  },
+  {
+    "name": "Cloud Basics",
+    "description": "Fundamental concepts of cloud computing and cloud service models."
+  },
+  {
+    "name": "AWS",
+    "description": "Amazon Web Services cloud platform and its various services."
+  },
+  {
+    "name": "Docker",
+    "description": "Containerization platform for packaging and deploying applications."
+  },
+  {
+    "name": "Kubernetes",
+    "description": "Container orchestration platform for managing containerized applications at scale."
+  },
+  {
+    "name": "CI/CD",
+    "description": "Continuous Integration and Continuous Deployment practices for software development."
+  },
+  {
+    "name": "Android Basics",
+    "description": "Fundamental concepts for developing Android mobile applications."
+  },
+  {
+    "name": "Android Jetpack",
+    "description": "Suite of libraries and tools for Android app development."
+  },
+  {
+    "name": "Kotlin",
+    "description": "Modern programming language for Android and cross-platform development."
+  },
+  {
+    "name": "iOS Basics",
+    "description": "Fundamental concepts for developing iOS mobile applications."
+  },
+  {
+    "name": "Swift",
+    "description": "Programming language developed by Apple for iOS, macOS, and other platforms."
+  },
+  {
+    "name": "SwiftUI",
+    "description": "Declarative UI framework for building user interfaces across Apple platforms."
+  },
+  {
+    "name": "Xcode",
+    "description": "Apple's integrated development environment for creating apps for Apple platforms."
+  },
+  {
+    "name": "App Lifecycle",
+    "description": "Understanding how mobile applications start, run, and terminate."
+  },
+  {
+    "name": "Core Data",
+    "description": "Apple's framework for managing object graphs and persistence in iOS and macOS apps."
+  },
+  {
+    "name": "AI Basics",
+    "description": "Fundamental concepts and principles of artificial intelligence."
+  },
+  {
+    "name": "Machine Learning",
+    "description": "Algorithms and techniques that enable computers to learn from data."
+  },
+  {
+    "name": "Deep Learning",
+    "description": "Machine learning using neural networks with multiple layers."
+  },
+  {
+    "name": "NLP",
+    "description": "Natural Language Processing for understanding and generating human language."
+  },
+  {
+    "name": "Computer Vision",
+    "description": "Field of AI that enables computers to interpret and understand visual information."
+  },
+  {
+    "name": "PyTorch",
+    "description": "Open-source machine learning framework developed by Facebook."
+  },
+  {
+    "name": "TensorFlow",
+    "description": "Open-source machine learning framework developed by Google."
+  },
+  {
+    "name": "Model Evaluation",
+    "description": "Techniques for assessing the performance and quality of machine learning models."
+  },
+  {
+    "name": "Prompt Engineering",
+    "description": "Art and science of crafting effective prompts for AI language models."
+  },
+  {
+    "name": "LLMs",
+    "description": "Large Language Models and their applications in natural language processing."
+  },
+  {
+    "name": "Python",
+    "description": "High-level programming language popular for data science, AI, and web development."
+  },
+  {
+    "name": "Go",
+    "description": "Programming language developed by Google, known for simplicity and concurrency."
+  },
+  {
+    "name": "Java",
+    "description": "Object-oriented programming language widely used for enterprise applications."
+  },
+  {
+    "name": "Debugging",
+    "description": "Process of finding and fixing defects or problems in computer programs."
+  },
+  {
+    "name": "Security",
+    "description": "Practices and techniques for protecting software systems and data from threats."
+  }
 ]

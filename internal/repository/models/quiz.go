@@ -58,23 +58,23 @@ func (s *StringSlice) Scan(value interface{}) error {
 
 // Category 모델
 type Category struct {
-	ID          string       `db:"ID"`
-	Name        string       `db:"NAME"`
-	Description string       `db:"DESCRIPTION"`
-	CreatedAt   time.Time    `db:"CREATED_AT"`
-	UpdatedAt   time.Time    `db:"UPDATED_AT"`
-	DeletedAt   sql.NullTime `db:"DELETED_AT"`
+	ID          string         `db:"ID"`
+	Name        string         `db:"NAME"`
+	Description sql.NullString `db:"DESCRIPTION"`
+	CreatedAt   time.Time      `db:"CREATED_AT"`
+	UpdatedAt   time.Time      `db:"UPDATED_AT"`
+	DeletedAt   sql.NullTime   `db:"DELETED_AT"`
 }
 
 // SubCategory 모델
 type SubCategory struct {
-	ID          string       `db:"ID"`
-	CategoryID  string       `db:"CATEGORY_ID"`
-	Name        string       `db:"NAME"`
-	Description string       `db:"DESCRIPTION"`
-	CreatedAt   time.Time    `db:"CREATED_AT"`
-	UpdatedAt   time.Time    `db:"UPDATED_AT"`
-	DeletedAt   sql.NullTime `db:"DELETED_AT"`
+	ID          string         `db:"ID"`
+	CategoryID  string         `db:"CATEGORY_ID"`
+	Name        string         `db:"NAME"`
+	Description sql.NullString `db:"DESCRIPTION"`
+	CreatedAt   time.Time      `db:"CREATED_AT"`
+	UpdatedAt   time.Time      `db:"UPDATED_AT"`
+	DeletedAt   sql.NullTime   `db:"DELETED_AT"`
 }
 
 // Quiz 모델
