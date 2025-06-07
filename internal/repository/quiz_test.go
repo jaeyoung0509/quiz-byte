@@ -86,9 +86,9 @@ func TestGetAllSubCategories(t *testing.T) {
 		{
 			name: "successful retrieval",
 			mockRows: sqlmock.NewRows([]string{"id"}). // Column name changed to "id"
-				AddRow("subcat_id1").
-				AddRow("subcat_id2").
-				AddRow("subcat_id3"),
+									AddRow("subcat_id1").
+									AddRow("subcat_id2").
+									AddRow("subcat_id3"),
 			expected:      []string{"subcat_id1", "subcat_id2", "subcat_id3"},
 			expectedError: false,
 		},
@@ -278,7 +278,6 @@ func TestGetSimilarQuiz(t *testing.T) {
 	difficulty := 2
 
 	originalQueryCurrent := `SELECT
-		difficulty "difficulty",
 		difficulty "DIFFICULTY",
 		sub_category_id "SUB_CATEGORY_ID"
 	FROM quizzes
@@ -339,8 +338,8 @@ func TestGetSimilarQuiz_CurrentQuizNotFound(t *testing.T) {
 	currentQuizID := util.NewULID()
 
 	originalQueryCurrent := `SELECT
-		difficulty "difficulty",
-		sub_category_id "sub_category_id"
+		difficulty "DIFFICULTY",
+		sub_category_id "SUB_CATEGORY_ID"
 	FROM quizzes
 	WHERE id = :1
 	AND deleted_at IS NULL`
@@ -363,7 +362,6 @@ func TestGetSimilarQuiz_SimilarQuizNotFound(t *testing.T) {
 	difficulty := 2
 
 	originalQueryCurrent := `SELECT
-		difficulty "difficulty",
 		difficulty "DIFFICULTY",
 		sub_category_id "SUB_CATEGORY_ID"
 	FROM quizzes

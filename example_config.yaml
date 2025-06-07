@@ -1,0 +1,70 @@
+# Server configuration
+server:
+  port: 8080 # Port the application will listen on
+  read_timeout: 30s # Maximum duration for reading the entire request, including the body
+  write_timeout: 30s # Maximum duration before timing out writes of the response
+
+# Logger configuration
+logger:
+  level: "info" # Logging level: "debug", "info", "warn", "error", "fatal", "panic"
+  env: "development" # Application environment: "development" or "production"
+
+# Database configuration (Oracle)
+# These are typically set via environment variables (APP_DB_HOST, APP_DB_PORT, etc.)
+# Viper binds these to the struct fields.
+db:
+  host: "localhost"
+  port: 1521
+  user: "system"
+  password: "password"
+  name: "QUIZDB"
+
+# Redis configuration
+redis:
+  address: "localhost:6379" # Redis server address
+  password: "" # Redis password, leave empty if none
+  db: 0 # Redis database number
+
+# LLM Providers configuration
+llm_providers:
+  ollama_server_url: "http://localhost:11434" # URL for the Ollama server (used by general langchaingo client)
+  gemini:
+    api_key: "YOUR_GEMINI_API_KEY" # API key for Google Gemini
+    model: "gemini-pro" # Gemini model to use
+
+# Embedding service configuration
+embedding:
+  source: "openai" # Source for embeddings: "openai" or "ollama"
+  similarity_threshold: 0.95 # Threshold for similarity checks
+  ollama:
+    # Ollama specific settings for embeddings
+    model: "your_ollama_embedding_model_name" # Required if embedding.source is "ollama"
+    server_url: "http://localhost:11434" # Required if embedding.source is "ollama" (can be same or different from llm_providers.ollama_server_url)
+  openai:
+    # OpenAI specific settings for embeddings
+    api_key: "YOUR_OPENAI_API_KEY" # Required if embedding.source is "openai"
+    model: "text-embedding-ada-002" # OpenAI model for embeddings
+
+# Authentication configuration
+auth:
+  jwt:
+    secret_key: "YOUR_VERY_SECRET_JWT_KEY_MIN_32_BYTES" # Secret key for signing JWT tokens (at least 32 bytes)
+    access_token_ttl: 15m # Access token time-to-live (e.g., "15m", "1h")
+    refresh_token_ttl: 720h # Refresh token time-to-live (e.g., "24h", "7d" which is 168h, "30d" which is 720h)
+  google_oauth:
+    client_id: "YOUR_GOOGLE_OAUTH_CLIENT_ID.apps.googleusercontent.com"
+    client_secret: "YOUR_GOOGLE_OAUTH_CLIENT_SECRET"
+    redirect_url: "http://localhost:8080/api/auth/google/callback" # Should match your setup
+
+# Batch processing configuration
+batch:
+  num_questions_per_subcategory: 3 # Default number of questions to generate per subcategory in batch mode
+
+# Cache TTLs (Time-To-Live)
+cache_ttls:
+  llm_response: "24h" # Cache duration for LLM responses
+  embedding: "168h" # Cache duration for embeddings (7 days)
+  quiz_list: "1h" # Cache duration for quiz lists
+  category_list: "24h" # Cache duration for category lists
+  answer_evaluation: "24h" # Cache duration for answer evaluations
+  quiz_detail: "6h" # Cache duration for individual quiz details
