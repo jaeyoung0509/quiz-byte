@@ -17,7 +17,7 @@ db:
   port: 1521
   user: "system"
   password: "password"
-  dbname: "QUIZDB"
+  name: "QUIZDB"
 
 # Redis configuration
 redis:
@@ -36,10 +36,12 @@ llm_providers:
 embedding:
   source: "openai" # Source for embeddings: "openai" or "ollama"
   similarity_threshold: 0.95 # Threshold for similarity checks
-  ollama: # Ollama specific settings for embeddings
+  ollama:
+    # Ollama specific settings for embeddings
     model: "your_ollama_embedding_model_name" # Required if embedding.source is "ollama"
     server_url: "http://localhost:11434" # Required if embedding.source is "ollama" (can be same or different from llm_providers.ollama_server_url)
-  openai: # OpenAI specific settings for embeddings
+  openai:
+    # OpenAI specific settings for embeddings
     api_key: "YOUR_OPENAI_API_KEY" # Required if embedding.source is "openai"
     model: "text-embedding-ada-002" # OpenAI model for embeddings
 
@@ -60,9 +62,9 @@ batch:
 
 # Cache TTLs (Time-To-Live)
 cache_ttls:
-  llm_response: "24h"       # Cache duration for LLM responses
-  embedding: "168h"         # Cache duration for embeddings (7 days)
-  quiz_list: "1h"           # Cache duration for quiz lists
-  category_list: "24h"      # Cache duration for category lists
-  answer_evaluation: "24h"  # Cache duration for answer evaluations
-  quiz_detail: "6h"         # Cache duration for individual quiz details
+  llm_response: "24h" # Cache duration for LLM responses
+  embedding: "168h" # Cache duration for embeddings (7 days)
+  quiz_list: "1h" # Cache duration for quiz lists
+  category_list: "24h" # Cache duration for category lists
+  answer_evaluation: "24h" # Cache duration for answer evaluations
+  quiz_detail: "6h" # Cache duration for individual quiz details

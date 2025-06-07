@@ -46,11 +46,11 @@ type Config struct {
 	Server       ServerConfig
 	Redis        RedisConfig
 	Embedding    EmbeddingConfig
-	Batch        BatchConfig // New field for Batch operations
-	Auth         AuthConfig  `yaml:"auth"`
+	Batch        BatchConfig        // New field for Batch operations
+	Auth         AuthConfig         `yaml:"auth"`
 	LLMProviders LLMProvidersConfig `yaml:"llm_providers"`
-	Logger       LoggerConfig `yaml:"logger"`
-	CacheTTLs    CacheTTLConfig // Added CacheTTLs
+	Logger       LoggerConfig       `yaml:"logger"`
+	CacheTTLs    CacheTTLConfig     // Added CacheTTLs
 }
 
 // CacheTTLConfig holds configuration for cache TTLs.
@@ -77,8 +77,8 @@ type GeminiConfig struct {
 }
 
 type EmbeddingConfig struct {
-	Source              string  `yaml:"source"`
-	SimilarityThreshold float64 `yaml:"similarity_threshold"`
+	Source              string                `yaml:"source"`
+	SimilarityThreshold float64               `yaml:"similarity_threshold"`
 	Ollama              OllamaEmbeddingConfig `yaml:"ollama"`
 	OpenAI              OpenAIEmbeddingConfig `yaml:"openai"`
 }
@@ -136,7 +136,7 @@ func LoadConfig() (*Config, error) {
 	viper.BindEnv("db.port", "APP_DB_PORT")
 	viper.BindEnv("db.user", "APP_DB_USER")
 	viper.BindEnv("db.password", "APP_DB_PASSWORD")
-	viper.BindEnv("db.name", "APP_DB_NAME")
+	viper.BindEnv("db.name", "APP_DB_NAME") // Corrected and re-enabled
 
 	// Server environment variables
 	viper.BindEnv("server.port", "APP_SERVER_PORT")
@@ -353,7 +353,7 @@ func (c *Config) ParseTTLStringOrDefault(ttlString string, defaultDuration time.
 }
 
 func (c *Config) GetDSN() string {
-	// Oracle DSN format: user/password@host:port/service
+	// Oracle DSN format for go-ora: oracle://user:password@host:port/service_name
 	return fmt.Sprintf("oracle://%s:%s@%s:%d/%s",
 		c.DB.User,
 		c.DB.Password,

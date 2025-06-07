@@ -37,11 +37,13 @@ func TestGetAllCategories(t *testing.T) {
 		{ID: util.NewULID(), Name: "Category 2", Description: sql.NullString{String: "Desc 2", Valid: true}, CreatedAt: now, UpdatedAt: now},
 	}
 
-	rows := sqlmock.NewRows([]string{"id", "name", "description", "created_at", "u	pdated_at", "deleted_at"})
+	// Column names for sqlmock.NewRows should be uppercase to match struct fields/tags if sqlx maps to them.
+	rows := sqlmock.NewRows([]string{"ID", "NAME", "DESCRIPTION", "CREATED_AT", "UPDATED_AT", "DELETED_AT"})
 	for _, cat := range expectedCategories {
 		rows.AddRow(cat.ID, cat.Name, cat.Description, cat.CreatedAt, cat.UpdatedAt, nil)
 	}
 
+	// Query remains non-aliased as per the actual adapter code.
 	query := `SELECT id, name, description, created_at, updated_at, deleted_at FROM categories WHERE deleted_at IS NULL`
 	mock.ExpectQuery(regexp.QuoteMeta(query)).WillReturnRows(rows)
 
@@ -61,8 +63,10 @@ func TestGetAllCategories_Empty(t *testing.T) {
 	db, mock := setupCategoryTestDB(t)
 	repo := NewCategoryDatabaseAdapter(db)
 
-	rows := sqlmock.NewRows([]string{"id", "name", "description", "created_at", "updated_at", "deleted_at"})
+	// Column names for sqlmock.NewRows should be uppercase.
+	rows := sqlmock.NewRows([]string{"ID", "NAME", "DESCRIPTION", "CREATED_AT", "UPDATED_AT", "DELETED_AT"})
 
+	// Query remains non-aliased.
 	query := `SELECT id, name, description, created_at, updated_at, deleted_at FROM categories WHERE deleted_at IS NULL`
 	mock.ExpectQuery(regexp.QuoteMeta(query)).WillReturnRows(rows)
 
@@ -85,12 +89,14 @@ func TestGetSubCategories(t *testing.T) {
 		{ID: util.NewULID(), CategoryID: categoryID, Name: "SubCat 2", Description: sql.NullString{String: "SubDesc 2", Valid: true}, CreatedAt: now, UpdatedAt: now},
 	}
 
-	rows := sqlmock.NewRows([]string{"id", "category_id", "name", "description", "created_at", "updated_at", "deleted_at"})
+	// Column names for sqlmock.NewRows should be uppercase.
+	rows := sqlmock.NewRows([]string{"ID", "CATEGORY_ID", "NAME", "DESCRIPTION", "CREATED_AT", "UPDATED_AT", "DELETED_AT"})
 	for _, subCat := range expectedSubCategories {
 		rows.AddRow(subCat.ID, subCat.CategoryID, subCat.Name, subCat.Description, subCat.CreatedAt, subCat.UpdatedAt, nil)
 	}
 
-	query := `SELECT id, category_id, name, description, created_at, updated_at, deleted_at FROM sub_categories WHERE category_id = :1 AND deleted_at IS NULL` // Changed $1 to :1 to match adapter
+	// Query remains non-aliased.
+	query := `SELECT id, category_id, name, description, created_at, updated_at, deleted_at FROM sub_categories WHERE category_id = :1 AND deleted_at IS NULL`
 	mock.ExpectQuery(regexp.QuoteMeta(query)).WithArgs(categoryID).WillReturnRows(rows)
 
 	result, err := repo.GetSubCategories(context.Background(), categoryID)
@@ -111,9 +117,11 @@ func TestGetSubCategories_Empty(t *testing.T) {
 	repo := NewCategoryDatabaseAdapter(db)
 	categoryID := util.NewULID()
 
-	rows := sqlmock.NewRows([]string{"id", "category_id", "name", "description", "created_at", "updated_at", "deleted_at"})
+	// Column names for sqlmock.NewRows should be uppercase.
+	rows := sqlmock.NewRows([]string{"ID", "CATEGORY_ID", "NAME", "DESCRIPTION", "CREATED_AT", "UPDATED_AT", "DELETED_AT"})
 
-	query := `SELECT id, category_id, name, description, created_at, updated_at, deleted_at FROM sub_categories WHERE category_id = :1 AND deleted_at IS NULL` // Changed $1 to :1 to match adapter
+	// Query remains non-aliased.
+	query := `SELECT id, category_id, name, description, created_at, updated_at, deleted_at FROM sub_categories WHERE category_id = :1 AND deleted_at IS NULL`
 	mock.ExpectQuery(regexp.QuoteMeta(query)).WithArgs(categoryID).WillReturnRows(rows)
 
 	result, err := repo.GetSubCategories(context.Background(), categoryID)
@@ -194,7 +202,11 @@ func TestConvertToDomainCategory(t *testing.T) {
 	assert.NotNil(t, domainCat)
 	assert.Equal(t, model.ID, domainCat.ID)
 	assert.Equal(t, model.Name, domainCat.Name)
-	assert.Equal(t, model.Description, domainCat.Description)
+	if model.Description.Valid {
+		assert.Equal(t, model.Description.String, domainCat.Description)
+	} else {
+		assert.Equal(t, "", domainCat.Description) // Assuming NULL description converts to empty string
+	}
 	assert.True(t, model.CreatedAt.Equal(domainCat.CreatedAt)) // Use Equal for time
 	assert.True(t, model.UpdatedAt.Equal(domainCat.UpdatedAt)) // Use Equal for time
 
@@ -215,7 +227,12 @@ func TestConvertToModelCategory(t *testing.T) {
 	assert.NotNil(t, model)
 	assert.Equal(t, domainCat.ID, model.ID)
 	assert.Equal(t, domainCat.Name, model.Name)
-	assert.Equal(t, domainCat.Description, model.Description)
+	if domainCat.Description == "" {
+		assert.False(t, model.Description.Valid)
+	} else {
+		assert.True(t, model.Description.Valid)
+		assert.Equal(t, domainCat.Description, model.Description.String)
+	}
 	assert.True(t, domainCat.CreatedAt.Equal(model.CreatedAt))
 	assert.True(t, domainCat.UpdatedAt.Equal(model.UpdatedAt))
 
@@ -238,7 +255,11 @@ func TestConvertToDomainSubCategory(t *testing.T) {
 	assert.Equal(t, model.ID, domainSubCat.ID)
 	assert.Equal(t, model.CategoryID, domainSubCat.CategoryID)
 	assert.Equal(t, model.Name, domainSubCat.Name)
-	assert.Equal(t, model.Description, domainSubCat.Description)
+	if model.Description.Valid {
+		assert.Equal(t, model.Description.String, domainSubCat.Description)
+	} else {
+		assert.Equal(t, "", domainSubCat.Description) // Assuming NULL description converts to empty string
+	}
 	assert.True(t, model.CreatedAt.Equal(domainSubCat.CreatedAt))
 	assert.True(t, model.UpdatedAt.Equal(domainSubCat.UpdatedAt))
 
@@ -261,7 +282,12 @@ func TestConvertToModelSubCategory(t *testing.T) {
 	assert.Equal(t, domainSubCat.ID, model.ID)
 	assert.Equal(t, domainSubCat.CategoryID, model.CategoryID)
 	assert.Equal(t, domainSubCat.Name, model.Name)
-	assert.Equal(t, domainSubCat.Description, model.Description)
+	if domainSubCat.Description == "" {
+		assert.False(t, model.Description.Valid)
+	} else {
+		assert.True(t, model.Description.Valid)
+		assert.Equal(t, domainSubCat.Description, model.Description.String)
+	}
 	assert.True(t, domainSubCat.CreatedAt.Equal(model.CreatedAt))
 	assert.True(t, domainSubCat.UpdatedAt.Equal(model.UpdatedAt))
 
